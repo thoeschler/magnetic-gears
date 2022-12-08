@@ -431,7 +431,7 @@ class CoaxialGearsBase:
         x_M_ref = self.gear_1.x_M if gear.index == 2 else self.gear_2.x_M
         midpoint_diff = np.linalg.norm(self.gear_1.x_M - self.gear_2.x_M)
 
-        print(f"Interpolating magnetic field ... ", end="")
+        print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
         for mag in gear.magnets:
             if np.linalg.norm(mag.x_M - x_M_ref) < midpoint_diff:
@@ -640,41 +640,3 @@ class CoaxialGearsWithBarMagnets(CoaxialGearsBase):
         self.gear_2 = MagneticGearWithBarMagnets(self.n2, self.h2, self.w2, self.d2, self.R2, self.x_M_2,
                                                 self.M_0_2, self._alpha_2)
         print("Done.")
-
-
-if __name__ == '__main__':
-
-    par_ball = {"n1": 12,
-        "n2": 16,
-        "r1": 1.,
-        "r2": 1.5,
-        "R1": 8.0,
-        "R2": 12.0,
-        "D": 1.0,
-        "x_M_1": np.array([0., 0., 0.]),
-        "magnetization_strength_1": 1.,
-        "magnetization_strength_2": 1.,
-        "init_angle_1": 0.,
-        "init_angle_2": 0.
-        }
-
-    CoaxialGears = CoaxialGearsWithBallMagnets(**par_ball)
-    CoaxialGears.create_gear_meshes(mesh_size_space=1.0, mesh_size_magnets=0.2, write_to_file=True, verbose=False)
-
-    n_iterations = 19
-    d_alpha = 2. * np.pi / par_ball["n1"] / n_iterations
- 
-    for _ in range(n_iterations):
-
-        start = time.perf_counter()
-        B2 = CoaxialGears.interpolate_field_gear(CoaxialGears.gear_2, CoaxialGears.gear_1.mesh, "B", "CG", 1, 0.3, 4.0)
-        B1 = CoaxialGears.interpolate_field_gear(CoaxialGears.gear_1, CoaxialGears.gear_2.mesh, "B", "CG", 1, 0.3, 4.0)
-        end = time.perf_counter()
-        print(end - start)
-
-        tau1 = CoaxialGears.compute_torque_on_gear(CoaxialGears.gear_1, B2)
-        tau2 = CoaxialGears.compute_torque_on_gear(CoaxialGears.gear_2, B1)
-        print(tau1, tau2)
-        with open("file.csv", "a+") as f:
-            f.write(f"{CoaxialGears.angle_1} {tau1} {tau2}\n")
-        CoaxialGears.update_parameters(d_alpha, 0)
