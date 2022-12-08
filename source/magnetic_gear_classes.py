@@ -4,9 +4,9 @@ import os
 from os import path
 import numpy as np
 from scipy.spatial.transform import Rotation
-from magnet_classes import BallMagnet, BarMagnet
-from magnetic_field import free_current_potential_bar_magnet
-from mesh_generator import generate_mesh_with_markers
+from source.magnet_classes import BallMagnet, BarMagnet
+from source.magnetic_field import free_current_potential_bar_magnet
+from source.mesh_generator import generate_mesh_with_markers
 
 
 class MagneticGear:

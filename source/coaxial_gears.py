@@ -2,10 +2,10 @@ import dolfin as dlf
 import numpy as np
 import os
 from os import path
-from magnet_classes import BallMagnet, BarMagnet
-from mesh_generator import read_markers_from_file
-from magnetic_gear_classes import MagneticGearWithBallMagnets, MagneticGearWithBarMagnets
-from field_interpolator import FieldInterpolator
+from source.magnet_classes import BallMagnet, BarMagnet
+from source.mesh_generator import read_markers_from_file
+from source.magnetic_gear_classes import MagneticGearWithBallMagnets, MagneticGearWithBarMagnets
+from source.field_interpolator import FieldInterpolator
 from dolfin import LagrangeInterpolator
 import time
 

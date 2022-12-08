@@ -130,8 +130,8 @@ dmypy.json
 
 # data and meshes
 /data
-/magnetic-gears/data
+/source/data
 /meshes
-/magnetic-gears/meshes
+/source/meshes
 /results
-/magnetic-gears/results
+/source/results

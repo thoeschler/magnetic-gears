@@ -2,8 +2,8 @@ import gmsh
 import dolfin as dlf
 import numpy as np
 import os
-from magnet_classes import BallMagnet, BarMagnet, CustomVectorExpression, CustomScalarExpression
-from mesh_generator import generate_xdmf_mesh
+from source.magnet_classes import BallMagnet, BarMagnet, CustomVectorExpression, CustomScalarExpression
+from source.mesh_generator import generate_xdmf_mesh
 
 
 class FieldInterpolator:

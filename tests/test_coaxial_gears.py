@@ -1,5 +1,5 @@
 import numpy as np
-from coaxial_gears import CoaxialGearsWithBallMagnets, CoaxialGearsWithBarMagnets
+from source.coaxial_gears import CoaxialGearsWithBallMagnets, CoaxialGearsWithBarMagnets
 
 
 def test_coaxial_gears(par, gear_cls):

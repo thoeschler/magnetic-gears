@@ -1,6 +1,6 @@
 import dolfin as dlf
 import numpy as np
-from magnetic_field import free_current_potential_bar_magnet
+from source.magnetic_field import free_current_potential_bar_magnet
 
 
 class CustomVectorExpression(dlf.UserExpression):
