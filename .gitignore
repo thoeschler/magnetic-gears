@@ -133,3 +133,5 @@ dmypy.json
 /magnetic-gears/data
 /meshes
 /magnetic-gears/meshes
+/results
+/magnetic-gears/results
