@@ -200,6 +200,10 @@ class CoaxialGearsBase:
         Returns:
             str: The name of the reference field file (hdf5).
         """
+        # return if there is no data
+        if not os.path.exists(self._main_dir + "/data/"):
+            return reference_name, file_found
+
         # some parameters
         file_found = False
         chosen_file_name = None
@@ -210,7 +214,7 @@ class CoaxialGearsBase:
         par_ref = reference_name.rstrip(".h5").split("_")  # reference parameters
         domain_size_ref = float(par_ref[-1])
 
-        # get file names that end in .h5 
+        # get file names that end in .h5
         fnames = list(filter(lambda f: f.endswith(".h5"), os.listdir(self._main_dir + "/data/")))
         for fname in fnames:
             par_file = fname.rstrip(".h5").split("_")
@@ -484,7 +488,7 @@ class CoaxialGearsBase:
 
         # create directory if it does not exist
         if not path.exists(self._main_dir + "/meshes/gears/"):
-            os.mkdir(self._main_dir + "/meshes/gears/")
+            os.makedirs(self._main_dir + "/meshes/gears/")
 
         for gear, fname in zip((self.gear_1, self.gear_2), (fname_1, fname_2)):
             fname, found_file = self._find_gear_mesh_file(fname)

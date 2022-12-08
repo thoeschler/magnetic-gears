@@ -115,7 +115,7 @@ class FieldInterpolator:
 
         # create directory if it does not exist
         if not os.path.exists(self._main_dir + "/meshes/reference"):
-            os.mkdir(self._main_dir + "/meshes/reference")
+            os.makedirs(self._main_dir + "/meshes/reference")
 
         gmsh.write(self._main_dir + "/meshes/reference/" + fname + ".msh")
 
@@ -178,6 +178,10 @@ class FieldInterpolator:
             fname (str): Output file name.
             field_name (str): Name of the interpolated field.
         """
+        # create directory if it does not exist
+        if not os.path.exists(self._main_dir + "/data/"):
+            os.mkdir(self._main_dir + "/data/")
+
         print(f"Writing {fname}... ", end="")
         f = dlf.HDF5File(self.mesh.mpi_comm(), self._main_dir + "/data/" + fname, "w")
         f.write(field, field_name)
