@@ -123,7 +123,7 @@ class BallMagnet(PermanentAxialMagnet):
         diff = self.x_M - x0
         return np.isclose(np.dot(diff, diff), self.R**2)
     
-    def V_m(self, x_eigen, limit_direction=-1):
+    def Vm(self, x_eigen, limit_direction=-1):
         """
         normalized by '$M_0$'
         limit_direction in [-1, +1] where -1 corresponds to limit from the inside
@@ -238,20 +238,3 @@ class BarMagnet(PermanentAxialMagnet):
         #   H_testpoint = self.H_eigenfield_dimless((1, 2, 3))
         self.H_eigenfield_dimless = free_current_potential_bar_magnet(
             self._height, self._width, self._depth)
-
-if __name__ == '__main__':
-    import os
-    os.chdir(os.path.dirname(__file__))
-
-    n = 20
-    mesh = dlf.BoxMesh(dlf.Point(-1,-1,-1), dlf.Point(1,1,1), n, n, n)
-    Vh = dlf.VectorFunctionSpace(mesh, "DG", 1)
-
-    r = 1
-    n_magnets = 3
-    x_M_magnets = np.vstack((r * np.cos(2*np.pi/n_magnets*np.arange(n_magnets)),
-                             r * np.sin(2*np.pi/n_magnets*np.arange(n_magnets)),
-                             np.zeros(n_magnets)))
-                             
-    magnets = [BallMagnet(radius=r, magnetization_strength=1.,
-                            position_vector=x_M_magnets[:, k], rotation_matrix=np.eye(3)) for k in range(n_magnets)]

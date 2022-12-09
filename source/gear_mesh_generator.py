@@ -60,9 +60,7 @@ class GearMeshGenerator:
             physical_tag = self._model.addPhysicalGroup(3, [tag], name="magnet_" + str(n + 1), tag=int("3%.2d" % (n + 1)))
             magnet_subdomain_tags.append(physical_tag)
 
-        # set subdomain tags
-        assert hasattr(self.gear, "set_subdomain_tags")
-        self.gear.set_subdomain_tags(box_subdomain_tag, magnet_subdomain_tags, magnet_boundary_subdomain_tags)
+        return magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag
 
     def _set_mesh_size_fields_gmsh(self, mesh_size_space, mesh_size_magnets):
         assert hasattr(self, "_mag_entities")
@@ -85,7 +83,7 @@ class GearMeshGenerator:
         # include normal vector as well
         normal_vector = dlf.FacetNormal(mesh)
         dV = dlf.Measure('dx', domain=mesh, subdomain_data=cell_marker)
-        dA = dlf.Measure('dS', domain=cell_marker, subdomain_data=facet_marker)
+        dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
 
         return normal_vector, dV, dA
 
@@ -94,6 +92,7 @@ class GearMeshGenerator:
         assert isinstance(mesh_size_space, float)
         assert isinstance(mesh_size_magnets, float)
         assert isinstance(fname, str)
+        fname = fname.rstrip(".xdmf")
 
         print("Meshing gear... ", end="")
         gmsh.initialize()
@@ -107,8 +106,8 @@ class GearMeshGenerator:
         # add magnets
         assert hasattr(self, "_add_magnet")
         self._mag_entities = []
-        for magnet in self.magnets:
-            magnet_tag = self._add_magnet(magnet)
+        for magnet in self.gear.magnets:
+            magnet_tag = self._add_magnet(self._model, magnet)
             self._model.occ.cut([(3, self._box_entity)], [(3, magnet_tag)], removeObject=True, removeTool=False)
             self._mag_entities.append(magnet_tag)
         self._model.occ.synchronize()
@@ -117,7 +116,7 @@ class GearMeshGenerator:
         self._mag_boundary_entities = [self._model.getBoundary([(3, magnet_tag)], oriented=False)[0][1] \
             for magnet_tag in self._mag_entities]
 
-        self._add_physical_groups_gmsh()
+        magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag = self._add_physical_groups_gmsh()
         self._set_mesh_size_fields_gmsh(mesh_size_space, mesh_size_magnets)
 
         # generate mesh
@@ -137,7 +136,7 @@ class GearMeshGenerator:
         gmsh.finalize()
         print("Done.")
 
-        return mesh, cell_marker, facet_marker
+        return (mesh, cell_marker, facet_marker), (magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag)
 
 
 class GearWithBallMagnetsMeshGenerator(GearMeshGenerator):
@@ -148,9 +147,10 @@ class GearWithBallMagnetsMeshGenerator(GearMeshGenerator):
         diff = np.array([2. * (self.gear.r + self._pad), 0., 0.])
         self._box_entity = self._model.occ.addCylinder(*A, *diff, self.gear.R + self.gear.r + self._pad, tag=1)
         self._model.occ.synchronize()
-    
-    def _add_magnet(self, magnet):
-        magnet_tag = self._model.occ.addSphere(*magnet.x_M, magnet.R)
+
+    @staticmethod
+    def _add_magnet(model, magnet):
+        magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
         return magnet_tag
 
     def get_padded_radius(self):
@@ -160,31 +160,32 @@ class GearWithBallMagnetsMeshGenerator(GearMeshGenerator):
 class GearWithBarMagnetsMeshGenerator(GearMeshGenerator):
     def _add_box(self):
         """Create the surrounding cylindrical box."""
-        A = self.gear.x_M - np.array([self.mag.d + self._pad, 0., 0.])
+        A = self.gear.x_M - np.array([self.gear.d + self._pad, 0., 0.])
         diff = np.array([2. * (self.gear.d + self._pad), 0., 0.])
-        self._box_entity = self._model.occ.addCylinder(*A, *diff, self.R + self.w + self._pad, tag=1)
+        self._box_entity = self._model.occ.addCylinder(*A, *diff, self.gear.R + self.gear.w + self._pad, tag=1)
         self._model.occ.synchronize()
 
-    def _add_magnet(self, magnet):
+    @staticmethod
+    def _add_magnet(model, magnet):
         # add magnet corner points
-        p1 = self._model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, magnet.h]))))
-        p2 = self._model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, magnet.h]))))
-        p3 = self._model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, - magnet.h]))))
-        p4 = self._model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, - magnet.h]))))
+        p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, magnet.h]))))
+        p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, magnet.h]))))
+        p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, - magnet.h]))))
+        p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, - magnet.h]))))
         
         # combine points with lines
-        l1 = self._model.occ.addLine(p1, p2)
-        l2 = self._model.occ.addLine(p2, p3)
-        l3 = self._model.occ.addLine(p3, p4)
-        l4 = self._model.occ.addLine(p4, p1)
+        l1 = model.occ.addLine(p1, p2)
+        l2 = model.occ.addLine(p2, p3)
+        l3 = model.occ.addLine(p3, p4)
+        l4 = model.occ.addLine(p4, p1)
 
         # add front surface
-        loop = self._model.occ.addCurveLoop([l1, l2, l3, l4])
-        surf = self._model.occ.addPlaneSurface([loop])
-        self._model.occ.synchronize()
+        loop = model.occ.addCurveLoop([l1, l2, l3, l4])
+        surf = model.occ.addPlaneSurface([loop])
+        model.occ.synchronize()
 
         # extrude front surface to create the bar magnet
-        magnet_gmsh = self._model.occ.extrude([(2, surf)], 2 * magnet.d, 0, 0)
+        magnet_gmsh = model.occ.extrude([(2, surf)], 2 * magnet.d, 0, 0)
 
         # find entity with dimension 3 (the extruded volume) and save its tag
         index = np.where(np.array(magnet_gmsh)[:, 0] == 3)[0].item()
