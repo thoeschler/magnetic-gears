@@ -8,7 +8,7 @@ from source.field_interpolator import FieldInterpolator
 
 class CoaxialGearsBase:
     def __init__(self, n1, n2, R1, R2, D, x_M_1, magnetization_strength_1,
-                 magnetization_strength_2, init_angle_1=0.0, init_angle_2=0.0,
+                 magnetization_strength_2, magnet_type, init_angle_1=0.0, init_angle_2=0.0,
                  main_dir=None):
         """Base class for Coaxial Gears problem.
 
@@ -42,12 +42,13 @@ class CoaxialGearsBase:
         self._D = D
         self._x_M_1 = x_M_1
         # compute midpoint of second gear based on geometry
-        self._x_M_2 = x_M_1 + np.array([0., R1 + D + R2, 0.])  # overwrite if needed
+        # overwrite in subclass if needed
+        self._x_M_2 = x_M_1 + np.array([0., R1 + D + R2, 0.])
         self._M_0_1 = magnetization_strength_1
         self._M_0_2 = magnetization_strength_2
+        self._magnet_type = magnet_type
         self._angle_1 = init_angle_1
         self._angle_2 = init_angle_2 
-        self._magnet_type = None
 
     @property
     def magnet_type(self):
@@ -110,29 +111,6 @@ class CoaxialGearsBase:
     def _create_gears(self):
         "Purely virtual method."
         pass
-
-    def _get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
-        """Get file name of the reference mesh that is used for interpolation.
-
-        Args:
-            mesh_size_min (float): Minimum mesh size of reference field. This value
-                                   will be used as the starting mesh size at the center
-                                   of the reference mesh.
-            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
-                                   mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh.
-            domain_size (float): The maximum distance between two points of the two
-                                 gear meshes. This value will be used as the radius of
-                                 the reference mesh.
-
-        Returns:
-            str: The name of the reference mesh file (xdmf).
-        """
-        assert hasattr(self, "magnet_type")
-        assert isinstance(mesh_size_min, float)
-        assert isinstance(mesh_size_max, float)
-        return f"reference_mesh_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{int(domain_size)}.xdmf"
 
     def _find_reference_field_file(self, reference_name, tol=1.0):
         """Finds an appropriate hdf5 file that contains the reference field if
@@ -225,13 +203,11 @@ class CoaxialGearsBase:
             return reference_name, file_found
 
     def _find_gear_mesh_file(self, reference_name):
-        """"""
         """Finds an appropriate xdmf file that contains the gear's mesh if
            one exists.
 
         Args:
-            reference_name (str): The reference file name to look for. The domain
-                                  size can differ (according to tol).
+            reference_name (str): The reference file name to look for.
         Returns:
             str: The name of the gear mesh file (xdmf).
         """
@@ -290,7 +266,7 @@ class CoaxialGearsBase:
             domain_size_file = domain_size
 
         # get file name for reference mesh
-        fname_reference_mesh = self._get_reference_mesh_file_name(mesh_size_min, mesh_size_max, domain_size_file)
+        fname_reference_mesh = self.gear_1._get_reference_mesh_file_name(mesh_size_min, mesh_size_max, domain_size_file)
 
         # check if both mesh file and hdf5 file exist; if not, create both
         if not file_found or not os.path.exists(self._main_dir + "/meshes/reference/" + fname_reference_mesh):
@@ -330,7 +306,7 @@ class CoaxialGearsBase:
         else:
             raise RuntimeError()
 
-    def interpolate_field_gear(self, gear, mesh, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, parallel=False):
+    def interpolate_field_gear(self, gear, mesh, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max):
         """Interpolate a field of all magnets of a gear on a given mesh.
 
         Args:
@@ -492,8 +468,8 @@ class CoaxialGearsBase:
 
 class CoaxialGearsWithBallMagnets(CoaxialGearsBase):
     def __init__(self, n1, n2, r1, r2, R1, R2, D, x_M_1, magnetization_strength_1,
-                 magnetization_strength_2, init_angle_1=0., init_angle_2=0.,
-                 main_dir=None):
+                 magnetization_strength_2, magnet_type="Ball", init_angle_1=0.,
+                 init_angle_2=0., main_dir=None):
         """Class for Coaxial Gears problem with ball magnets.
 
         Args:
@@ -501,9 +477,8 @@ class CoaxialGearsWithBallMagnets(CoaxialGearsBase):
             r2 (float): Magnet radius in second gear.
         """
         super().__init__(n1, n2, R1, R2, D, x_M_1, magnetization_strength_1,
-                         magnetization_strength_2, init_angle_1=init_angle_1,
-                         init_angle_2=init_angle_2, main_dir=main_dir)
-        self._magnet_type = "Ball"
+                         magnetization_strength_2, magnet_type, init_angle_1,
+                         init_angle_2, main_dir)
         self._r1 = r1
         self._r2 = r2
         # compute midpoint of second gear from geometry
@@ -535,15 +510,14 @@ class CoaxialGearsWithBallMagnets(CoaxialGearsBase):
         assert hasattr(self._gear_2, "domain_radius")
         self._domain_size = self.D + 2 * (self._gear_1.domain_radius + self._gear_2.domain_radius)
 
-
 class CoaxialGearsWithBarMagnets(CoaxialGearsBase):
     def __init__(self, n1, n2, h1, h2, w1, w2, d1, d2, R1, R2, D, x_M_1,
-                 magnetization_strength_1, magnetization_strength_2, 
-                 init_angle_1=0., init_angle_2=0., main_dir=None):
+                 magnetization_strength_1, magnetization_strength_2,
+                 magnet_type="Bar", init_angle_1=0., init_angle_2=0.,
+                 main_dir=None):
         super().__init__(n1, n2, R1, R2, D, x_M_1, magnetization_strength_1,
-                         magnetization_strength_2, init_angle_1=init_angle_1,
-                         init_angle_2=init_angle_2, main_dir=main_dir)
-        self._magnet_type = "Bar"
+                         magnetization_strength_2, magnet_type, init_angle_1,
+                         init_angle_2, main_dir)
         self._h1 = h1
         self._h2 = h2
         self._w1 = w1

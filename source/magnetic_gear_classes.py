@@ -227,6 +227,28 @@ class MagneticGearWithBallMagnets(MagneticGear):
         return f"{field_name}_{cell_type}_{p_deg}_{str(mesh_size_min).replace('.', 'p')}" + \
             f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{domain_size}.h5"
 
+    def _get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
+        """Get file name of the reference mesh that is used for interpolation.
+
+        Args:
+            mesh_size_min (float): Minimum mesh size of reference field. This value
+                                   will be used as the starting mesh size at the center
+                                   of the reference mesh.
+            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
+                                   mesh size is increased up to this value with increasing
+                                   distance from the center of the reference mesh.
+            domain_size (float): The maximum distance between two points of the two
+                                 gear meshes. This value will be used as the radius of
+                                 the reference mesh.
+
+        Returns:
+            str: The name of the reference mesh file (xdmf).
+        """
+        assert isinstance(mesh_size_min, float)
+        assert isinstance(mesh_size_max, float)
+        return f"reference_mesh_{str(mesh_size_min).replace('.', 'p')}" + \
+            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{int(domain_size)}.xdmf"
+
     def get_padded_radius(self):
         return self.R + self.r + self._mesh_generator._pad
 
@@ -328,8 +350,31 @@ class MagneticGearWithBarMagnets(MagneticGear):
         assert field_name in ("Vm", "B")
 
         return f"{field_name}_{cell_type}_{p_deg}_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{self.h / self.w:.2f}"\
-                + f"_{self.h / self.d:.2f}_{domain_size}.h5"
+            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{self.h / self.w:.2f}" + \
+                f"_{self.h / self.d:.2f}_{domain_size}.h5"
+
+    def _get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
+        """Get file name of the reference mesh that is used for interpolation.
+
+        Args:
+            mesh_size_min (float): Minimum mesh size of reference field. This value
+                                   will be used as the starting mesh size at the center
+                                   of the reference mesh.
+            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
+                                   mesh size is increased up to this value with increasing
+                                   distance from the center of the reference mesh.
+            domain_size (float): The maximum distance between two points of the two
+                                 gear meshes. This value will be used as the radius of
+                                 the reference mesh.
+
+        Returns:
+            str: The name of the reference mesh file (xdmf).
+        """
+        assert isinstance(mesh_size_min, float)
+        assert isinstance(mesh_size_max, float)
+        return f"reference_mesh_{str(mesh_size_min).replace('.', 'p')}" + \
+            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{self.h / self.w:.2f}" + \
+                f"_{self.h / self.d:.2f}_{int(domain_size)}.xdmf"
 
     def get_padded_radius(self):
         return self.R + self.w + self._mesh_generator._pad
