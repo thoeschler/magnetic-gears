@@ -128,6 +128,7 @@ def generate_mesh_with_markers(file_name, delete_source_files=False):
     return mesh, cell_marker, facet_marker
 
 def read_markers_from_file(file_name):
+    file_name = file_name.rstrip(".xdmf")
     # load xdmf meshes
     mesh_file = dlf.XDMFFile(file_name + '.xdmf')
     facet_file = dlf.XDMFFile(file_name + '_facet_markers.xdmf')
