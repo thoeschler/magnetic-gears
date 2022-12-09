@@ -8,7 +8,7 @@ from source.mesh_tools import read_markers_from_file
 
 
 class MagneticGear:
-    def __init__(self, n, R, x_M, magnetization_strength, initial_angle, index, main_dir=None):
+    def __init__(self, n, R, x_M, magnetization_strength, initial_angle, index, magnet_type, main_dir=None):
         if main_dir is None:
             self._main_dir = os.getcwd()
         else:
@@ -20,9 +20,9 @@ class MagneticGear:
         self._x_M = x_M  # the mid point
         self._M_0 = magnetization_strength  # the magnetization strength
         self._angle = initial_angle  # angle in direction of spin
+        self._magnet_type = magnet_type
         self._index = index
         self._mesh_generator = None
-        self._magnet_type = None
 
     @property
     def n(self):
@@ -142,12 +142,11 @@ class MagneticGear:
 
 
 class MagneticGearWithBallMagnets(MagneticGear):
-    def __init__(self, n, r, R, x_M, magnetization_strength, init_angle, index, main_dir=None):
-        super().__init__(n, R, x_M, magnetization_strength, init_angle, index, main_dir)
+    def __init__(self, n, r, R, x_M, magnetization_strength, init_angle, index, magnet_type="Ball", main_dir=None):
+        super().__init__(n, R, x_M, magnetization_strength, init_angle, index, magnet_type, main_dir)
         self._r = r  # the magnet radius
         self._create_magnets()
         self._mesh_generator = GearWithBallMagnetsMeshGenerator(self, main_dir)
-        self._magnet_type = "Ball"
 
     @property
     def r(self):
@@ -195,7 +194,7 @@ class MagneticGearWithBallMagnets(MagneticGear):
                     + f"_{str(self.x_M[0]).replace('.', 'p')}_{str(self.x_M[1]).replace('.', 'p')}" \
                         + f"_{str(self.x_M[2]).replace('.', 'p')}.xdmf"
 
-    def _get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
+    def get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference field that is used for interpolation.
 
         Args:
@@ -227,7 +226,7 @@ class MagneticGearWithBallMagnets(MagneticGear):
         return f"{field_name}_{cell_type}_{p_deg}_{str(mesh_size_min).replace('.', 'p')}" + \
             f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{domain_size}.h5"
 
-    def _get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
+    def get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference mesh that is used for interpolation.
 
         Args:
@@ -250,18 +249,17 @@ class MagneticGearWithBallMagnets(MagneticGear):
             f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{int(domain_size)}.xdmf"
 
     def get_padded_radius(self):
-        return self.R + self.r + self._mesh_generator._pad
+        return self.R + self.r + self._mesh_generator.pad
 
 
 class MagneticGearWithBarMagnets(MagneticGear):
-    def __init__(self, n, h, w, d, R, x_M, magnetization_strength, init_angle, index, main_dir=None):
-        super().__init__(n, R, x_M, magnetization_strength, init_angle, index, main_dir)
+    def __init__(self, n, h, w, d, R, x_M, magnetization_strength, init_angle, index, magnet_type="Bar", main_dir=None):
+        super().__init__(n, R, x_M, magnetization_strength, init_angle, index, magnet_type, main_dir)
         self._h = h  # the magnet height
         self._w = w  # the magnet width
         self._d = d  # the magnet depth
         self._create_magnets()
         self._mesh_generator = GearWithBarMagnetsMeshGenerator(self, main_dir)
-        self._magnet_type = "Bar"
 
     @property
     def h(self):
@@ -320,7 +318,7 @@ class MagneticGearWithBarMagnets(MagneticGear):
                     + f"_{str(mesh_size_magnets).replace('.', 'p')}_{str(self.x_M[0]).replace('.', 'p')}" \
                         + f"_{str(self.x_M[1]).replace('.', 'p')}_{str(self.x_M[2]).replace('.', 'p')}.xdmf"
 
-    def _get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
+    def get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference field that is used for interpolation.
 
         Args:
@@ -353,7 +351,7 @@ class MagneticGearWithBarMagnets(MagneticGear):
             f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{self.h / self.w:.2f}" + \
                 f"_{self.h / self.d:.2f}_{domain_size}.h5"
 
-    def _get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
+    def get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference mesh that is used for interpolation.
 
         Args:
@@ -377,4 +375,4 @@ class MagneticGearWithBarMagnets(MagneticGear):
                 f"_{self.h / self.d:.2f}_{int(domain_size)}.xdmf"
 
     def get_padded_radius(self):
-        return self.R + self.w + self._mesh_generator._pad
+        return self.R + self.w + self._mesh_generator.pad

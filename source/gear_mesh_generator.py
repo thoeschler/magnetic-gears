@@ -23,6 +23,10 @@ class GearMeshGenerator:
     def gear(self):
         return self._magnetic_gear
 
+    @property
+    def pad(self):
+        return self._pad
+
     def _add_box(self):
         "Purely virtual method."
         pass

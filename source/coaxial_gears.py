@@ -255,7 +255,7 @@ class CoaxialGearsBase:
         fi = FieldInterpolator(domain_size, cell_type, p_deg, mesh_size_min, mesh_size_max, main_dir=self._main_dir)
 
         # find hdf5 file if there exists one for the given domain size
-        fname_reference_field = self.gear_1._get_reference_field_file_name(field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size)
+        fname_reference_field = self.gear_1.get_reference_field_file_name(field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size)
         # compare exisiting file names with this reference name
         fname_reference_field, file_found = self._find_reference_field_file(fname_reference_field)
 
@@ -266,7 +266,7 @@ class CoaxialGearsBase:
             domain_size_file = domain_size
 
         # get file name for reference mesh
-        fname_reference_mesh = self.gear_1._get_reference_mesh_file_name(mesh_size_min, mesh_size_max, domain_size_file)
+        fname_reference_mesh = self.gear_1.get_reference_mesh_file_name(mesh_size_min, mesh_size_max, domain_size_file)
 
         # check if both mesh file and hdf5 file exist; if not, create both
         if not file_found or not os.path.exists(self._main_dir + "/meshes/reference/" + fname_reference_mesh):
@@ -364,7 +364,6 @@ class CoaxialGearsBase:
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, self._reference_mesh, mesh, cell_type, p_deg)
                 field_sum += interpol_field._cpp_object.vector()
         print("Done.")
-
         return dlf.Function(V, field_sum)
 
     def _interpolate_field_magnet(self, magnet, ref_field, reference_mesh, mesh, cell_type, p_deg):
