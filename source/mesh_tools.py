@@ -1,12 +1,9 @@
-import gmsh
 import meshio
-import numpy as np
 import subprocess
 import dolfin as dlf
 # https://fenicsproject.org/olddocs/dolfinx/dev/python/demos/gmsh/demo_gmsh.py.html
 import os
-os.chdir(os.path.dirname(__file__))
-from sys import exit
+
 
 def generate_xdmf_mesh(filename, delete_source_files=True):
     """
@@ -149,46 +146,3 @@ def read_markers_from_file(file_name):
     facet_marker = dlf.cpp.mesh.MeshFunctionSizet(mesh, mvc_surf)
 
     return mesh, cell_marker, facet_marker
-
-def box_with_sphere(A, B, x_m, R, path, fname='box_with_spheres'):
-    gmsh.initialize()
-    #gmsh.option.setNumber("General.Terminal", 0)
-    model = gmsh.model()
-
-    # create the model 
-    diff = np.array(B) - np.array(A)
-    box = model.occ.addBox(*A, *diff)
-    sphere = model.occ.addSphere(*x_m, R)
-    box_w_sphere = model.occ.cut([(3, box)], [(3, sphere)], removeObject=True, removeTool=False)
-    model.occ.synchronize()
-
-    model.mesh.setSize(model.getEntities(0), 0.3)
-    model.mesh.setSize(model.getEntities(0), 0.3)
-
-    boundary = model.getBoundary([(3, box_w_sphere[0][0][1])])
-    boundary_ids = [b[1] for b in boundary]
-    model.addPhysicalGroup(2, boundary_ids, tag=10)
-    model.addPhysicalGroup(3, [1], name="Box", tag=100)
-    model.addPhysicalGroup(3, [2], name="Sphere", tag=200)
-
-    mesh = model.mesh.generate(dim=3)
-    gmsh.write(path + fname + '.msh')
-
-    gmsh.finalize()
-    return fname
-
-if __name__ == '__main__':
-    path = 'meshes/'
-
-    x_m = [5, 5, 5]
-    A = [0, 0, 0]
-    B = [10, 10, 10]
-    R = 3
-
-    fname = box_with_sphere(A, B, x_m, R, path)
-
-    mesh, cell_marker, facet_marker = generate_mesh_with_markers(path + fname, delete_source_files=True)
-
-    dlf.File(path + fname + "_mesh.pvd") << mesh
-    dlf.File(path + fname + "_cell_markers.pvd") << cell_marker
-    dlf.File(path + fname + "_facet_marker.pvd") << facet_marker
