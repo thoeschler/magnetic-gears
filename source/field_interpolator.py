@@ -3,12 +3,13 @@ import dolfin as dlf
 import numpy as np
 import os
 from source.magnet_classes import BallMagnet, BarMagnet, CustomVectorExpression, CustomScalarExpression
-from source.mesh_generator import generate_xdmf_mesh
+from source.mesh_tools import generate_xdmf_mesh
+from source.gear_mesh_generator import GearWithBallMagnetsMeshGenerator, GearWithBarMagnetsMeshGenerator
 
 
 class FieldInterpolator:
     def __init__(self, domain_radius, cell_type, p_deg, mesh_size_min, mesh_size_max, main_dir=None):
-        """_summary_
+        """Field interpolator.
 
         Args:
             domain_radius (float): When interpolating a field a spherical reference mesh with
@@ -27,8 +28,9 @@ class FieldInterpolator:
             self._main_dir = os.getcwd()
         else:
             assert isinstance(main_dir, str)
-            assert main_dir.exists(main_dir)
+            assert os.path.exists(main_dir)
             self._main_dir = main_dir
+
         self._domain_radius = domain_radius
         self._cell_type = cell_type
         self._p_deg = p_deg
@@ -40,12 +42,12 @@ class FieldInterpolator:
         return self._domain_radius
         
     @property
-    def p_deg(self):
-        return self._p_deg
-    
-    @property
     def cell_type(self):
         return self._cell_type
+
+    @property
+    def p_deg(self):
+        return self._p_deg
     
     @property
     def mesh_size_min(self):
@@ -56,9 +58,9 @@ class FieldInterpolator:
         return self._mesh_size_max
 
     def set_mesh(self, mesh):
-        self.mesh = mesh
+        self._mesh = mesh
 
-    def create_reference_mesh(self, fname="reference_mesh", type_classifier="Ball", verbose=False):
+    def create_reference_mesh(self, reference_magnet, fname="reference_mesh", verbose=False):
         """Create a reference mesh.
 
         Args:
@@ -77,10 +79,10 @@ class FieldInterpolator:
         # create surrounding box sphere
         x_M = np.zeros(3)
         box = model.occ.addSphere(*x_M, self.domain_radius)
-        if type_classifier == "Ball":
-            magnet = model.occ.addSphere(0., 0., 0., 1.)
-        elif type_classifier == "Bar":
-            raise NotImplementedError()
+        if isinstance(reference_magnet, BallMagnet):
+            magnet = GearWithBallMagnetsMeshGenerator._add_magnet(model, reference_magnet)
+        elif isinstance(reference_magnet, BarMagnet):
+            magnet = GearWithBarMagnetsMeshGenerator._add_magnet(model, reference_magnet)
         else:
             raise RuntimeError()
 
@@ -140,7 +142,7 @@ class FieldInterpolator:
         """Interpolate a given field on the reference mesh.
 
         Args:
-            field (callable): _description_
+            field (callable): The field to interpolate.
             fname (str, optional): Output file name. Defaults to None.
             write_pvd (bool, optional): If true write mesh and markers to paraview (pvd)
                                         file. Defaults to False.
@@ -214,21 +216,20 @@ class FieldInterpolator:
 
     
 if __name__ == "__main__":
-    fs = FieldInterpolator(pad=5, p_deg=1, cell_type="DG", mesh_size=0.3)
+    fi = FieldInterpolator(domain_radius=5, cell_type="CG", p_deg=1, mesh_size_min=0.3, mesh_size_max=1.0)
     
     # file names
     mesh_fname = "reference_mesh"
     
     # create mesh, write it to xdmf file and read it
-    fs.create_reference_mesh(mesh_fname)
-    fs.read_reference_mesh(mesh_fname)
-    print(fs.mesh)
+    fi.create_reference_mesh(mesh_fname)
+    fi.read_reference_mesh(mesh_fname)
 
     # create reference magnet
     ref_mag = BallMagnet(1., 1., np.zeros(3), np.eye(3))
-    B_interpol = fs.interpolate_reference_field(ref_mag.V_m, "V_m", write_pvd=True)
-    field_name = "V_m"
-    field_file_name = "V_m.h5"
+    B_interpol = fi.interpolate_reference_field(ref_mag.B, "B", write_pvd=True)
+    field_name = "B"
+    field_file_name = "B.h5"
 
-    fs.write_hdf5_file(B_interpol, field_file_name, field_name)
-    B = fs.read_hd5f_file(field_file_name, field_name)
+    fi.write_hdf5_file(B_interpol, field_file_name, field_name)
+    B = fi.read_hd5f_file(field_file_name, field_name)
