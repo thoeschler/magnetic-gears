@@ -41,7 +41,7 @@ class MagneticGear:
         return self._M_0
 
     @property
-    def alpha(self):
+    def angle(self):
         return self._angle
     
     @property
@@ -92,6 +92,17 @@ class MagneticGear:
         "Purely virtual method."
         pass
 
+    @property
+    def parameters(self):
+        par = {
+            "n": self.n,
+            "R": self.R,
+            "x_M": tuple(self.x_M),
+            "angle": self.angle,
+            "magnet_type": self.magnet_type,
+        }
+        return par
+
     def generate_mesh_and_markers(self, mesh_size_space, mesh_size_magnets, fname, write_to_pvd=True, verbose=False):
         assert hasattr(self, "_mesh_generator")
 
@@ -113,7 +124,12 @@ class MagneticGear:
         self._domain_radius = self._mesh_generator.get_padded_radius()
 
     def set_mesh_and_markers_from_file(self, file_name):
-        self._mesh, self._cell_marker, self._facet_marker = read_markers_from_file(self._main_dir + "/meshes/gears/" + file_name)
+        """Set mesh and markers from xdmf file.
+
+        Args:
+            file_name (str): Absolute path to file.
+        """
+        self._mesh, self._cell_marker, self._facet_marker = read_markers_from_file(file_name)
 
         # set subdomain tags
         subdomain_tags = np.sort(np.unique(self._cell_marker.array()))
@@ -176,6 +192,14 @@ class MagneticGearWithBallMagnets(MagneticGear):
         self._mesh_generator = GearWithBallMagnetsMeshGenerator(self, main_dir)
 
     @property
+    def parameters(self):
+        par = super().parameters
+        par.update({
+            "r": self.r
+        })
+        return par
+
+    @property
     def r(self):
         return self._r
 
@@ -195,29 +219,13 @@ class MagneticGearWithBallMagnets(MagneticGear):
         for k in range(self.n):
             # compute position and rotation matrix
             x_M = self.x_M + np.array([0.,
-                                       self.R * np.cos(2 * np.pi / self.n * k + self.alpha),
-                                       self.R * np.sin(2 * np.pi / self.n * k + self.alpha)])
-            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.alpha) * \
+                                       self.R * np.cos(2 * np.pi / self.n * k + self.angle),
+                                       self.R * np.sin(2 * np.pi / self.n * k + self.angle)])
+            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * \
                     np.array([1., 0., 0.])).as_matrix()
             self._magnets.append(BallMagnet(self.r, self.M_0, x_M, Q))
         
         print("Done.")
-
-    def get_gear_mesh_file_name(self, mesh_size_space, mesh_size_magnets):
-        """Get file name of a gear's mesh.
-
-        Args:
-            gear (MagneticGear): The magnetic gear.
-            mesh_size_space (float): The mesh size for the surrounding space.
-            mesh_size_magnets (float): The mesh size for the magnets.
-
-        Returns:
-            str: The name of the mesh file (xdmf).
-        """
-        return f"{self.magnet_type.lower()}_{self.n}_{str(self.R).replace('.', 'p')}_{str(self.r).replace('.', 'p')}" \
-                + f"_{str(mesh_size_space).replace('.', 'p')}_{str(mesh_size_magnets).replace('.', 'p')}" \
-                    + f"_{str(self.x_M[0]).replace('.', 'p')}_{str(self.x_M[1]).replace('.', 'p')}" \
-                        + f"_{str(self.x_M[2]).replace('.', 'p')}.xdmf"
 
     def get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference field that is used for interpolation.
@@ -297,6 +305,16 @@ class MagneticGearWithBarMagnets(MagneticGear):
     @property
     def d(self):
         return self._d
+
+    @property
+    def parameters(self):
+        par = super().parameters
+        par.update({
+            "h": self.h,
+            "w": self.w,
+            "d": self.d
+        })
+        return par
     
     def reference_magnet(self):
         """Return reference magnet instance.
@@ -317,29 +335,13 @@ class MagneticGearWithBarMagnets(MagneticGear):
         for k in range(self.n):
             # compute position and rotation matrix
             pos = self.x_M + np.array([0.,
-                                       self.R * np.cos(2 * np.pi / self.n * k + self.alpha),
-                                       self.R * np.sin(2 * np.pi / self.n * k + self.alpha)])
-            rot = Rotation.from_rotvec((2 * np.pi / self.n * k + self.alpha) * \
+                                       self.R * np.cos(2 * np.pi / self.n * k + self.angle),
+                                       self.R * np.sin(2 * np.pi / self.n * k + self.angle)])
+            rot = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * \
                 np.array([1., 0., 0.])).as_matrix()
             self._magnets.append(BarMagnet(self.h, self.w, self.d, self.M_0, pos, rot))
         
         print("Done.")
-
-    def get_gear_mesh_file_name(self, mesh_size_space, mesh_size_magnets):
-        """Get file name of a gear's mesh.
-
-        Args:
-            gear (MagneticGear): The magnetic gear.
-            mesh_size_space (float): The mesh size for the surrounding space.
-            mesh_size_magnets (float): The mesh size for the magnets.
-
-        Returns:
-            str: The name of the mesh file (xdmf).
-        """
-        return f"{self.magnet_type.lower()}_{self.n}_{str(self.R).replace('.', 'p')}_{str(self.h).replace('.', 'p')}" \
-                + f"_{str(self.w).replace('.', 'p')}_{str(self.d).replace('.', 'p')}_{str(mesh_size_space).replace('.', 'p')}" \
-                    + f"_{str(mesh_size_magnets).replace('.', 'p')}_{str(self.x_M[0]).replace('.', 'p')}" \
-                        + f"_{str(self.x_M[1]).replace('.', 'p')}_{str(self.x_M[2]).replace('.', 'p')}.xdmf"
 
     def get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference field that is used for interpolation.
@@ -408,3 +410,14 @@ class MagneticGearWithBarMagnets(MagneticGear):
 
     def get_padded_radius(self):
         return self.R + self.w + self._mesh_generator.pad
+
+
+"""    def save_gear_par(self):
+        par = {
+            "n": self.n,
+
+        }
+
+    def load_gear_par(self):
+
+"""

@@ -2,6 +2,7 @@ import dolfin as dlf
 from dolfin import LagrangeInterpolator
 import numpy as np
 import os
+import json
 from source.magnetic_gear_classes import MagneticGearWithBallMagnets, MagneticGearWithBarMagnets, MagneticGear
 from source.field_interpolator import FieldInterpolator
 
@@ -166,20 +167,27 @@ class CoaxialGearsBase:
             # if no file was found return the reference name
             return reference_name, file_found
 
-    def _find_reference_mesh_file(self, reference_name, tol=1.0):
-        """Finds an appropriate xdmf file that contains the reference mesh if
-           one exists.
+    def _find_reference_mesh_file(self, gear, tol=1.0):
+        # some parameters
+        file_found = False
+        chosen_file_name = None
+        par_ref = gear.parameters
 
-        Args:
-            reference_name (str): The reference file name to look for. The domain
-                                  size can differ (according to tol).
-            tol (float): The tolerance for the relative difference between a
-                         file's domain size and the problem's domain size.
-                         Defaults to 1.0.
+        # search existing gear mesh directories for matching parameter file
+        subdirs = [r[0] for r in os.walk(self._main_dir + "/meshes/gears/")]
+        for subdir in subdirs:
+            if "par.json" in os.listdir(subdir):
+                with open(f"{subdir}/par.json", "r") as f:
+                    # read paramters
+                    par = json.loads(f.read())
+                    # get paramters that need to match (all except x_M and angle)
+                    match_par = [p for p in par.keys() if p not in ("x_M", "angle")]
+                    # if all paramters match, return the subdir
+                    if all([par[p] == par_ref[p] for p in match_par]):
+                        file_found = True
+                        return subdir, file_found
+        return None, file_found
 
-        Returns:
-            str: The name of the reference mesh file (xdmf).
-        """
         # some parameters
         file_found = False
         chosen_file_name = None
@@ -208,32 +216,25 @@ class CoaxialGearsBase:
             # if no file was found return the reference name
             return reference_name, file_found
 
-    def _find_gear_mesh_file(self, reference_name):
-        """Finds an appropriate xdmf file that contains the gear's mesh if
-           one exists.
-
-        Args:
-            reference_name (str): The reference file name to look for.
-        Returns:
-            str: The name of the gear mesh file (xdmf).
-        """
+    def _find_gear_mesh_file(self, gear):
         # some parameters
         file_found = False
+        par_ref = gear.parameters
 
-        # extract parameters from reference file name
-        par_ref = reference_name.rstrip(".xdmf").split("_")
-
-        # get file names that end in .xdmf
-        fnames = list(filter(lambda f: f.endswith(".xdmf"), os.listdir(self._main_dir + "/meshes/gears/")))
-        for fname in fnames:
-            par_file = fname.rstrip(".xdmf").split("_")
-            # check if all parameters up to the last three (gear's mid point coordinates) agree
-            if par_ref[:-3] == par_file[:-3]:
-                file_found = True
-                return fname, file_found
-        
-        # if no file was found return the reference name
-        return reference_name, file_found
+        # search existing gear mesh directories for matching parameter file
+        subdirs = [r[0] for r in os.walk(self._main_dir + "/meshes/gears/")]
+        for subdir in subdirs:
+            if "par.json" in os.listdir(subdir):
+                with open(f"{subdir}/par.json", "r") as f:
+                    # read paramters
+                    par = json.loads(f.read())
+                    # get paramters that need to match (all except x_M and angle)
+                    match_par = [p for p in par.keys() if p not in ("x_M", "angle")]
+                    # if all paramters match, return the subdir
+                    if all([par[p] == par_ref[p] for p in match_par]):
+                        file_found = True
+                        return subdir, file_found
+        return None, file_found
 
     def _load_reference_field(self, gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Load reference field from hdf5 file. If no appropriate file is
@@ -299,6 +300,7 @@ class CoaxialGearsBase:
 
             # write the field to hdf5 file
             fi.write_hdf5_file(field_interpol, fname_reference_field, field_name)
+            
         else:
             # read the reference mesh
             fi.read_reference_mesh(fname_reference_mesh)
@@ -435,24 +437,32 @@ class CoaxialGearsBase:
         assert hasattr(self, "_gear_1")
         assert hasattr(self, "_gear_2")
 
-        # file names
-        fname_1 = self._gear_1.get_gear_mesh_file_name(mesh_size_space, mesh_size_magnets)
-        fname_2 = self._gear_2.get_gear_mesh_file_name(mesh_size_space, mesh_size_magnets)
-
         # create directory if it does not exist
         if not os.path.exists(self._main_dir + "/meshes/gears/"):
             os.makedirs(self._main_dir + "/meshes/gears/")
 
-        for gear, fname in zip((self._gear_1, self._gear_2), (fname_1, fname_2)):
-            fname, found_file = self._find_gear_mesh_file(fname)
-            # read markers from file
-            # if no file was found, mesh the gear first
+        for gear in self.gears:
+            dir_name, found_file = self._find_gear_mesh_file(gear)
+            # read markers and mesh from file
+            # if no file was found, generate both 
             if found_file:
-                print(f"Reading {fname.split('_')[0]} mesh... ", end="")
-                gear.set_mesh_and_markers_from_file(fname)
+                print(f"Reading gear mesh... ", end="")
+                gear.set_mesh_and_markers_from_file(f"{dir_name}/gear")
                 print("Done.")
             else:
-                gear.generate_mesh_and_markers(mesh_size_space, mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd, verbose=verbose)
+                # generate dir_name
+                subdirs = subdirs = [r[0] for r in os.walk(self._main_dir + "/meshes/gears/")]
+                # generate some random integer value
+                dir_name = f"{gear.magnet_type}_n_{gear.n}_{np.random.randint(10_000, 50_000)}"
+                while dir_name in subdirs:
+                    dir_name = np.random.randint(10_000, 50_000)
+
+                os.mkdir(f"{self._main_dir}/meshes/gears/{dir_name}")
+                gear.generate_mesh_and_markers(mesh_size_space, mesh_size_magnets, fname=f"{dir_name}/gear", \
+                    write_to_pvd=write_to_pvd, verbose=verbose)
+                # write parameter file
+                with open(f"{self._main_dir}/meshes/gears/{dir_name}/par.json", "w") as f:
+                    f.write(json.dumps(gear.parameters))
 
         self._set_domain_size()
 
@@ -499,9 +509,11 @@ class CoaxialGearsWithBallMagnets(CoaxialGearsBase):
     def _create_gears(self):
         print("Creating gears... ")
         self._gear_1 = MagneticGearWithBallMagnets(self.n1, self.r1, self.R1, self.x_M_1,
-                                                  self.M_0_1, self.angle_1, index=1)
+                                                   self.M_0_1, self.angle_1, index=1,
+                                                   main_dir=self._main_dir)
         self._gear_2 = MagneticGearWithBallMagnets(self.n2, self.r2, self.R2, self.x_M_2,
-                                                  self.M_0_2, self.angle_2, index=2)
+                                                   self.M_0_2, self.angle_2, index=2.,
+                                                   main_dir=self._main_dir)
         print("Done.")
 
     def _scale_mesh(self, mesh, magnet):
@@ -512,6 +524,7 @@ class CoaxialGearsWithBallMagnets(CoaxialGearsBase):
         assert hasattr(self._gear_1, "domain_radius")
         assert hasattr(self._gear_2, "domain_radius")
         self._domain_size = self.D + 2 * (self._gear_1.domain_radius + self._gear_2.domain_radius)
+
 
 class CoaxialGearsWithBarMagnets(CoaxialGearsBase):
     def __init__(self, n1, n2, h1, h2, w1, w2, d1, d2, R1, R2, D, x_M_1,
@@ -558,9 +571,9 @@ class CoaxialGearsWithBarMagnets(CoaxialGearsBase):
     def _create_gears(self):
         print("Creating gears... ")
         self._gear_1 = MagneticGearWithBarMagnets(self.n1, self.h1, self.w1, self.d1, self.R1, self.x_M_1,
-                                                self.M_0_1, self._angle_1, index=1)
+                                                  self.M_0_1, self._angle_1, index=1, main_dir=self._main_dir)
         self._gear_2 = MagneticGearWithBarMagnets(self.n2, self.h2, self.w2, self.d2, self.R2, self.x_M_2,
-                                                self.M_0_2, self._angle_2, index=2)
+                                                  self.M_0_2, self._angle_2, index=2, main_dir=self._main_dir)
         print("Done.")
     
     def _scale_mesh(self, mesh, magnet):
@@ -570,4 +583,4 @@ class CoaxialGearsWithBarMagnets(CoaxialGearsBase):
         # set domain size (the maximum distance between two points on either of the two meshes)
         assert hasattr(self._gear_1, "domain_radius")
         assert hasattr(self._gear_2, "domain_radius")
-        self._domain_size = self.D + 2 * (self.gear_1.domain_radius + self._gear_2.domain_radius)
+        self._domain_size = self.D + 2 * (self._gear_1.domain_radius + self._gear_2.domain_radius)

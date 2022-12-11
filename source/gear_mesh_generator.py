@@ -93,6 +93,7 @@ class GearMeshGenerator:
         assert isinstance(mesh_size_magnets, float)
         assert isinstance(fname, str)
         fname = fname.rstrip(".xdmf")
+        fname = fname.strip("/")
 
         print("Meshing gear... ", end="")
         gmsh.initialize()
