@@ -83,6 +83,11 @@ class MagneticGear:
         assert hasattr(self, "_dA")
         return self._dA
 
+    @property
+    def reference_field(self):
+        assert hasattr(self, "_reference_field")
+        return self._reference_field
+
     def _create_magnets(self):
         "Purely virtual method."
         pass
@@ -114,6 +119,23 @@ class MagneticGear:
         # set differential measures and domain radius
         self._normal_vector, self._dV, self._dA = self._mesh_generator.get_differential_measures(self._mesh, self._cell_marker, self._facet_marker)
         self._domain_radius = self._mesh_generator.get_padded_radius()
+
+    def set_reference_field(self, reference_field, field_name):
+        """Set reference field for magnetic gear.
+
+        Args:
+            reference_field (dlf.Function): The reference field (field on a suitable
+                                            reference mesh).
+        """
+        assert isinstance(reference_field, dlf.Function)
+        assert isinstance(field_name, str)
+        
+        if field_name == "B":
+            self._B_ref = reference_field
+        elif field_name == "Vm":
+            self._Vm_ref = reference_field
+        else:
+            raise RuntimeError()
 
     def update_parameters(self, d_angle):
         # update the angle
@@ -152,7 +174,7 @@ class MagneticGearWithBallMagnets(MagneticGear):
     def r(self):
         return self._r
 
-    def _reference_magnet(self):
+    def reference_magnet(self):
         """Return reference magnet instance.
 
         Returns:
@@ -176,11 +198,10 @@ class MagneticGearWithBallMagnets(MagneticGear):
         
         print("Done.")
 
-    def get_gear_mesh_file_name(self, prefix, mesh_size_space, mesh_size_magnets):
+    def get_gear_mesh_file_name(self, mesh_size_space, mesh_size_magnets):
         """Get file name of a gear's mesh.
 
         Args:
-            prefix (str): Some prefix (e.g. "gear_1").
             gear (MagneticGear): The magnetic gear.
             mesh_size_space (float): The mesh size for the surrounding space.
             mesh_size_magnets (float): The mesh size for the magnets.
@@ -188,8 +209,7 @@ class MagneticGearWithBallMagnets(MagneticGear):
         Returns:
             str: The name of the mesh file (xdmf).
         """
-        assert "_" not in prefix  # this would break the logic
-        return f"{prefix}_{self.magnet_type.lower()}_{self.n}_{str(self.R).replace('.', 'p')}_{str(self.r).replace('.', 'p')}" \
+        return f"{self.magnet_type.lower()}_{self.n}_{str(self.R).replace('.', 'p')}_{str(self.r).replace('.', 'p')}" \
                 + f"_{str(mesh_size_space).replace('.', 'p')}_{str(mesh_size_magnets).replace('.', 'p')}" \
                     + f"_{str(self.x_M[0]).replace('.', 'p')}_{str(self.x_M[1]).replace('.', 'p')}" \
                         + f"_{str(self.x_M[2]).replace('.', 'p')}.xdmf"
@@ -273,7 +293,7 @@ class MagneticGearWithBarMagnets(MagneticGear):
     def d(self):
         return self._d
     
-    def _reference_magnet(self):
+    def reference_magnet(self):
         """Return reference magnet instance.
 
         The reference magnet has a fixed height of 1.0. Width and depth are
@@ -300,11 +320,10 @@ class MagneticGearWithBarMagnets(MagneticGear):
         
         print("Done.")
 
-    def get_gear_mesh_file_name(self, prefix, mesh_size_space, mesh_size_magnets):
+    def get_gear_mesh_file_name(self, mesh_size_space, mesh_size_magnets):
         """Get file name of a gear's mesh.
 
         Args:
-            prefix (str): Some prefix (e.g. "gear_1").
             gear (MagneticGear): The magnetic gear.
             mesh_size_space (float): The mesh size for the surrounding space.
             mesh_size_magnets (float): The mesh size for the magnets.
@@ -312,8 +331,7 @@ class MagneticGearWithBarMagnets(MagneticGear):
         Returns:
             str: The name of the mesh file (xdmf).
         """
-        assert "_" not in prefix  # this would break the logic
-        return f"{prefix}_{self.magnet_type.lower()}_{self.n}_{str(self.R).replace('.', 'p')}_{str(self.h).replace('.', 'p')}" \
+        return f"{self.magnet_type.lower()}_{self.n}_{str(self.R).replace('.', 'p')}_{str(self.h).replace('.', 'p')}" \
                 + f"_{str(self.w).replace('.', 'p')}_{str(self.d).replace('.', 'p')}_{str(mesh_size_space).replace('.', 'p')}" \
                     + f"_{str(mesh_size_magnets).replace('.', 'p')}_{str(self.x_M[0]).replace('.', 'p')}" \
                         + f"_{str(self.x_M[1]).replace('.', 'p')}_{str(self.x_M[2]).replace('.', 'p')}.xdmf"
@@ -346,10 +364,14 @@ class MagneticGearWithBarMagnets(MagneticGear):
         assert isinstance(mesh_size_max, float)
         assert isinstance(domain_size, int)
         assert field_name in ("Vm", "B")
+        
+        # reference width and depth
+        w_ref = self.w / self.h
+        d_ref = self.d / self.h
 
         return f"{field_name}_{cell_type}_{p_deg}_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{self.h / self.w:.2f}" + \
-                f"_{self.h / self.d:.2f}_{domain_size}.h5"
+            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{str(w_ref).replace('.', 'p'):.4s}" + \
+                f"_{str(d_ref).replace('.', 'p'):.4s}_{domain_size}.h5"
 
     def get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
         """Get file name of the reference mesh that is used for interpolation.
@@ -370,9 +392,14 @@ class MagneticGearWithBarMagnets(MagneticGear):
         """
         assert isinstance(mesh_size_min, float)
         assert isinstance(mesh_size_max, float)
+
+        # reference width and depth
+        w_ref = self.w / self.h
+        d_ref = self.d / self.h
+
         return f"reference_mesh_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{self.h / self.w:.2f}" + \
-                f"_{self.h / self.d:.2f}_{int(domain_size)}.xdmf"
+            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{str(w_ref).replace('.', 'p'):.4s}" + \
+                f"_{str(d_ref).replace('.', 'p'):.4s}_{int(domain_size)}.xdmf"
 
     def get_padded_radius(self):
         return self.R + self.w + self._mesh_generator.pad
