@@ -1,10 +1,9 @@
 import dolfin as dlf
-from field_interpolator import FieldInterpolator
-from coaxial_gears import CoaxialGearsWithBallMagnets
-from magnet_classes import BallMagnet, CustomVectorExpression
+from source.field_interpolator import FieldInterpolator
+from source.magnet_classes import BallMagnet, CustomVectorExpression
 import numpy as np
 import gmsh
-from mesh_generator import generate_xdmf_mesh
+from source.mesh_tools import generate_xdmf_mesh
 from scipy.spatial.transform import Rotation
 
 
