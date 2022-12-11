@@ -72,7 +72,6 @@ class FieldInterpolator:
 
         """
         fname = fname.split(".")[0]
-        print(fname)
         print("Creating reference mesh... ", end="")
         gmsh.initialize()
         if not verbose:

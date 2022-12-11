@@ -96,10 +96,15 @@ class MagneticGear:
         assert hasattr(self, "_mesh_generator")
 
         # set mesh, markers and subdomain tags
-        (self._mesh, self._cell_marker, self._facet_marker), (self._magnet_subdomain_tags, \
-            self._magnet_boundary_subdomain_tags, self.box_subdomain_tag) = self._mesh_generator.generate_mesh(
-                mesh_size_space, mesh_size_magnets, fname, write_to_pvd=write_to_pvd, verbose=verbose
-                )
+        mesh_and_marker, tags = self._mesh_generator.generate_mesh(
+            mesh_size_space, mesh_size_magnets, fname, write_to_pvd=write_to_pvd, verbose=verbose
+            )
+        
+        # unpack mesh, markers and tags
+        self._mesh = mesh_and_marker.mesh
+        self._cell_marker, self._facet_marker = mesh_and_marker.cell_marker, mesh_and_marker.facet_marker
+        self._magnet_subdomain_tags, self._magnet_boundary_subdomain_tags = tags.magnet_subdomain, tags.magnet_boundary_subdomain
+        self._box_subdomain_tag = tags.box_subdomain
 
         # set differential measures
         self._normal_vector, self._dV, self._dA = self._mesh_generator.get_differential_measures(self._mesh, self._cell_marker, self._facet_marker)

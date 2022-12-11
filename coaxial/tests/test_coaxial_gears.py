@@ -1,13 +1,20 @@
 import numpy as np
 from coaxial.coaxial_gears import CoaxialGearsWithBallMagnets, CoaxialGearsWithBarMagnets
+import subprocess
+import os
 
 
 def test_coaxial_gears(par, gear_cls):
-    CoaxialGears = gear_cls(**par)
+    # create test directory
+    test_dir = os.getcwd() + "/test_dir"
+    if not os.path.exists(test_dir):
+        os.mkdir(test_dir)
+    
+    CoaxialGears = gear_cls(**par, main_dir=test_dir)
     CoaxialGears.set_gear_meshes(mesh_size_space=1.0, mesh_size_magnets=0.2, write_to_pvd=True, verbose=False)
 
-    n_iterations = 24
-    d_alpha = 2. * np.pi / par_ball["n1"] / n_iterations
+    n_iterations = 4
+    d_alpha = 2. * np.pi / par["n1"] / n_iterations
  
     for _ in range(n_iterations):
         B2 = CoaxialGears.interpolate_field_gear(CoaxialGears.gear_2, CoaxialGears.gear_1.mesh, "B", "CG", 1, 0.3, 4.0)
@@ -16,9 +23,13 @@ def test_coaxial_gears(par, gear_cls):
         tau1 = CoaxialGears.compute_torque_on_gear(CoaxialGears.gear_1, B2)
         tau2 = CoaxialGears.compute_torque_on_gear(CoaxialGears.gear_2, B1)
 
-        with open("data/test_coaxial_gears.csv", "a+") as f:
+        with open(test_dir + "/test_coaxial_gears.csv", "a+") as f:
             f.write(f"{CoaxialGears.angle_1} {tau1} {tau2}\n")
-        CoaxialGears.update_parameters(d_alpha, 0)
+        CoaxialGears.update_parameters(d_alpha, 0.)
+    
+    # remove test directory
+    subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+
 
 
 if __name__ == "__main__":
@@ -38,8 +49,8 @@ if __name__ == "__main__":
     }
 
     par_bar = {
-        "n1": 2,
-        "n2": 2,
+        "n1": 4,
+        "n2": 6,
         "h1": .5,
         "h2": .5,
         "w1": .5,
