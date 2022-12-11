@@ -2,8 +2,8 @@ import dolfin as dlf
 import gmsh
 import numpy as np
 from scipy.spatial.transform import Rotation
-from magnet_classes import BallMagnet, CustomVectorExpression
-from mesh_generator import generate_mesh_with_markers
+from source.magnet_classes import BallMagnet, CustomVectorExpression
+from source.mesh_tools import generate_mesh_with_markers
 import itertools as it
 from time import time
 
