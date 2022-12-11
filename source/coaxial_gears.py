@@ -2,7 +2,7 @@ import dolfin as dlf
 from dolfin import LagrangeInterpolator
 import numpy as np
 import os
-from source.magnetic_gear_classes import MagneticGearWithBallMagnets, MagneticGearWithBarMagnets
+from source.magnetic_gear_classes import MagneticGearWithBallMagnets, MagneticGearWithBarMagnets, MagneticGear
 from source.field_interpolator import FieldInterpolator
 
 
@@ -107,6 +107,12 @@ class CoaxialGearsBase:
     def gear_2(self):
         assert hasattr(self, "_gear_2")
         return self._gear_2
+
+    @property
+    def gears(self):
+        assert hasattr(self, "_gear_1")
+        assert hasattr(self, "_gear_2")
+        return (self._gear_1, self._gear_2)
 
     def _create_gears(self):
         "Purely virtual method."
@@ -229,7 +235,7 @@ class CoaxialGearsBase:
         # if no file was found return the reference name
         return reference_name, file_found
 
-    def _load_reference_field(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
+    def _load_reference_field(self, gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Load reference field from hdf5 file. If no appropriate file is
            found the file we be written first.
 
@@ -247,6 +253,7 @@ class CoaxialGearsBase:
                                  gear meshes. This value will be used as the radius of
                                  the reference mesh.
         """
+        assert isinstance(gear, MagneticGear)
         assert field_name in ("Vm", "B"), "I do not know this field."
         vector_valued = field_name == "B"  # check if field is vector valued
         domain_size = int(domain_size)  # cast domain size to int
@@ -255,7 +262,7 @@ class CoaxialGearsBase:
         fi = FieldInterpolator(domain_size, cell_type, p_deg, mesh_size_min, mesh_size_max, main_dir=self._main_dir)
 
         # find hdf5 file if there exists one for the given domain size
-        fname_reference_field = self.gear_1.get_reference_field_file_name(field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size)
+        fname_reference_field = gear.get_reference_field_file_name(field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size)
         # compare exisiting file names with this reference name
         fname_reference_field, file_found = self._find_reference_field_file(fname_reference_field)
 
@@ -266,12 +273,12 @@ class CoaxialGearsBase:
             domain_size_file = domain_size
 
         # get file name for reference mesh
-        fname_reference_mesh = self.gear_1.get_reference_mesh_file_name(mesh_size_min, mesh_size_max, domain_size_file)
+        fname_reference_mesh = gear.get_reference_mesh_file_name(mesh_size_min, mesh_size_max, domain_size_file)
 
         # check if both mesh file and hdf5 file exist; if not, create both
         if not file_found or not os.path.exists(self._main_dir + "/meshes/reference/" + fname_reference_mesh):
             # create reference mesh
-            fi.create_reference_mesh(reference_magnet=self.gear_1._reference_magnet(), \
+            fi.create_reference_mesh(reference_magnet=gear.reference_magnet(), \
                 fname=fname_reference_mesh.rstrip(".xdmf"))
 
             # read the reference mesh
@@ -279,8 +286,7 @@ class CoaxialGearsBase:
             self._reference_mesh = dlf.Mesh(fi.mesh)
 
             # create reference magnet and check if the field is implemented
-            assert hasattr(self.gear_1, "_reference_magnet")
-            ref_mag = self.gear_1._reference_magnet()
+            ref_mag = gear.reference_magnet()
             assert hasattr(ref_mag, field_name), f"{field_name} is not implemented for this magnet class"
 
             # interpolate reference field
@@ -299,12 +305,10 @@ class CoaxialGearsBase:
             self._reference_mesh = dlf.Mesh(fi.mesh)
 
         # read reference field from hd5f file
-        if field_name == "B":
-            self._B_ref = fi.read_hd5f_file(fname_reference_field, field_name, vector_valued=vector_valued)
-        elif field_name == "Vm":
-            self._Vm_ref = fi.read_hd5f_file(fname_reference_field, field_name, vector_valued=vector_valued)
-        else:
-            raise RuntimeError()
+        reference_field = fi.read_hd5f_file(fname_reference_field, field_name, vector_valued=vector_valued)
+
+        # set reference field for gear
+        gear.set_reference_field(reference_field, field_name)
 
     def interpolate_field_gear(self, gear, mesh, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max):
         """Interpolate a field of all magnets of a gear on a given mesh.
@@ -332,16 +336,16 @@ class CoaxialGearsBase:
         assert hasattr(self, "_domain_size")
   
         # load reference field if not done yet
-        if not hasattr(self, f"_{field_name}_ref"):
-            self._load_reference_field(field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
+        if not hasattr(gear, f"_{field_name}_ref"):
+            self._load_reference_field(gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
 
         # create reference field handler
         if field_name == "B":
-            ref_field = self._B_ref
+            ref_field = gear._B_ref
             # new function space
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
         elif field_name == "Vm":
-            ref_field = self._Vm_ref
+            ref_field = gear._Vm_ref
             # new function space
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
@@ -432,8 +436,8 @@ class CoaxialGearsBase:
         assert hasattr(self, "_gear_2")
 
         # file names
-        fname_1 = self._gear_1.get_gear_mesh_file_name("gear1", mesh_size_space, mesh_size_magnets)
-        fname_2 = self._gear_2.get_gear_mesh_file_name("gear2", mesh_size_space, mesh_size_magnets)
+        fname_1 = self._gear_1.get_gear_mesh_file_name(mesh_size_space, mesh_size_magnets)
+        fname_2 = self._gear_2.get_gear_mesh_file_name(mesh_size_space, mesh_size_magnets)
 
         # create directory if it does not exist
         if not os.path.exists(self._main_dir + "/meshes/gears/"):
