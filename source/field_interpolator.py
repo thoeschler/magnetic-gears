@@ -22,7 +22,8 @@ class FieldInterpolator:
             mesh_size_max (float): Maximum mesh size of reference mesh. The reference
                                    mesh size is increased up to this value with increasing
                                    distance from the center of the reference mesh.
-            path (str, optional): The main path. Defaults to None.
+            main_dir (str, optional): The main directory. Defaults to None. Current working
+                                      directory will then be used.
         """
         if main_dir is None:
             self._main_dir = os.getcwd()
@@ -70,6 +71,8 @@ class FieldInterpolator:
                                       displayed. Defaults to False.
 
         """
+        fname = fname.split(".")[0]
+        print(fname)
         print("Creating reference mesh... ", end="")
         gmsh.initialize()
         if not verbose:
@@ -213,23 +216,3 @@ class FieldInterpolator:
         f.read(u, field_name)
         print("Done.")
         return u
-
-    
-if __name__ == "__main__":
-    fi = FieldInterpolator(domain_radius=5, cell_type="CG", p_deg=1, mesh_size_min=0.3, mesh_size_max=1.0)
-    
-    # file names
-    mesh_fname = "reference_mesh"
-    
-    # create mesh, write it to xdmf file and read it
-    fi.create_reference_mesh(mesh_fname)
-    fi.read_reference_mesh(mesh_fname)
-
-    # create reference magnet
-    ref_mag = BallMagnet(1., 1., np.zeros(3), np.eye(3))
-    B_interpol = fi.interpolate_reference_field(ref_mag.B, "B", write_pvd=True)
-    field_name = "B"
-    field_file_name = "B.h5"
-
-    fi.write_hdf5_file(B_interpol, field_file_name, field_name)
-    B = fi.read_hd5f_file(field_file_name, field_name)
