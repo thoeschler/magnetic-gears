@@ -3,6 +3,7 @@ import dolfin as dlf
 import numpy as np
 from source.mesh_tools import generate_mesh_with_markers
 import os
+from collections import namedtuple
 
 
 class GearMeshGenerator:
@@ -32,10 +33,6 @@ class GearMeshGenerator:
         pass
 
     def _add_magnet(self):
-        "Purely virtual method."
-        pass
-
-    def generate_mesh(self):
         "Purely virtual method."
         pass
 
@@ -82,7 +79,6 @@ class GearMeshGenerator:
         self._model.mesh.field.setNumbers(min_tag, "FieldsList", [mag_field_tag])
         self._model.mesh.field.setAsBackgroundMesh(min_tag)
 
-    @classmethod
     def get_differential_measures(self, mesh, cell_marker, facet_marker):
         # include normal vector as well
         normal_vector = dlf.FacetNormal(mesh)
@@ -120,27 +116,37 @@ class GearMeshGenerator:
         self._mag_boundary_entities = [self._model.getBoundary([(3, magnet_tag)], oriented=False)[0][1] \
             for magnet_tag in self._mag_entities]
 
+        # create namedtuple
         magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag = self._add_physical_groups_gmsh()
+        Tags = namedtuple("Tags", ["magnet_subdomain", "magnet_boundary_subdomain", "box_subdomain"])
+        tags = Tags(magnet_subdomain=magnet_subdomain_tags, magnet_boundary_subdomain=magnet_boundary_subdomain_tags, \
+            box_subdomain=box_subdomain_tag)
+        
+        # set mesh size fields
         self._set_mesh_size_fields_gmsh(mesh_size_space, mesh_size_magnets)
 
         # generate mesh
         self._model.mesh.generate(dim=3)
 
         # write mesh to msh file
+        if not os.path.exists(self._main_dir + "/meshes/gears"):
+            os.makedirs(self._main_dir + "/meshes/gears")
         gmsh.write(self._main_dir + "/meshes/gears/" + fname + '.msh')
 
         # create namedtuple
         mesh, cell_marker, facet_marker = generate_mesh_with_markers(self._main_dir + "/meshes/gears/" + fname, delete_source_files=False)
-        
+        Mesh = namedtuple("Mesh", ["mesh", "cell_marker", "facet_marker"])
+        mesh_and_marker = Mesh(mesh=mesh, cell_marker=cell_marker, facet_marker=facet_marker)
+
         if write_to_pvd:
             dlf.File(self._main_dir + "/meshes/gears/" + fname + "_mesh.pvd") << mesh
-            dlf.File(self._main_dir + "/meshes/gears/" + fname + "_cell_markers.pvd") << cell_marker
+            dlf.File(self._main_dir + "/meshes/gears/" + fname + "_cell_marker.pvd") << cell_marker
             dlf.File(self._main_dir + "/meshes/gears/" + fname + "_facet_marker.pvd") << facet_marker
 
         gmsh.finalize()
         print("Done.")
 
-        return (mesh, cell_marker, facet_marker), (magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag)
+        return mesh_and_marker, tags
 
 
 class GearWithBallMagnetsMeshGenerator(GearMeshGenerator):

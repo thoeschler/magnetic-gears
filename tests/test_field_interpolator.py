@@ -6,12 +6,12 @@ import subprocess
 
 if __name__ == "__main__":
     # create test directory
-    main_dir = os.getcwd() + "/test_dir"
-    if not os.path.exists(main_dir):
-        os.mkdir(main_dir)
+    test_dir = os.getcwd() + "/test_dir"
+    if not os.path.exists(test_dir):
+        os.mkdir(test_dir)
 
     # create field interpolator
-    fi = FieldInterpolator(domain_radius=5, cell_type="CG", p_deg=1, mesh_size_min=0.3, mesh_size_max=1.0, main_dir=main_dir)
+    fi = FieldInterpolator(domain_radius=5, cell_type="CG", p_deg=1, mesh_size_min=0.3, mesh_size_max=1.0, main_dir=test_dir)
 
     # file names
     mesh_fname = "reference_mesh.xdmf"
@@ -33,4 +33,4 @@ if __name__ == "__main__":
     B = fi.read_hd5f_file(field_file_name, field_name, vector_valued=True)
 
     # remove test directory
-    subprocess.run(["rm", "-rf",  main_dir], stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
