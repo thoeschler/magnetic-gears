@@ -158,12 +158,22 @@ class MagneticGear:
         else:
             raise RuntimeError()
 
+    def set_reference_mesh(self, reference_mesh, field_name):
+        assert isinstance(reference_mesh, dlf.Mesh)
+        
+        if field_name == "B":
+            self._B_reference_mesh = reference_mesh
+        elif field_name == "Vm":
+            self._Vm_reference_mesh = reference_mesh
+        else:
+            raise RuntimeError()
+
     def update_parameters(self, d_angle):
         # update the angle
         self._angle += d_angle
         # then update the rest
         self.update_magnets()
-        self.update_mesh(d_angle)
+        self.rotate_mesh(d_angle, axis=0)
 
     def update_magnets(self):
         assert hasattr(self, "magnets")
@@ -174,14 +184,23 @@ class MagneticGear:
                                            self.R * np.sin(2 * np.pi / self.n * k + self._angle)])
             mag._M = mag._Q.dot(np.array([0., 0., 1.]))
 
-    def update_mesh(self, d_angle):
-        """Update mesh coordinates.
+    def rotate_mesh(self, d_angle, axis=0):
+        """Rotate mesh by angle.
 
         Args:
             d_angle (float): Angle increment in rad.
         """
         # rotate mesh around axis 0 (x-axis) through gear midpoint by angle d_angle
-        self.mesh.rotate(d_angle * 180 / np.pi, 0, dlf.Point(*self.x_M))
+        self.mesh.rotate(d_angle * 180 / np.pi, axis, dlf.Point(*self.x_M))
+
+    def translate_mesh(self, vec):
+        """Translate mesh.
+
+        Args:
+            vec (list): Translation vector.
+        """
+        # rotate mesh around axis 0 (x-axis) through gear midpoint by angle d_angle
+        self.mesh.translate(dlf.Point(vec))
 
 
 class MagneticGearWithBallMagnets(MagneticGear):
@@ -410,14 +429,3 @@ class MagneticGearWithBarMagnets(MagneticGear):
 
     def get_padded_radius(self):
         return self.R + self.w + self._mesh_generator.pad
-
-
-"""    def save_gear_par(self):
-        par = {
-            "n": self.n,
-
-        }
-
-    def load_gear_par(self):
-
-"""
