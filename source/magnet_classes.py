@@ -101,6 +101,11 @@ class PermanentAxialMagnet():
         B = lambda x: np.dot(self.Q, self.B_eigenfield_dimless(self.Q.T.dot(x - self.x_M)))
         return CustomVectorExpression(B)
 
+    def update_parameters(self, x_M, Q):
+        self._Q = Q
+        self._xM = x_M
+        self._M = self._Q.dot(np.array([0., 0., 1.]))
+
 
 class BallMagnet(PermanentAxialMagnet):
     def __init__(self, radius, magnetization_strength, position_vector, rotation_matrix):

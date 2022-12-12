@@ -178,11 +178,11 @@ class MagneticGear:
     def update_magnets(self):
         assert hasattr(self, "magnets")
         for k, mag in enumerate(self._magnets):
-            mag._Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self._angle) * \
+            x_M = self.x_M + np.array([0., self.R * np.cos(2 * np.pi / self.n * k + self._angle),
+                                       self.R * np.sin(2 * np.pi / self.n * k + self._angle)])
+            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self._angle) * \
                 np.array([1., 0., 0.])).as_matrix()
-            mag._xM = self.x_M + np.array([0., self.R * np.cos(2 * np.pi / self.n * k + self._angle),
-                                           self.R * np.sin(2 * np.pi / self.n * k + self._angle)])
-            mag._M = mag._Q.dot(np.array([0., 0., 1.]))
+            mag.update_parameters(x_M, Q)
 
     def rotate_mesh(self, d_angle, axis=0):
         """Rotate mesh by angle.
