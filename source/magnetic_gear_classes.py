@@ -158,6 +158,16 @@ class MagneticGear:
         else:
             raise RuntimeError()
 
+    def set_reference_mesh(self, reference_mesh, field_name):
+        assert isinstance(reference_mesh, dlf.Mesh)
+        
+        if field_name == "B":
+            self._B_reference_mesh = reference_mesh
+        elif field_name == "Vm":
+            self._Vm_reference_mesh = reference_mesh
+        else:
+            raise RuntimeError()
+
     def update_parameters(self, d_angle):
         # update the angle
         self._angle += d_angle
@@ -410,14 +420,3 @@ class MagneticGearWithBarMagnets(MagneticGear):
 
     def get_padded_radius(self):
         return self.R + self.w + self._mesh_generator.pad
-
-
-"""    def save_gear_par(self):
-        par = {
-            "n": self.n,
-
-        }
-
-    def load_gear_par(self):
-
-"""

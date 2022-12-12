@@ -1,14 +1,13 @@
 import gmsh
 import dolfin as dlf
 import numpy as np
-import os
 from source.magnet_classes import BallMagnet, BarMagnet, CustomVectorExpression, CustomScalarExpression
 from source.mesh_tools import generate_xdmf_mesh
 from source.gear_mesh_generator import GearWithBallMagnetsMeshGenerator, GearWithBarMagnetsMeshGenerator
 
 
 class FieldInterpolator:
-    def __init__(self, domain_radius, cell_type, p_deg, mesh_size_min, mesh_size_max, main_dir=None):
+    def __init__(self, domain_radius, cell_type, p_deg, mesh_size_min, mesh_size_max):
         """Field interpolator.
 
         Args:
@@ -22,16 +21,7 @@ class FieldInterpolator:
             mesh_size_max (float): Maximum mesh size of reference mesh. The reference
                                    mesh size is increased up to this value with increasing
                                    distance from the center of the reference mesh.
-            main_dir (str, optional): The main directory. Defaults to None. Current working
-                                      directory will then be used.
         """
-        if main_dir is None:
-            self._main_dir = os.getcwd()
-        else:
-            assert isinstance(main_dir, str)
-            assert os.path.exists(main_dir)
-            self._main_dir = main_dir
-
         self._domain_radius = domain_radius
         self._cell_type = cell_type
         self._p_deg = p_deg
@@ -117,14 +107,10 @@ class FieldInterpolator:
         # generate mesh
         model.mesh.generate(3)
 
-        # create directory if it does not exist
-        if not os.path.exists(self._main_dir + "/meshes/reference"):
-            os.makedirs(self._main_dir + "/meshes/reference")
-
-        gmsh.write(self._main_dir + "/meshes/reference/" + fname + ".msh")
+        gmsh.write(f"{fname}.msh")
 
         # generate xdmf mesh
-        generate_xdmf_mesh(self._main_dir + "/meshes/reference/" + fname + ".msh", delete_source_files=True)
+        generate_xdmf_mesh(f"{fname}.msh", delete_source_files=True)
 
         gmsh.finalize()
         print("Done.")
@@ -136,7 +122,7 @@ class FieldInterpolator:
             fname_xdmf (str): Mesh file name (xmdf).
         """
         assert fname_xdmf.endswith(".xdmf")
-        mesh_file = dlf.XDMFFile(self._main_dir + "/meshes/reference/" + fname_xdmf)
+        mesh_file = dlf.XDMFFile(fname_xdmf)
         self.mesh = dlf.Mesh()
         mesh_file.read(self.mesh)
 
@@ -169,7 +155,7 @@ class FieldInterpolator:
         field_interpolated = dlf.interpolate(field_expr, V)
         if write_pvd:
             assert fname is not None
-            dlf.File(self._main_dir + "/results/" + fname + ".pvd") << field_interpolated
+            dlf.File(f"{fname}.pvd") << field_interpolated
 
         print("Done.")
         return field_interpolated
@@ -182,12 +168,8 @@ class FieldInterpolator:
             fname (str): Output file name.
             field_name (str): Name of the interpolated field.
         """
-        # create directory if it does not exist
-        if not os.path.exists(self._main_dir + "/data/"):
-            os.mkdir(self._main_dir + "/data/")
-
-        print(f"Writing {fname}... ", end="")
-        f = dlf.HDF5File(self.mesh.mpi_comm(), self._main_dir + "/data/" + fname, "w")
+        print(f"Writing hdf5 file... ", end="")
+        f = dlf.HDF5File(self.mesh.mpi_comm(), fname, "w")
         f.write(field, field_name)
         print("Done")
 
@@ -204,8 +186,8 @@ class FieldInterpolator:
             dlf.Function: The field.
         """
         assert fname.endswith(".h5")
-        print(f"Reading {fname}... ", end="")
-        f = dlf.HDF5File(self.mesh.mpi_comm(), self._main_dir + "/data/" + fname, "r")
+        print(f"Reading hdf5 file... ", end="")
+        f = dlf.HDF5File(self.mesh.mpi_comm(), fname, "r")
         if vector_valued:
             V = dlf.VectorFunctionSpace(self.mesh, self.cell_type, self.p_deg)
         else:
