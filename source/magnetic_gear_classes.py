@@ -173,7 +173,7 @@ class MagneticGear:
         self._angle += d_angle
         # then update the rest
         self.update_magnets()
-        self.update_mesh(d_angle)
+        self.rotate_mesh(d_angle, axis=0)
 
     def update_magnets(self):
         assert hasattr(self, "magnets")
@@ -184,14 +184,23 @@ class MagneticGear:
                                            self.R * np.sin(2 * np.pi / self.n * k + self._angle)])
             mag._M = mag._Q.dot(np.array([0., 0., 1.]))
 
-    def update_mesh(self, d_angle):
-        """Update mesh coordinates.
+    def rotate_mesh(self, d_angle, axis=0):
+        """Rotate mesh by angle.
 
         Args:
             d_angle (float): Angle increment in rad.
         """
         # rotate mesh around axis 0 (x-axis) through gear midpoint by angle d_angle
-        self.mesh.rotate(d_angle * 180 / np.pi, 0, dlf.Point(*self.x_M))
+        self.mesh.rotate(d_angle * 180 / np.pi, axis, dlf.Point(*self.x_M))
+
+    def translate_mesh(self, vec):
+        """Translate mesh.
+
+        Args:
+            vec (list): Translation vector.
+        """
+        # rotate mesh around axis 0 (x-axis) through gear midpoint by angle d_angle
+        self.mesh.translate(dlf.Point(vec))
 
 
 class MagneticGearWithBallMagnets(MagneticGear):

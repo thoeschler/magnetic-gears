@@ -152,6 +152,7 @@ class CoaxialGearsBase:
         # some parameters
         found_file = False
         par_ref = gear.parameters
+        par = None
 
         # search existing gear mesh directories for matching parameter file
         subdirs = [r[0] for r in os.walk(self._main_dir + "/data/gears/")]
@@ -167,8 +168,8 @@ class CoaxialGearsBase:
                     # if all paramters match, return the subdir
                     if all([par[p] == par_ref[p] for p in match_par]):
                         found_file = True
-                        return subdir, found_file
-        return None, found_file
+                        return subdir, found_file, par
+        return None, found_file, par
 
     def _load_reference_field(self, gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Load reference field from hdf5 file. If no appropriate file is
@@ -375,12 +376,14 @@ class CoaxialGearsBase:
             os.makedirs(self._main_dir + "/data/gears/")
 
         for gear in self.gears:
-            dir_name, found_file = self._find_gear_mesh_file(gear)
+            dir_name, found_file, par = self._find_gear_mesh_file(gear)
             # read markers and mesh from file
             # if no file was found, generate both 
             if found_file:
                 print(f"Reading gear mesh... ", end="")
                 gear.set_mesh_and_markers_from_file(f"{dir_name}/gear")
+                gear.translate_mesh(gear.x_M - np.array(par["x_M"]))
+                gear.rotate_mesh(par["angle"], axis=0)
                 print("Done.")
             else:
                 # generate dir_name
