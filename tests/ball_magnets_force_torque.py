@@ -9,7 +9,7 @@ from source.mesh_tools import generate_mesh_with_markers
 def cart_to_sph(v, x_vec):
     """Transform tensor components from cartesian to
     spherical basis.
-    
+
 
     Args:
         v (np.ndarray): Tensor of rank 1 (vector) or 2.
@@ -187,14 +187,8 @@ def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag
 def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="laboratory"):
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
-    # some quantities
-    r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    rho = np.linalg.norm(magnet_1.x_M[:-1] - magnet_2.x_M[:-1])
-
     # all quantities are represented in the cartesian eigenbasis of magnet 1 
     x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M - magnet_1.x_M)
-    cos_theta = x_M_2[2] / r
-    sin_theta = rho / r
     M_2 = magnet_1.Q.T.dot(magnet_2.M)
 
     # compute torque 
@@ -251,7 +245,6 @@ def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet
 
 def compute_force_and_torque(n_iterations):
     # create directory
-    os.chdir(os.getcwd())
     if not os.path.exists("test_dir"):
         os.mkdir("test_dir")
     os.chdir("test_dir")
@@ -318,4 +311,4 @@ def write_text_file(angles, forces_or_torques, fname):
 
 
 if __name__ == "__main__":
-    compute_force_and_torque(n_iterations=10)
+    compute_force_and_torque(n_iterations=20)

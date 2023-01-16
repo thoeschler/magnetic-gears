@@ -300,22 +300,18 @@ class CoaxialGearsBase:
         print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
         for mag in gear.magnets:
-            if np.linalg.norm(mag.x_M - x_M_ref) < midpoint_diff:
-                interpol_field = self._interpolate_field_magnet(mag, ref_field, gear._B_reference_mesh, mesh, cell_type, p_deg)
-                field_sum += interpol_field._cpp_object.vector()
+            interpol_field = self._interpolate_field_magnet(mag, ref_field, gear._B_reference_mesh, mesh, cell_type, p_deg)
+            field_sum += interpol_field._cpp_object.vector()
+            
         print("Done.")
         return dlf.Function(V, field_sum)
 
     def _interpolate_field_magnet(self, magnet, ref_field, reference_mesh, mesh, cell_type, p_deg):
         # copy everything
-        cell_type_copy = str(cell_type)
-        p_deg_copy = int(p_deg)
-        mesh_copy = dlf.Mesh(mesh)
         reference_mesh_copy = dlf.Mesh(reference_mesh)
-        V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type_copy, p_deg_copy)
+        V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type, p_deg)
         reference_field_copy = dlf.Function(V_ref, ref_field._cpp_object.vector())
-        mesh_copy = dlf.Mesh(mesh)
-        V_copy = dlf.VectorFunctionSpace(mesh_copy, cell_type_copy, p_deg_copy)
+        V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
 
         # scale, rotate and shift reference mesh according to magnet placement
         # rotate first, then shift!
@@ -325,7 +321,7 @@ class CoaxialGearsBase:
 
         # interpolate field to new function space and add the result
         # interpol_field = dlf.interpolate(reference_field_copy, V_copy)
-        interpol_field = dlf.Function(V_copy)
+        interpol_field = dlf.Function(V)
         LagrangeInterpolator.interpolate(interpol_field, reference_field_copy)
 
         return interpol_field
