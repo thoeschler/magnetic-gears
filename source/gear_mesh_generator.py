@@ -93,6 +93,7 @@ class GearMeshGenerator:
         assert isinstance(mesh_size_magnets, float)
         assert isinstance(fname, str)
         fname = fname.rstrip(".xdmf")
+        fname = fname.strip("/")
 
         print("Meshing gear... ", end="")
         gmsh.initialize()
@@ -129,19 +130,19 @@ class GearMeshGenerator:
         self._model.mesh.generate(dim=3)
 
         # write mesh to msh file
-        if not os.path.exists(self._main_dir + "/meshes/gears"):
-            os.makedirs(self._main_dir + "/meshes/gears")
-        gmsh.write(self._main_dir + "/meshes/gears/" + fname + '.msh')
+        if not os.path.exists(self._main_dir + "/data/gears"):
+            os.makedirs(self._main_dir + "/data/gears")
+        gmsh.write(self._main_dir + "/data/gears/" + fname + '.msh')
 
         # create namedtuple
-        mesh, cell_marker, facet_marker = generate_mesh_with_markers(self._main_dir + "/meshes/gears/" + fname, delete_source_files=False)
+        mesh, cell_marker, facet_marker = generate_mesh_with_markers(self._main_dir + "/data/gears/" + fname, delete_source_files=False)
         Mesh = namedtuple("Mesh", ["mesh", "cell_marker", "facet_marker"])
         mesh_and_marker = Mesh(mesh=mesh, cell_marker=cell_marker, facet_marker=facet_marker)
 
         if write_to_pvd:
-            dlf.File(self._main_dir + "/meshes/gears/" + fname + "_mesh.pvd") << mesh
-            dlf.File(self._main_dir + "/meshes/gears/" + fname + "_cell_marker.pvd") << cell_marker
-            dlf.File(self._main_dir + "/meshes/gears/" + fname + "_facet_marker.pvd") << facet_marker
+            dlf.File(self._main_dir + "/data/gears/" + fname + "_mesh.pvd") << mesh
+            dlf.File(self._main_dir + "/data/gears/" + fname + "_cell_marker.pvd") << cell_marker
+            dlf.File(self._main_dir + "/data/gears/" + fname + "_facet_marker.pvd") << facet_marker
 
         gmsh.finalize()
         print("Done.")

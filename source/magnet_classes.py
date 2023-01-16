@@ -97,9 +97,14 @@ class PermanentAxialMagnet():
             B_eigen = self.B_eigenfield_dimless(x_eigen)
             return np.dot(self.Q, B_eigen)
 
-    def as_expression(self):
+    def B_as_expression(self):
         B = lambda x: np.dot(self.Q, self.B_eigenfield_dimless(self.Q.T.dot(x - self.x_M)))
         return CustomVectorExpression(B)
+
+    def update_parameters(self, x_M, Q):
+        self._Q = Q
+        self._xM = x_M
+        self._M = self._Q.dot(np.array([0., 0., 1.]))
 
 
 class BallMagnet(PermanentAxialMagnet):
@@ -144,11 +149,11 @@ class BallMagnet(PermanentAxialMagnet):
     def B_eigen_plus(self, x_eigen):
         """External magnetic field (dimensionless) in eigen coordinates."""
         r = np.linalg.norm(x_eigen) / self.R
-        return 1./r**5 * np.array([3./2.*x_eigen[0]*x_eigen[2],
-                                   3./2.*x_eigen[1]*x_eigen[2],
-                                   -0.5*(x_eigen[0]**2 + x_eigen[1]**2) + x_eigen[2]**2
-                                ])
-    
+        return 2./ 3. / r ** 5 * np.array([3./2.*x_eigen[0]*x_eigen[2],
+                                           3./2.*x_eigen[1]*x_eigen[2],
+                                           -0.5*(x_eigen[0]**2 + x_eigen[1]**2) + x_eigen[2]**2
+                                          ])
+
     def B_eigen_minus(self, x_eigen):
         """Internal magnetic field (dimensionless) in eigen coordinates."""
         return np.array([0., 0., 2./3.])
@@ -167,10 +172,10 @@ class BallMagnet(PermanentAxialMagnet):
             return np.array([0., 0., 2./3.])
         else:
             r = np.sqrt(x_eigen.dot(x_eigen)) / self.R # faster than np.linalg.norm(x_eigen)
-            return 1./r**5 * np.array([3./2.*x_eigen[0]*x_eigen[2],
-                                        3./2.*x_eigen[1]*x_eigen[2],
-                                        -0.5*(x_eigen[0]**2 + x_eigen[1]**2) + x_eigen[2]**2
-                                        ])
+            return 2./ 3. / r**5 * np.array([3./2.*x_eigen[0]*x_eigen[2], \
+                                             3./2.*x_eigen[1]*x_eigen[2],
+                                             -0.5*(x_eigen[0]**2 + x_eigen[1]**2) + x_eigen[2]**2
+                                            ])
 
 class BarMagnet(PermanentAxialMagnet):
     def __init__(self, height, width, depth, magnetization_strength, position_vector, rotation_matrix):
