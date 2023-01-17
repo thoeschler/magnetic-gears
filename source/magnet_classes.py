@@ -59,6 +59,11 @@ class PermanentAxialMagnet():
     def x_M(self):
         return self._xM
 
+    @x_M.setter
+    def x_M(self, x_M):
+        assert len(x_M) == 3
+        self._xM = x_M
+
     @property
     def M(self):
         return self._M

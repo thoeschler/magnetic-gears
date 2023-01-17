@@ -65,14 +65,15 @@ def sph_to_cart(v, x_vec):
     else:
         raise RuntimeError()
     
-def create_mesh(magnet, mesh_size=None):
+def create_mesh(magnet, mesh_size=None, verbose=True):
+    gmsh.initialize()
+    if not verbose:
+        gmsh.option.setNumber("General.Terminal", 0)
     # set mesh size
     if mesh_size is None:
         mesh_size = magnet.R / 5.
     # file name
     fname = "mesh"
-
-    gmsh.initialize()
 
     model = gmsh.model()
     # create surrounding box
@@ -92,7 +93,7 @@ def create_mesh(magnet, mesh_size=None):
     magnet_volume_tag = model.addPhysicalGroup(3, [magnet_tag])
     # set mesh size
     model.mesh.setSize(model.occ.getEntities(0), mesh_size)
-    
+
     # generate mesh
     model.mesh.generate(dim=3)
     gmsh.write(f"{fname}.msh")
@@ -106,9 +107,9 @@ def create_mesh(magnet, mesh_size=None):
     gmsh.finalize()
     return mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag
 
-def interpolate_magnetic_field(magnet, mesh):
+def interpolate_magnetic_field(magnet, mesh, degree=1):
     B = magnet.B_as_expression()
-    V = dlf.VectorFunctionSpace(mesh, "CG", 1)
+    V = dlf.VectorFunctionSpace(mesh, "CG", degree)
     B_interpol = dlf.interpolate(B, V)
     return B_interpol
 
@@ -228,11 +229,11 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
     else:
         raise RuntimeError() 
 
-def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet_boundary_tag):
+def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet_boundary_tag, degree=1):
     dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
     n = dlf.FacetNormal(mesh)
 
-    x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=1)
+    x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=degree)
     x_M = dlf.as_vector(magnet_1.x_M)
     M = dlf.as_vector(magnet_2.M)  # magnetization
     t = dlf.cross(dlf.cross(n('+'), M), B)  # traction vector
@@ -244,11 +245,6 @@ def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet
     return tau
 
 def compute_force_and_torque(n_iterations):
-    # create directory
-    if not os.path.exists("test_dir"):
-        os.mkdir("test_dir")
-    os.chdir("test_dir")
-
     # create magnets
     # first magnet
     r1 = 1.
@@ -309,6 +305,90 @@ def write_text_file(angles, forces_or_torques, fname):
                 f.write(f"{c} ")
             f.write("\n")
 
+def convergence_test(distance_values, mesh_size_values, degree=1):
+    # create magnets
+    # first magnet
+    r1 = 1.
+    M_0_1 = 1.
+    x_M_1 = np.zeros(3)
+    angle_1 = 0.
+    Q1 = Rotation.from_rotvec(angle_1 * np.array([1., 0., 0.])).as_matrix()
+    mag_1 = BallMagnet(r1, M_0_1, x_M_1, Q1)
+    # distance between magnets
+    d = 1.
+    # second magnet
+    r2 = 1.
+    M_0_2 = 1.
+    x_M_2 = x_M_1 + np.array([0., r1 + r2 + d, 0.])
+    angle_2 = 0.
+    Q2 = Rotation.from_rotvec(angle_2 * np.array([1., 0., 0.])).as_matrix()
+    mag_2 = BallMagnet(r2, M_0_2, x_M_2, Q2)
+
+    with open("force_error.csv", "w") as f:
+        f.write(f"{0.0} ")
+        for d in distance_values:
+            f.write(f"{d} ")
+        f.write("\n")
+
+    with open("torque_error.csv", "w") as f:
+        f.write(f"{0.0} ")
+        for d in distance_values:
+            f.write(f"{d} ")
+        f.write("\n")
+
+    for ms in mesh_size_values[::-1]:
+        # get magnet force for different angles
+        mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag = create_mesh(mag_2, mesh_size=ms)
+
+        force_error = []
+        torque_error = []
+        for d in distance_values:
+            ########## 1. Numerical solution ##########
+            ##### Move second magnet to random point in space at distance d
+            # create random unit vector
+            vec = np.random.rand(3)
+            vec /= np.linalg.norm(vec)
+            assert np.isclose(vec.dot(vec), 1.0)
+
+            # move magnet and mesh
+            mesh.translate(dlf.Point(*((d + mag_1.R + mag_2.R) * vec - mag_2.x_M)))
+            mag_2.x_M = (d + mag_1.R + mag_2.R) * vec
+
+            #### Get magnetic field
+            B = interpolate_magnetic_field(mag_1, mesh, degree)
+            F_num = compute_force_numerically(mag_2, mesh, B, facet_marker, magnet_boundary_tag)
+            tau_num = compute_torque_numerically(mag_1, mag_2, mesh, B, facet_marker, magnet_boundary_tag, degree)
+
+            ########## 2. Analytical solution ##########
+            F_ana = compute_force_analytically(mag_1, mag_2, coordinate_system="laboratory")
+            tau_ana = compute_torque_analytically(mag_1, mag_2, F_ana, coordinate_system="laboratory")
+
+            force_error.append(np.linalg.norm(F_ana - F_num) / np.linalg.norm(F_ana))
+            torque_error.append(np.linalg.norm(tau_ana - tau_num) / np.linalg.norm(tau_ana))
+
+        with open("force_error.csv", "a+") as f:
+            f.write(f"{ms} ")
+            for fe in force_error:
+                f.write(f"{fe} ")
+            f.write("\n")
+
+        with open("torque_error.csv", "a+") as f:
+            f.write(f"{ms} ")
+            for te in torque_error:
+                f.write(f"{te} ")
+            f.write("\n")
+
 
 if __name__ == "__main__":
+    # create directory
+    if not os.path.exists("test_dir"):
+        os.mkdir("test_dir")
+    os.chdir("test_dir")
+     
     compute_force_and_torque(n_iterations=20)
+
+    # some variables
+    distance_values = np.array([0.1, 0.5, 1., 5.])
+    mesh_size_values = np.linspace(5e-2, 5e-1, num=5)
+
+    convergence_test(distance_values, mesh_size_values, degree=2)
