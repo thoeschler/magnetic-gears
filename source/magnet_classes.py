@@ -213,11 +213,11 @@ class BarMagnet(PermanentAxialMagnet):
 
     def is_inside(self, x0):
         x_eigen = self.Q.T.dot(x0)
-        return np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
+        return np.all(np.absolute(x_eigen) < np.array([self.d, self.w, self.h]))
     
     def on_boundary(self, x0):
         x_eigen = self.Q.T.dot(x0)
-        return np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
+        return np.any(np.isclose(np.absolute(x_eigen), np.array([self.d, self.w, self.h])))
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field (dimensionless) in eigen coordinates."""
