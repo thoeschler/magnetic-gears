@@ -5,7 +5,7 @@ import os
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet
 from source.mesh_tools import generate_mesh_with_markers
-from source.transform import sph_to_cart, cart_to_sph
+from source.transform import sph_to_cart
 
 
 def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
@@ -81,7 +81,7 @@ def interpolate_magnetic_field(magnet, mesh, degree=1):
     B_interpol = dlf.interpolate(B, V)
     return B_interpol
 
-def compute_force_analytically(magnet_1, magnet_2, coordinate_system="laboratory"):
+def compute_force_analytically(magnet_1: BallMagnet, magnet_2: BallMagnet, coordinate_system="laboratory"):
     """Compute force on magnet_2 caused by magnetic field of magnet_1.
 
     Args:
@@ -99,23 +99,24 @@ def compute_force_analytically(magnet_1, magnet_2, coordinate_system="laboratory
 
     # some quantities
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    rho = np.linalg.norm(magnet_1.x_M[:-1] - magnet_2.x_M[:-1])
+    x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M)
+    x, y, z = x_M_2
+    rho = np.sqrt(x ** 2 + y ** 2)
 
     # compute force
     # all quantities are represented in the cartesian eigenbasis of magnet 1 
-    x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M - magnet_1.x_M)
-    z = x_M_2[2]
     cos_theta = z / r
     sin_theta = rho / r
     M_2 = magnet_1.Q.T.dot(magnet_2.M)
     # gradient of B in spherical basis
-    grad_B_sph = np.array([
-        [- 2. * cos_theta, - sin_theta, 0.],
+    gB_sph = np.array([
+        [-2 * cos_theta, - sin_theta, 0.],
         [- sin_theta, cos_theta, 0.],
         [0., 0., cos_theta]
-    ])
-    grad_B_cart = sph_to_cart(grad_B_sph, x_M_2)  # transform to cartesian basis
-    force = factor / r ** 4 * M_2.dot(grad_B_cart)
+        ])
+    gB_cart = sph_to_cart(gB_sph, x_M_2, "cart")
+
+    force = factor / r ** 4 * M_2.dot(gB_cart)
 
     # return force w.r.t. chosen basis
     if coordinate_system == "laboratory":
@@ -242,6 +243,18 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
+
+    """# compute torque 
+    tau = np.zeros(3)  # initialize
+    # first term
+    B = magnet_1.B_eigen_plus(x_M_2)
+    vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
+    tau += vol_magnet_2 * np.cross(M_2, B)
+
+    # second term
+    tau += np.cross(x_M_2, force)"""
+
+
     tau = - 8. / 9. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 / \
         r ** 3 * np.array([np.sin(angle), 0., 0.])
 
@@ -424,11 +437,10 @@ if __name__ == "__main__":
     if not os.path.exists("test_dir"):
         os.mkdir("test_dir")
     os.chdir("test_dir")
-     
+
     compute_force_and_torque(n_iterations=20, mesh_size=0.5)
 
     # some variables
     distance_values = np.array([0.1, 0.5, 1., 5.])
     mesh_size_values = np.linspace(5e-2, 5e-1, num=5)
-
     convergence_test(distance_values, mesh_size_values, degree=4)
