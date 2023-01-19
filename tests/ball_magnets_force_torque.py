@@ -5,115 +5,83 @@ import os
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet
 from source.mesh_tools import generate_mesh_with_markers
-
-def cart_to_sph(v, x_vec):
-    """Transform tensor components from cartesian to
-    spherical basis.
+from source.transform import sph_to_cart
 
 
-    Args:
-        v (np.ndarray): Tensor of rank 1 (vector) or 2.
-        x_vec (bp.ndarray): Position vector in cartesian
-                            coordinates and basis.
-
-    Returns:
-        np.ndarray: Tensor component w.r.t spherical basis.
-    """
-    r = np.linalg.norm(x_vec)
-    rho = np.linalg.norm(x_vec[:-1])
-    x, y, z = x_vec
-    # transformation matrix
-    Q = np.array([
-        [x / r, y / r, z / r],
-        [x * z / r / rho, y * z / r / rho, - rho / r],
-        [- y / rho, x / rho, 0]
-        ])
-    assert np.allclose(Q.T.dot(Q), np.eye(3))
-    if v.ndim == 1:
-        return Q.dot(v)
-    elif v.ndim == 2:
-        return Q.T.dot(v).dot(Q)
-    else:
-        raise RuntimeError()
-
-def sph_to_cart(v, x_vec):
-    """Transform tensor components from spherical to
-    cartesian basis.
-    
+def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
+    """Create finite element mesh of a single ball magnet inside a box.
 
     Args:
-        v (np.ndarray): Tensor of rank 1 (vector) or 2.
-        x_vec (bp.ndarray): Position vector in cartesian
-                            coordinates and basis.
+        magnet (BallMagnet): The spherical magnet.
+        mesh_size (float): The global mesh size.
+        verbose (bool, optional): If True print gmsh info.
+                                  Defaults to True.
 
     Returns:
-        np.ndarray: Tensor component w.r.t cartesian basis.
+        tuple: A tuple containing mesh, cell_marker, facet_marker,
+               magnet_volume_tag, magnet_boundary_tag.
     """
-    r = np.linalg.norm(x_vec)
-    rho = np.linalg.norm(x_vec[:-1])
-    x, y, z = x_vec
-    Q = np.array([
-        [x / r, y / r, z / r],
-        [x * z / r / rho, y * z / r / rho, - rho / r],
-        [- y / rho, x / rho, 0]
-    ])
-    assert np.allclose(Q.T.dot(Q), np.eye(3))
-    if v.ndim == 1:
-        return Q.dot(v)
-    elif v.ndim == 2:
-        return Q.T.dot(v).dot(Q)
-    else:
-        raise RuntimeError()
-    
-def create_mesh(magnet, mesh_size=None, verbose=True):
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
-    # set mesh size
-    if mesh_size is None:
-        mesh_size = magnet.R / 5.
+
     # file name
     fname = "mesh"
 
     model = gmsh.model()
+
     # create surrounding box
-    pad = magnet.R / 4
+    pad = magnet.R / 4  # padding value
     A = magnet.x_M - (pad + magnet.R) * np.ones(3)
     B = 2 * (pad + magnet.R) * np.ones(3)
     box_tag = model.occ.addBox(*A, *B)
+
     # create magnet
     magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
+
     # cut magnet from box
     model.occ.cut([(3, box_tag)], [(3, magnet_tag)], removeObject=True, removeTool=False)
     model.occ.synchronize()
+
     # add physical groups
     magnet_boundary = model.getBoundary([(3, magnet_tag)], oriented=False)[0][1]
     magnet_boundary_tag = model.addPhysicalGroup(2, [magnet_boundary])
     box_volume_tag = model.addPhysicalGroup(3, [box_tag])
     magnet_volume_tag = model.addPhysicalGroup(3, [magnet_tag])
+
     # set mesh size
     model.mesh.setSize(model.occ.getEntities(0), mesh_size)
 
     # generate mesh
     model.mesh.generate(dim=3)
     gmsh.write(f"{fname}.msh")
+
     # create mesh and markers
     mesh, cell_marker, facet_marker = generate_mesh_with_markers("mesh", delete_source_files=False)
-
     dlf.File(fname + "_mesh.pvd") << mesh
     dlf.File(fname + "_cell_marker.pvd") << cell_marker
     dlf.File(fname + "_facet_marker.pvd") << facet_marker
-
     gmsh.finalize()
+
     return mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag
 
 def interpolate_magnetic_field(magnet, mesh, degree=1):
+    """Interpolate magnetic field on a given mesh.
+
+    Args:
+        magnet (BallMagnet): The magnet whose magnetic field should be used.
+        mesh (dlf.Mesh): Finite element mesh.
+        degree (int, optional): Polynomial degree. Defaults to 1.
+
+    Returns:
+        dlf.Function: The interpolated field.
+    """
     B = magnet.B_as_expression()
     V = dlf.VectorFunctionSpace(mesh, "CG", degree)
     B_interpol = dlf.interpolate(B, V)
     return B_interpol
 
-def compute_force_analytically(magnet_1, magnet_2, coordinate_system="laboratory"):
+def compute_force_analytically(magnet_1: BallMagnet, magnet_2: BallMagnet, coordinate_system="laboratory"):
     """Compute force on magnet_2 caused by magnetic field of magnet_1.
 
     Args:
@@ -121,6 +89,9 @@ def compute_force_analytically(magnet_1, magnet_2, coordinate_system="laboratory
         magnet_2 (BallMagnet): Second magnet.
         coordinate_system (str, optional): Coordinate system used to represent the
                                            force vector. Defaults to "laboratory".
+    
+    Returns:
+        np.ndarray: The force in the specified coordinated system.
     """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
     factor = 4 / 3 * magnet_1.M0 * magnet_2.M0 * np.pi * \
@@ -128,22 +99,24 @@ def compute_force_analytically(magnet_1, magnet_2, coordinate_system="laboratory
 
     # some quantities
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    rho = np.linalg.norm(magnet_1.x_M[:-1] - magnet_2.x_M[:-1])
+    x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M)
+    x, y, z = x_M_2
+    rho = np.sqrt(x ** 2 + y ** 2)
 
     # compute force
     # all quantities are represented in the cartesian eigenbasis of magnet 1 
-    x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M - magnet_1.x_M)
-    cos_theta = x_M_2[2] / r
+    cos_theta = z / r
     sin_theta = rho / r
     M_2 = magnet_1.Q.T.dot(magnet_2.M)
     # gradient of B in spherical basis
-    grad_B_sph = np.array([
-        [- 2. * cos_theta, - sin_theta, 0.],
+    gB_sph = np.array([
+        [-2 * cos_theta, - sin_theta, 0.],
         [- sin_theta, cos_theta, 0.],
         [0., 0., cos_theta]
-    ])
-    grad_B_cart = sph_to_cart(grad_B_sph, x_M_2)
-    force = factor / r ** 4 * M_2.dot(grad_B_cart)
+        ])
+    gB_cart = sph_to_cart(gB_sph, x_M_2, "cart")
+
+    force = factor / r ** 4 * M_2.dot(gB_cart)
 
     # return force w.r.t. chosen basis
     if coordinate_system == "laboratory":
@@ -156,11 +129,26 @@ def compute_force_analytically(magnet_1, magnet_2, coordinate_system="laboratory
         raise RuntimeError()
 
 def compute_force_analytically_special(magnet_1, magnet_2, angle, coordinate_system="laboratory"):
+    """Compute force on magnet_2 caused by magnetic field of magnet_1 for a special case.
+    The special choice is that of theta=pi/2 and phi=pi/2 (azimuthal and polar angles).
+    In other words, the two magnets are aligned in y-direction. Both x- and z-coordinates
+    of the centers of mass are the same for both magents.
+
+    Args:
+        magnet_1 (BallMagnet): First magnet.
+        magnet_2 (BallMagnet): Second magnet.
+        angle (float): The relative angle between the magnets around the x-axis.
+        coordinate_system (str, optional): Coordinate system used to represent the
+                                           force vector. Defaults to "laboratory".
+    
+    Returns:
+        np.ndarray: The force in the specified coordinated system.
+    """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    force = 4. / 3. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 * \
-        r ** (-4) * np.array([0., np.cos(angle), - np.sin(angle)])
+    force = 4. / 3. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 / \
+        r ** 4 * np.array([0., np.cos(angle), - np.sin(angle)])
 
     # return force w.r.t. chosen basis
     if coordinate_system == "laboratory":
@@ -173,6 +161,18 @@ def compute_force_analytically_special(magnet_1, magnet_2, angle, coordinate_sys
         raise RuntimeError() 
 
 def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag):
+    """Compute force on magnet caused by magnetic field.
+
+    Args:
+        magnet (BallMagnet): The magnet.
+        mesh (dlf.Mesh): The finite element mesh of the magnet.
+        B (dlf.Function): The magnetic field.
+        facet_marker (dolfin.cpp.mesh.MeshFunctionSizet): Facet marker.
+        magnet_boundary_tag (int): Tag of magnet boundary.
+
+    Returns:
+        np.ndarray: Force in specified coordinate system.
+    """
     dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
 
     # compute force
@@ -186,6 +186,18 @@ def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag
     return F
 
 def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="laboratory"):
+    """Compute torque on magnet_2 caused by magnetic field of magnet_1.
+
+    Args:
+        magnet_1 (BallMagnet): First magnet.
+        magnet_2 (BallMagnet): Second magnet.
+        force (np.ndarray): The force on magnet_2 caused by magnet_1.
+        coordinate_system (str, optional): Coordinate system used to represent the
+                                           force vector. Defaults to "laboratory".
+
+    Returns:
+        np.ndarray: The force in the specified coordinated system.
+    """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
     # all quantities are represented in the cartesian eigenbasis of magnet 1 
@@ -193,7 +205,7 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     M_2 = magnet_1.Q.T.dot(magnet_2.M)
 
     # compute torque 
-    tau = np.zeros(3)
+    tau = np.zeros(3)  # initialize
     # first term
     B = magnet_1.B_eigen_plus(x_M_2)
     vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
@@ -213,11 +225,38 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
         raise RuntimeError() 
 
 def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_system="laboratory"):
+    """Compute torque on magnet_2 caused by magnetic field of magnet_1 for a special case.
+    The special choice is that of theta=pi/2 and phi=pi/2 (azimuthal and polar angles).
+    In other words, the two magnets are aligned in y-direction. Both x- and z-coordinates
+    of the centers of mass are the same for both magents.
+
+    Args:
+        magnet_1 (BallMagnet): First magnet.
+        magnet_2 (BallMagnet): Second magnet.
+        angle (float): The relative angle between the magnets around the x-axis.
+        coordinate_system (str, optional): Coordinate system used to represent the
+                                           force vector. Defaults to "laboratory".
+    
+    Returns:
+        np.ndarray: The force in the specified coordinated system.
+    """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    tau = - 8. / 9. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 * \
-        r ** (- 3) * np.array([np.sin(angle), 0., 0.])
+
+    """# compute torque 
+    tau = np.zeros(3)  # initialize
+    # first term
+    B = magnet_1.B_eigen_plus(x_M_2)
+    vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
+    tau += vol_magnet_2 * np.cross(M_2, B)
+
+    # second term
+    tau += np.cross(x_M_2, force)"""
+
+
+    tau = - 8. / 9. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 / \
+        r ** 3 * np.array([np.sin(angle), 0., 0.])
 
     # return force w.r.t. chosen basis
     if coordinate_system == "laboratory":
@@ -230,6 +269,20 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
         raise RuntimeError() 
 
 def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet_boundary_tag, degree=1):
+    """Compute torque on magnet caused by magnetic field.
+
+    Args:
+        magnet_1 (BallMagnet): The magnet causing the magnetic field.
+        magnet_2 (BallMagnet): The magnet the torque acts on.
+        mesh (dlf.Mesh): The finite element mesh of the second magnet.
+        B (dlf.Function): The interpolated magnetic field on the respective mesh.
+        facet_marker (dolfin.cpp.mesh.MeshFunctionSizet): Facet marker.
+        magnet_boundary_tag (int): Tag of magnet boundary.
+        degree (int): Polynomial degree of finite element space.
+
+    Returns:
+        np.ndarray: Force in specified coordinate system.
+    """
     dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
     n = dlf.FacetNormal(mesh)
 
@@ -244,7 +297,7 @@ def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet
         tau[i] = dlf.assemble(c * dA(magnet_boundary_tag))
     return tau
 
-def compute_force_and_torque(n_iterations):
+def compute_force_and_torque(n_iterations, mesh_size):
     # create magnets
     # first magnet
     r1 = 1.
@@ -264,7 +317,7 @@ def compute_force_and_torque(n_iterations):
     mag_2 = BallMagnet(r2, M_0_2, x_M_2, Q2)
 
     # get magnet force for different angles
-    mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag = create_mesh(mag_2)
+    mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag = create_single_magnet_mesh(mag_2, mesh_size)
     B = interpolate_magnetic_field(mag_1, mesh)
 
     # compute force
@@ -338,7 +391,7 @@ def convergence_test(distance_values, mesh_size_values, degree=1):
 
     for ms in mesh_size_values[::-1]:
         # get magnet force for different angles
-        mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag = create_mesh(mag_2, mesh_size=ms)
+        mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag = create_single_magnet_mesh(mag_2, mesh_size=ms)
 
         force_error = []
         torque_error = []
@@ -384,11 +437,10 @@ if __name__ == "__main__":
     if not os.path.exists("test_dir"):
         os.mkdir("test_dir")
     os.chdir("test_dir")
-     
-    compute_force_and_torque(n_iterations=20)
+
+    compute_force_and_torque(n_iterations=20, mesh_size=0.5)
 
     # some variables
     distance_values = np.array([0.1, 0.5, 1., 5.])
     mesh_size_values = np.linspace(5e-2, 5e-1, num=5)
-
-    convergence_test(distance_values, mesh_size_values, degree=2)
+    convergence_test(distance_values, mesh_size_values, degree=4)
