@@ -63,19 +63,9 @@ def magnetic_potential_bar_magnet(height, width, depth, lambdify=True):
     V_m = t1 + t2 + t3
 
     if lambdify:
-        return sy.lambdify([(x, y, z)], V_m), (x, y, z)
+        return sy.lambdify([(x, y, z)], V_m)
     else:
-        return V_m, (x, y, z)
-
-"""def free_current_potential_bar_magnet(height, width, depth):
-    # get magnetic potential
-    V_m, (x, y, z) = magnetic_potential_bar_magnet(height, width, depth, lambdify=False)
-
-    # compute free current potential
-    H = (- V_m.diff(x), - V_m.diff(y), - V_m.diff(z))
-
-    return sy.lambdify([(x, y, z)], H)"""
-
+        return V_m
 
 def free_current_potential_bar_magnet(h, w, d, lambdify=True):
     x, y, z = sy.symbols("x y z", real=True)
@@ -233,7 +223,7 @@ def free_current_potential_bar_magnet(h, w, d, lambdify=True):
     H = (- 1. / 4. / sy.pi * (tx1_1 + tx1_2 + tx2 + tx3_1 + tx3_2 + tx4), \
         - 1. / 4. / sy.pi * (ty1_1 + ty1_2 + ty2 + ty3 + ty4_1 + ty4_2), \
             - 1. / 4. / sy.pi * (tz1 + tz2_1_1 + tz2_1_2 + tz2_2_1 + tz2_2_2 + tz3_1 + tz3_2 + tz4_1 + tz4_2))
-    
+
     if lambdify:
         return sy.lambdify([(x, y, z)], H)
     else:
