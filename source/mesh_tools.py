@@ -127,7 +127,15 @@ def generate_mesh_with_markers(file_name, delete_source_files=False):
 
     return mesh, cell_marker, facet_marker
 
-def read_markers_from_file(file_name):
+def read_mesh_and_markers(file_name):
+    """_summary_
+
+    Args:
+        file_name (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     file_name = file_name.rstrip(".xdmf")
     # load xdmf meshes
     mesh_file = dlf.XDMFFile(file_name + '.xdmf')
@@ -147,3 +155,18 @@ def read_markers_from_file(file_name):
     facet_marker = dlf.cpp.mesh.MeshFunctionSizet(mesh, mvc_surf)
 
     return mesh, cell_marker, facet_marker
+
+def read_mesh(fname_xdmf):
+    """Read mesh from xdmf file.
+
+    Args:
+        fname_xdmf (str): Mesh file name (xmdf).
+    
+    Returns:
+        dlf.Mesh: Finite element mesh.
+    """
+    assert fname_xdmf.endswith(".xdmf")
+    mesh_file = dlf.XDMFFile(fname_xdmf)
+    mesh = dlf.Mesh()
+    mesh_file.read(mesh)
+    return mesh

@@ -1,4 +1,5 @@
-from source.field_interpolator import FieldInterpolator
+from source.tools import create_reference_mesh, read_hd5f_file, write_hdf5_file, interpolate_field
+from source.mesh_tools import read_mesh
 from source.magnet_classes import BallMagnet
 import numpy as np
 import os
@@ -11,8 +12,12 @@ if __name__ == "__main__":
         os.mkdir(test_dir)
 
     # create field interpolator
-    fi = FieldInterpolator(domain_radius=5, cell_type="CG", p_deg=1, mesh_size_min=0.3, mesh_size_max=1.0)
-
+    domain_radius = 5
+    cell_type = "CG"
+    p_deg = 1
+    mesh_size_min = 0.3
+    mesh_size_max = 1.0
+    
     # file names
     mesh_fname = "reference_mesh.xdmf"
 
@@ -20,17 +25,17 @@ if __name__ == "__main__":
     ref_mag = BallMagnet(1., 1., np.zeros(3), np.eye(3))
 
     # create mesh, write it to xdmf file and read it
-    fi.create_reference_mesh(ref_mag, f"{test_dir}/{mesh_fname}")
-    fi.read_reference_mesh(f"{test_dir}/{mesh_fname}")
+    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, f"{test_dir}/{mesh_fname}.xdmf")
+    mesh = read_mesh(f"{test_dir}/{mesh_fname}")
 
     # interpolate reference field
-    B_interpol = fi.interpolate_reference_field(ref_mag.B, "B", write_pvd=False)
+    B_interpol = interpolate_field(ref_mag.B, mesh, cell_type, p_deg, "B", write_pvd=False)
     field_name = "B"
     field_file_name = "B.h5"
 
     # write interpolated field to hdf5 file and read it
-    fi.write_hdf5_file(B_interpol, f"{test_dir}/{field_file_name}", field_name)
-    B = fi.read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, vector_valued=True)
+    write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
+    B = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
     # remove test directory
     subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)

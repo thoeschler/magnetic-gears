@@ -3,26 +3,19 @@ import numpy as np
 import os
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet, BarMagnet
-from source.gear_mesh_generator import GearWithBallMagnetsMeshGenerator, GearWithBarMagnetsMeshGenerator
-from source.mesh_tools import read_markers_from_file
+from source.grid_generator import ball_gear_mesh, bar_gear_mesh
+from source.mesh_tools import read_mesh_and_markers
 
 
 class MagneticGear:
-    def __init__(self, n, R, x_M, magnetization_strength, initial_angle, index, magnet_type, main_dir=None):
-        if main_dir is None:
-            self._main_dir = os.getcwd()
-        else:
-            assert isinstance(main_dir, str)
-            assert os.path.exists(main_dir)
-            self._main_dir = main_dir
+    def __init__(self, n, R, x_M, magnetization_strength, initial_angle, magnet_type):
         self._n = n  # the number of magnets
         self._R = R  # the radius of the gear
         self._x_M = x_M  # the mid point
-        self._M_0 = magnetization_strength  # the magnetization strength
+        self._M_0 = magnetization_strength  # the magnet's magnetization strength
         self._angle = initial_angle  # angle in direction of spin
         self._magnet_type = magnet_type
-        self._index = index
-        self._mesh_generator = None
+        self._scale_parameter = None
 
     @property
     def n(self):
@@ -36,6 +29,17 @@ class MagneticGear:
     def x_M(self):
         return self._x_M
 
+    @x_M.setter
+    def x_M(self, x_M):
+        assert len(x_M) == 3
+        # update mesh coordinates
+        if hasattr(self, "_mesh"):
+            self.translate_mesh(x_M - self.x_M)
+        self._x_M = x_M
+        # update magnet coordinates
+        if hasattr(self, "_magnets"):
+            self.update_magnets()
+
     @property
     def M_0(self):
         return self._M_0
@@ -43,11 +47,17 @@ class MagneticGear:
     @property
     def angle(self):
         return self._angle
-    
-    @property
-    def index(self):
-        return self._index
-    
+
+    @angle.setter
+    def angle(self, angle):
+        assert isinstance(angle, float)
+        # update mesh coordinates
+        if hasattr(self, "_mesh"):
+            self.rotate_mesh(angle - self.angle)
+        self._angle = angle
+        if hasattr(self, "_magnets"):
+            self.update_magnets()
+
     @property
     def magnets(self):
         assert hasattr(self, "_magnets")
@@ -57,7 +67,7 @@ class MagneticGear:
     def mesh(self):
         assert hasattr(self, "_mesh")
         return self._mesh
-    
+
     @property
     def domain_radius(self):
         assert hasattr(self, "_domain_radius")
@@ -67,6 +77,10 @@ class MagneticGear:
     def magnet_type(self):
         assert hasattr(self, "_magnet_type")
         return self._magnet_type
+
+    @property
+    def scale_parameter(self):
+        return self._scale_parameter
 
     @property
     def normal_vector(self):
@@ -83,11 +97,6 @@ class MagneticGear:
         assert hasattr(self, "_dA")
         return self._dA
 
-    @property
-    def reference_field(self):
-        assert hasattr(self, "_reference_field")
-        return self._reference_field
-
     def _create_magnets(self):
         "Purely virtual method."
         pass
@@ -101,35 +110,21 @@ class MagneticGear:
             "angle": self.angle,
             "magnet_type": self.magnet_type,
         }
+        if hasattr(self, "_domain_radius"):
+            par.update({"domain_radius": self._domain_radius})
         return par
 
-    def generate_mesh_and_markers(self, mesh_size_space, mesh_size_magnets, fname, write_to_pvd=True, verbose=False):
-        assert hasattr(self, "_mesh_generator")
+    def create_mesh(self):
+        "Purely virtual method."
+        pass
 
-        # set mesh, markers and subdomain tags
-        mesh_and_marker, tags = self._mesh_generator.generate_mesh(
-            mesh_size_space, mesh_size_magnets, fname, write_to_pvd=write_to_pvd, verbose=verbose
-            )
-        
-        # unpack mesh, markers and tags
-        self._mesh = mesh_and_marker.mesh
-        self._cell_marker, self._facet_marker = mesh_and_marker.cell_marker, mesh_and_marker.facet_marker
-        self._magnet_subdomain_tags, self._magnet_boundary_subdomain_tags = tags.magnet_subdomain, tags.magnet_boundary_subdomain
-        self._box_subdomain_tag = tags.box_subdomain
-
-        # set differential measures
-        self._normal_vector, self._dV, self._dA = self._mesh_generator.get_differential_measures(self._mesh, self._cell_marker, self._facet_marker)
-
-        # set differential measures and domain radius
-        self._domain_radius = self._mesh_generator.get_padded_radius()
-
-    def set_mesh_and_markers_from_file(self, file_name):
+    def set_mesh_and_markers_from_file(self, file_name, domain_radius):
         """Set mesh and markers from xdmf file.
 
         Args:
             file_name (str): Absolute path to file.
         """
-        self._mesh, self._cell_marker, self._facet_marker = read_markers_from_file(file_name)
+        self._mesh, self._cell_marker, self._facet_marker = read_mesh_and_markers(file_name)
 
         # set subdomain tags
         subdomain_tags = np.sort(np.unique(self._cell_marker.array()))
@@ -138,8 +133,12 @@ class MagneticGear:
         self._magnet_boundary_subdomain_tags = np.sort(np.unique(self._facet_marker.array()))[:-1]  # exclude last index (the box)
 
         # set differential measures and domain radius
-        self._normal_vector, self._dV, self._dA = self._mesh_generator.get_differential_measures(self._mesh, self._cell_marker, self._facet_marker)
-        self._domain_radius = self._mesh_generator.get_padded_radius()
+        self.set_differential_measures()
+        self._set_padded_radius(domain_radius)
+
+    def _set_padded_radius(self):
+        "Purely virtual method."
+        pass
 
     def set_reference_field(self, reference_field, field_name):
         """Set reference field for magnetic gear.
@@ -178,11 +177,20 @@ class MagneticGear:
     def update_magnets(self):
         assert hasattr(self, "magnets")
         for k, mag in enumerate(self._magnets):
-            x_M = self.x_M + np.array([0., self.R * np.cos(2 * np.pi / self.n * k + self._angle),
-                                       self.R * np.sin(2 * np.pi / self.n * k + self._angle)])
-            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self._angle) * \
+            x_M = self.x_M + np.array([0., self.R * np.cos(2 * np.pi / self.n * k + self.angle),
+                                    self.R * np.sin(2 * np.pi / self.n * k + self.angle)])
+            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * \
                 np.array([1., 0., 0.])).as_matrix()
             mag.update_parameters(x_M, Q)
+
+    def set_differential_measures(self):
+        assert hasattr(self, "_mesh")
+        assert hasattr(self, "_facet_marker")
+        assert hasattr(self, "_cell_marker")
+        # set differential measures
+        self._normal_vector = dlf.FacetNormal(self._mesh)
+        self._dV = dlf.Measure('dx', domain=self._mesh, subdomain_data=self._cell_marker)
+        self._dA = dlf.Measure('dS', domain=self._mesh, subdomain_data=self._facet_marker)
 
     def rotate_mesh(self, d_angle, axis=0):
         """Rotate mesh by angle.
@@ -204,11 +212,11 @@ class MagneticGear:
 
 
 class MagneticGearWithBallMagnets(MagneticGear):
-    def __init__(self, n, r, R, x_M, magnetization_strength, init_angle, index, magnet_type="Ball", main_dir=None):
-        super().__init__(n, R, x_M, magnetization_strength, init_angle, index, magnet_type, main_dir)
+    def __init__(self, n, r, R, x_M, magnetization_strength, init_angle, magnet_type="Ball"):
+        super().__init__(n, R, x_M, magnetization_strength, init_angle, magnet_type)
         self._r = r  # the magnet radius
         self._create_magnets()
-        self._mesh_generator = GearWithBallMagnetsMeshGenerator(self, main_dir)
+        self._scale_parameter = r
 
     @property
     def parameters(self):
@@ -246,72 +254,43 @@ class MagneticGearWithBallMagnets(MagneticGear):
         
         print("Done.")
 
-    def get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
-        """Get file name of the reference field that is used for interpolation.
+    def create_mesh(self, mesh_size_space, mesh_size_magnets, fname, padding=None, write_to_pvd=False, verbose=False):
+        """Create ball gear mesh. Set mesh, markers and subdomain tags.
 
         Args:
-            field_name (str): Name of the field, e.g. "B".
-            cell_type (str): Finite element cell type.
-            p_deg (int): Polynomial degree of finite element.
-            mesh_size_min (float): Minimum mesh size of reference field. This value
-                                   will be used as the starting mesh size at the center
-                                   of the reference mesh.
-            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
-                                   mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh.
-            domain_size (float): The maximum distance between two points of the two
-                                 gear meshes. This value will be used as the radius of
-                                 the reference mesh.
-
-        Returns:
-            str: The file name of the reference field (hdf5).
+            mesh_size_space (float): Global mesh size.
+            mesh_size_magnets (float): Magnet mesh size.
+            fname (str): File name.
+            padding (float or None): Padding added to the mesh exterior. Defaults to None. 
+            verbose (bool, optional): If true display gmsh info text. Defaults to False.
         """
-        assert hasattr(self, "magnet_type")
-        assert isinstance(field_name, str)
-        assert isinstance(p_deg, int)
-        assert isinstance(cell_type, str)
-        assert isinstance(mesh_size_min, float)
-        assert isinstance(mesh_size_max, float)
-        assert isinstance(domain_size, int)
-        assert field_name in ("Vm", "B")
+        if padding is None:
+            padding = self.R / 10
+        self._padding = padding
+        self._set_padded_radius()
+        self._mesh, self._cell_marker, self._facet_marker, self._magnet_subdomain_tags, \
+            self._magnet_boundary_subdomain_tags, self._box_subdomain_tag = ball_gear_mesh(
+                self, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd, verbose=verbose
+                )
+        self.set_differential_measures()
 
-        return f"{field_name}_{cell_type}_{p_deg}_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{domain_size}.h5"
-
-    def get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
-        """Get file name of the reference mesh that is used for interpolation.
-
-        Args:
-            mesh_size_min (float): Minimum mesh size of reference field. This value
-                                   will be used as the starting mesh size at the center
-                                   of the reference mesh.
-            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
-                                   mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh.
-            domain_size (float): The maximum distance between two points of the two
-                                 gear meshes. This value will be used as the radius of
-                                 the reference mesh.
-
-        Returns:
-            str: The name of the reference mesh file (xdmf).
-        """
-        assert isinstance(mesh_size_min, float)
-        assert isinstance(mesh_size_max, float)
-        return f"reference_mesh_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{int(domain_size)}.xdmf"
-
-    def get_padded_radius(self):
-        return self.R + self.r + self._mesh_generator.pad
+    def _set_padded_radius(self, val=None):
+        if val is not None:
+            self._domain_radius = val
+            self._padding = val - self.R - self.r
+        else:
+            assert hasattr(self, "_padding")
+            self._domain_radius = self.R + self.r + self._padding
 
 
 class MagneticGearWithBarMagnets(MagneticGear):
-    def __init__(self, n, h, w, d, R, x_M, magnetization_strength, init_angle, index, magnet_type="Bar", main_dir=None):
-        super().__init__(n, R, x_M, magnetization_strength, init_angle, index, magnet_type, main_dir)
+    def __init__(self, n, h, w, d, R, x_M, magnetization_strength, init_angle, magnet_type="Bar"):
+        super().__init__(n, R, x_M, magnetization_strength, init_angle, magnet_type)
         self._h = h  # the magnet height
         self._w = w  # the magnet width
         self._d = d  # the magnet depth
         self._create_magnets()
-        self._mesh_generator = GearWithBarMagnetsMeshGenerator(self, main_dir)
+        self._scale_parameter = h
 
     @property
     def h(self):
@@ -362,70 +341,30 @@ class MagneticGearWithBarMagnets(MagneticGear):
         
         print("Done.")
 
-    def get_reference_field_file_name(self, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
-        """Get file name of the reference field that is used for interpolation.
+    def create_mesh(self, mesh_size_space, mesh_size_magnets, fname, padding=None, write_to_pvd=False, verbose=False):
+        """Create bar gear mesh. Set mesh, markers and subdomain tags.
 
         Args:
-            field_name (str): Name of the field, e.g. "B".
-            cell_type (str): Finite element cell type.
-            p_deg (int): Polynomial degree of finite element.
-            mesh_size_min (float): Minimum mesh size of reference field. This value
-                                   will be used as the starting mesh size at the center
-                                   of the reference mesh.
-            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
-                                   mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh.
-            domain_size (float): The maximum distance between two points of the two
-                                 gear meshes. This value will be used as the radius of
-                                 the reference mesh.
-
-        Returns:
-            str: The file name of the reference field (hdf5).
+            mesh_size_space (float): Global mesh size.
+            mesh_size_magnets (float): Magnet mesh size.
+            fname (str): File name.
+            padding (float or None): Padding added to the mesh exterior. Defaults to None. 
+            verbose (bool, optional): If true display gmsh info text. Defaults to False.
         """
-        assert hasattr(self, "magnet_type")
-        assert isinstance(field_name, str)
-        assert isinstance(p_deg, int)
-        assert isinstance(cell_type, str)
-        assert isinstance(mesh_size_min, float)
-        assert isinstance(mesh_size_max, float)
-        assert isinstance(domain_size, int)
-        assert field_name in ("Vm", "B")
-        
-        # reference width and depth
-        w_ref = self.w / self.h
-        d_ref = self.d / self.h
+        if padding is None:
+            padding = self.R / 10
+        self._padding = padding
+        self._set_padded_radius()
+        self._mesh, self._cell_marker, self._facet_marker, self._magnet_subdomain_tags, \
+            self._magnet_boundary_subdomain_tags, self._box_subdomain_tag = bar_gear_mesh(
+                self, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd, verbose=verbose
+                )
+        self.set_differential_measures()
 
-        return f"{field_name}_{cell_type}_{p_deg}_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{str(w_ref).replace('.', 'p'):.4s}" + \
-                f"_{str(d_ref).replace('.', 'p'):.4s}_{domain_size}.h5"
-
-    def get_reference_mesh_file_name(self, mesh_size_min, mesh_size_max, domain_size):
-        """Get file name of the reference mesh that is used for interpolation.
-
-        Args:
-            mesh_size_min (float): Minimum mesh size of reference field. This value
-                                   will be used as the starting mesh size at the center
-                                   of the reference mesh.
-            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
-                                   mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh.
-            domain_size (float): The maximum distance between two points of the two
-                                 gear meshes. This value will be used as the radius of
-                                 the reference mesh.
-
-        Returns:
-            str: The name of the reference mesh file (xdmf).
-        """
-        assert isinstance(mesh_size_min, float)
-        assert isinstance(mesh_size_max, float)
-
-        # reference width and depth
-        w_ref = self.w / self.h
-        d_ref = self.d / self.h
-
-        return f"reference_mesh_{str(mesh_size_min).replace('.', 'p')}" + \
-            f"_{str(mesh_size_max).replace('.', 'p')}_{self.magnet_type}_{str(w_ref).replace('.', 'p'):.4s}" + \
-                f"_{str(d_ref).replace('.', 'p'):.4s}_{int(domain_size)}.xdmf"
-
-    def get_padded_radius(self):
-        return self.R + self.w + self._mesh_generator.pad
+    def _set_padded_radius(self, val=None):
+        if val is not None:
+                self._domain_radius = val
+                self._padding = val - self.R - self.w
+        else:
+            assert hasattr(self, "_padding")
+            self._domain_radius = self.R + self.w + self._padding
