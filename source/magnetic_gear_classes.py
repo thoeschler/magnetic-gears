@@ -1,21 +1,21 @@
 import dolfin as dlf
 import numpy as np
-import os
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet, BarMagnet
-from source.grid_generator import ball_gear_mesh, bar_gear_mesh
 from source.mesh_tools import read_mesh_and_markers
+from source.math_tools import get_perpendicular
 
 
 class MagneticGear:
-    def __init__(self, n, R, x_M, magnetization_strength, initial_angle, magnet_type):
+    def __init__(self, n, R, x_M, axis):
         self._n = n  # the number of magnets
         self._R = R  # the radius of the gear
+        assert len(x_M) == 3
         self._x_M = x_M  # the mid point
-        self._M_0 = magnetization_strength  # the magnet's magnetization strength
-        self._angle = initial_angle  # angle in direction of spin
-        self._magnet_type = magnet_type
+        self._angle = 0.  # angle
+        self._axis = axis / np.linalg.norm(axis)  # rotation axis
         self._scale_parameter = None
+        self._magnet_type = None
 
     @property
     def n(self):
@@ -32,31 +32,36 @@ class MagneticGear:
     @x_M.setter
     def x_M(self, x_M):
         assert len(x_M) == 3
+        d_x_M = x_M - self.x_M
         # update mesh coordinates
         if hasattr(self, "_mesh"):
             self.translate_mesh(x_M - self.x_M)
         self._x_M = x_M
         # update magnet coordinates
         if hasattr(self, "_magnets"):
-            self.update_magnets()
-
-    @property
-    def M_0(self):
-        return self._M_0
+            self.update_magnets(d_angle=0, d_x_M=d_x_M)
 
     @property
     def angle(self):
         return self._angle
 
+    def reset_angle(self, angle):
+        self._angle = angle
+
     @angle.setter
     def angle(self, angle):
+        d_angle = angle - self.angle
         assert isinstance(angle, float)
         # update mesh coordinates
         if hasattr(self, "_mesh"):
             self.rotate_mesh(angle - self.angle)
         self._angle = angle
         if hasattr(self, "_magnets"):
-            self.update_magnets()
+            self.update_magnets(d_angle, np.zeros(3))
+
+    @property
+    def axis(self):
+        return self._axis
 
     @property
     def magnets(self):
@@ -83,23 +88,23 @@ class MagneticGear:
         return self._scale_parameter
 
     @property
+    def magnet_type(self):
+        return self._magnet_type
+
+    @property
     def normal_vector(self):
         assert hasattr(self, "_normal_vector")
         return self._normal_vector
-    
+
     @property
     def dV(self):
         assert hasattr(self, "_dV")
         return self._dV
-    
+
     @property
     def dA(self):
         assert hasattr(self, "_dA")
         return self._dA
-
-    def _create_magnets(self):
-        "Purely virtual method."
-        pass
 
     @property
     def parameters(self):
@@ -107,16 +112,43 @@ class MagneticGear:
             "n": self.n,
             "R": self.R,
             "x_M": tuple(self.x_M),
-            "angle": self.angle,
             "magnet_type": self.magnet_type,
         }
         if hasattr(self, "_domain_radius"):
             par.update({"domain_radius": self._domain_radius})
         return par
 
+    def create_magnets(self):
+        """Purely virtual method"""
+        pass
+
     def create_mesh(self):
         "Purely virtual method."
         pass
+
+    def set_mesh_markers_and_tags(self, mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
+        magnet_boundary_subdomain_tags, box_subdomain_tag, padding=None):
+        """Set mesh, cell- and facet markers as well as the respective tags. 
+
+        Args:
+            mesh (dlf.Mesh): Finite element mesh.
+            cell_marker (dlf.cpp.mesh.MeshFunctionSizet): Cell marker.
+            facet_marker (dlf.cpp.mesh.MeshFunctionSizet): Facet marker.
+            magnet_subdomain_tags (list): Magnet volume tags.
+            magnet_boundary_subdomain_tags (list): Magnet boundary tags.
+            box_subdomain_tag (int): Box tag.
+            padding (float, optional): Padding value. Defaults to None.
+        """
+        self._mesh = mesh
+        self._cell_marker = cell_marker
+        self._facet_marker = facet_marker
+        self._magnet_subdomain_tags = magnet_subdomain_tags
+        self._magnet_boundary_subdomain_tags = magnet_boundary_subdomain_tags
+        self._box_subdomain_tag = box_subdomain_tag
+        if padding is not None:
+            self._padding = padding
+            self._set_padded_radius()
+        self.set_differential_measures()
 
     def set_mesh_and_markers_from_file(self, file_name, domain_radius):
         """Set mesh and markers from xdmf file.
@@ -128,7 +160,7 @@ class MagneticGear:
 
         # set subdomain tags
         subdomain_tags = np.sort(np.unique(self._cell_marker.array()))
-        self._box_subdomain_tag = subdomain_tags[0]
+        self._box_subdomain_tag = subdomain_tags[0]  # make sure box is labeled first!
         self._magnet_subdomain_tags = subdomain_tags[1:]  # exclude first index (the box)
         self._magnet_boundary_subdomain_tags = np.sort(np.unique(self._facet_marker.array()))[:-1]  # exclude last index (the box)
 
@@ -171,16 +203,26 @@ class MagneticGear:
         # update the angle
         self._angle += d_angle
         # then update the rest
-        self.update_magnets()
-        self.rotate_mesh(d_angle, axis=0)
+        if hasattr(self, "_magnets"):
+            self.update_magnets(d_angle, np.zeros(3))
+        if hasattr(self, "_mesh"):
+            self.rotate_mesh(d_angle)
 
-    def update_magnets(self):
+    def update_magnets(self, d_angle, d_x_M):
+        """Update magnets according to increment of angle and gear's center of mass.
+
+        Make sure that the center of mass has been updated first
+
+        Args:
+            d_angle (float): Angle incerement.
+            d_x_M (np.ndarray): Center of mass increment.
+        """
         assert hasattr(self, "magnets")
-        for k, mag in enumerate(self._magnets):
-            x_M = self.x_M + np.array([0., self.R * np.cos(2 * np.pi / self.n * k + self.angle),
-                                    self.R * np.sin(2 * np.pi / self.n * k + self.angle)])
-            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * \
-                np.array([1., 0., 0.])).as_matrix()
+        rot = Rotation.from_rotvec(d_angle * self.axis).as_matrix()
+        for mag in self._magnets:
+            x_M = mag.x_M + d_x_M
+            x_M = self._x_M + rot.dot(x_M - self._x_M)
+            Q = rot.dot(mag.Q)
             mag.update_parameters(x_M, Q)
 
     def set_differential_measures(self):
@@ -192,14 +234,33 @@ class MagneticGear:
         self._dV = dlf.Measure('dx', domain=self._mesh, subdomain_data=self._cell_marker)
         self._dA = dlf.Measure('dS', domain=self._mesh, subdomain_data=self._facet_marker)
 
-    def rotate_mesh(self, d_angle, axis=0):
+    def set_mesh_function(self, mesh_function):
+        """Set function used to mesh the gear (may differ depending on the problem).
+
+        Args:
+            mesh_function (callable): Function that is used to mesh the gear.
+        """
+        assert callable(mesh_function)
+        self.mesh_gear = mesh_function
+
+    def rotate_mesh(self, d_angle):
         """Rotate mesh by angle.
 
         Args:
             d_angle (float): Angle increment in rad.
         """
         # rotate mesh around axis 0 (x-axis) through gear midpoint by angle d_angle
-        self.mesh.rotate(d_angle * 180 / np.pi, axis, dlf.Point(*self.x_M))
+        # rotation only possible around x, y, z axes
+        Q = Rotation.from_rotvec(d_angle * self.axis).as_matrix()
+        self.mesh.coordinates()[:] = Q.dot((self.mesh.coordinates()[:]).T - self.x_M[:, None]).T + self.x_M[None]
+
+    def scale_mesh(self, mesh):
+        """Scale mesh by gear's scaling parameter.
+
+        Args:
+            mesh (dlf.Mesh): Finite element mesh.
+        """
+        mesh.scale(self.scale_parameter)
 
     def translate_mesh(self, vec):
         """Translate mesh.
@@ -211,12 +272,12 @@ class MagneticGear:
         self.mesh.translate(dlf.Point(vec))
 
 
-class MagneticGearWithBallMagnets(MagneticGear):
-    def __init__(self, n, r, R, x_M, magnetization_strength, init_angle, magnet_type="Ball"):
-        super().__init__(n, R, x_M, magnetization_strength, init_angle, magnet_type)
+class MagneticBallGear(MagneticGear):
+    def __init__(self, n, R, r, x_M, axis):
+        super().__init__(n, R, x_M, axis)
         self._r = r  # the magnet radius
-        self._create_magnets()
         self._scale_parameter = r
+        self._magnet_type = "Ball"
 
     @property
     def parameters(self):
@@ -230,6 +291,10 @@ class MagneticGearWithBallMagnets(MagneticGear):
     def r(self):
         return self._r
 
+    @property
+    def outer_radius(self):
+        return self.R + self.r
+
     def reference_magnet(self):
         """Return reference magnet instance.
 
@@ -239,40 +304,24 @@ class MagneticGearWithBallMagnets(MagneticGear):
         return BallMagnet(radius=1.0, magnetization_strength=1.0, position_vector=np.zeros(3),
                           rotation_matrix=np.eye(3))
 
-    def _create_magnets(self):
-        print("Creating magnets... ", end="")
-
-        self._magnets = []
-        for k in range(self.n):
-            # compute position and rotation matrix
-            x_M = self.x_M + np.array([0.,
-                                       self.R * np.cos(2 * np.pi / self.n * k + self.angle),
-                                       self.R * np.sin(2 * np.pi / self.n * k + self.angle)])
-            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * \
-                    np.array([1., 0., 0.])).as_matrix()
-            self._magnets.append(BallMagnet(self.r, self.M_0, x_M, Q))
-        
-        print("Done.")
-
-    def create_mesh(self, mesh_size_space, mesh_size_magnets, fname, padding=None, write_to_pvd=False, verbose=False):
-        """Create ball gear mesh. Set mesh, markers and subdomain tags.
+    def create_magnets(self, magnetization_strength):
+        """Create ball magnets, given some magnetization strength.
 
         Args:
-            mesh_size_space (float): Global mesh size.
-            mesh_size_magnets (float): Magnet mesh size.
-            fname (str): File name.
-            padding (float or None): Padding added to the mesh exterior. Defaults to None. 
-            verbose (bool, optional): If true display gmsh info text. Defaults to False.
+            magnetization_strength (float): Magnetization strength.
         """
-        if padding is None:
-            padding = self.R / 10
-        self._padding = padding
-        self._set_padded_radius()
-        self._mesh, self._cell_marker, self._facet_marker, self._magnet_subdomain_tags, \
-            self._magnet_boundary_subdomain_tags, self._box_subdomain_tag = ball_gear_mesh(
-                self, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd, verbose=verbose
-                )
-        self.set_differential_measures()
+        print("Creating magnets... ", end="")
+        self._magnets = []
+        # create unit vector perpendicular to axis
+        unit_vec = get_perpendicular(self.axis, normalized=True)
+        x_M_base = self.R * unit_vec
+        for k in range(self.n):
+            rot = Rotation.from_rotvec(2 * np.pi / self.n * k * self.axis).as_matrix()
+            # compute position and rotation matrix 
+            x_M = self.x_M + rot.dot(x_M_base)
+            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * self.axis).as_matrix()
+            self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
+        print("Done.")
 
     def _set_padded_radius(self, val=None):
         if val is not None:
@@ -283,14 +332,14 @@ class MagneticGearWithBallMagnets(MagneticGear):
             self._domain_radius = self.R + self.r + self._padding
 
 
-class MagneticGearWithBarMagnets(MagneticGear):
-    def __init__(self, n, h, w, d, R, x_M, magnetization_strength, init_angle, magnet_type="Bar"):
-        super().__init__(n, R, x_M, magnetization_strength, init_angle, magnet_type)
+class MagneticBarGear(MagneticGear):
+    def __init__(self, n, R, h, w, d, x_M, axis):
+        super().__init__(n, R, x_M, axis)
         self._h = h  # the magnet height
         self._w = w  # the magnet width
         self._d = d  # the magnet depth
-        self._create_magnets()
         self._scale_parameter = h
+        self._magnet_type = "Bar"
 
     @property
     def h(self):
@@ -303,6 +352,10 @@ class MagneticGearWithBarMagnets(MagneticGear):
     @property
     def d(self):
         return self._d
+
+    @property
+    def outer_radius(self):
+        return self.R + self.w
 
     @property
     def parameters(self):
@@ -326,45 +379,29 @@ class MagneticGearWithBarMagnets(MagneticGear):
         return BarMagnet(height=1.0, width=self.w / self.h, depth=self.d / self.h, magnetization_strength=1.0, \
             position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
-    def _create_magnets(self):
-        print("Creating magnets... ")
-
-        self._magnets = []
-        for k in range(self.n):
-            # compute position and rotation matrix
-            pos = self.x_M + np.array([0.,
-                                       self.R * np.cos(2 * np.pi / self.n * k + self.angle),
-                                       self.R * np.sin(2 * np.pi / self.n * k + self.angle)])
-            rot = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * \
-                np.array([1., 0., 0.])).as_matrix()
-            self._magnets.append(BarMagnet(self.h, self.w, self.d, self.M_0, pos, rot))
-        
-        print("Done.")
-
-    def create_mesh(self, mesh_size_space, mesh_size_magnets, fname, padding=None, write_to_pvd=False, verbose=False):
-        """Create bar gear mesh. Set mesh, markers and subdomain tags.
+    def create_magnets(self, magnetization_strength):
+        """Create ball magnets, given some magnetization strength.
 
         Args:
-            mesh_size_space (float): Global mesh size.
-            mesh_size_magnets (float): Magnet mesh size.
-            fname (str): File name.
-            padding (float or None): Padding added to the mesh exterior. Defaults to None. 
-            verbose (bool, optional): If true display gmsh info text. Defaults to False.
+            magnetization_strength (float): Magnetization strength.
         """
-        if padding is None:
-            padding = self.R / 10
-        self._padding = padding
-        self._set_padded_radius()
-        self._mesh, self._cell_marker, self._facet_marker, self._magnet_subdomain_tags, \
-            self._magnet_boundary_subdomain_tags, self._box_subdomain_tag = bar_gear_mesh(
-                self, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd, verbose=verbose
-                )
-        self.set_differential_measures()
+        print("Creating magnets... ", end="")
+        self._magnets = []
+        # create random unit vector different from axis
+        unit_vec = get_perpendicular(self.axis, normalized=True)
+        x_M_base = self.R * unit_vec
+        for k in range(self.n):
+            rot = Rotation.from_rotvec(2 * np.pi / self.n * k * self.axis).as_matrix()
+            # compute position and rotation matrix 
+            x_M = self.x_M + rot.dot(x_M_base)
+            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * self.axis).as_matrix()
+            self._magnets.append(BarMagnet(self.h, self.w, self.d, magnetization_strength, x_M, Q))
+        print("Done.")
 
     def _set_padded_radius(self, val=None):
         if val is not None:
-                self._domain_radius = val
-                self._padding = val - self.R - self.w
+            self._domain_radius = val
+            self._padding = val - self.R - self.w
         else:
             assert hasattr(self, "_padding")
             self._domain_radius = self.R + self.w + self._padding

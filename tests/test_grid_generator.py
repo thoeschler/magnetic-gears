@@ -4,26 +4,49 @@ import numpy as np
 import subprocess
 import os
 
-# create test directory
-test_dir = "test_dir"
-if not os.path.exists(test_dir):
-    os.mkdir(test_dir)
-os.chdir(test_dir)
+def test_ball_gear_mesh():
+    n = 5
+    R = 10.
+    r = 1.
+    x_M = np.random.rand(3)
+    axis = np.random.rand(3)
+    axis /= np.linalg.norm(axis)
+    ball_gear = MagneticGearWithBallMagnets(n, R, r, x_M, axis)
 
-out_path = "data/gear/meshes/"
-if not os.path.exists(out_path):
-    os.makedirs(out_path)
+    M0 = 10.  # magnetization strength
+    ball_gear.create_magnets(M0)
 
-ball_gear = MagneticGearWithBallMagnets(4, 1, 10, np.zeros(3), 1., 0., 1)
-out = ball_gear_mesh(ball_gear, mesh_size_space=2.0, mesh_size_magnets=0.3, padding=ball_gear.R / 10, \
-    fname=out_path + "testball", verbose=True)
+    _ = ball_gear_mesh(ball_gear, mesh_size_space=2.0, mesh_size_magnets=0.3, padding=ball_gear.R / 10, \
+        fname="testball", verbose=True)
 
+def test_bar_gear_mesh():
+    # create gear
+    n = 5
+    R = 10.
+    h = 1.5
+    w = .5
+    d = .5
+    x_M = np.random.rand(3)
+    axis = np.random.rand(3)
+    axis /= np.linalg.norm(axis)
 
-bar_gear = MagneticGearWithBarMagnets(4, 1, 1, 1, 10, np.zeros(3), \
-    1., 0., 0)
-out = bar_gear_mesh(bar_gear, mesh_size_space=2.0, mesh_size_magnets=1.0, padding=bar_gear.R / 10, \
-    fname=out_path + "testbar", verbose=True)
+    bar_gear = MagneticGearWithBarMagnets(n, R, h, w, d, x_M, axis)
+    M0 = 10.  # magnetization strength
+    bar_gear.create_magnets(M0)
 
-# remove test directory
-os.chdir("..")
-subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+    _ = bar_gear_mesh(bar_gear, mesh_size_space=1.0, mesh_size_magnets=0.2, padding=bar_gear.R / 10, \
+        fname="testbar", verbose=True)
+
+if __name__ == "__main__":
+    # create test directory
+    test_dir = "test_dir"
+    if not os.path.exists(test_dir):
+        os.mkdir(test_dir)
+    os.chdir(test_dir)
+
+    test_ball_gear_mesh()
+    test_bar_gear_mesh()
+
+    # remove test directory
+    os.chdir("..")
+    subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)

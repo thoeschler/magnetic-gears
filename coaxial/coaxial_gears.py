@@ -3,11 +3,12 @@ from dolfin import LagrangeInterpolator
 import numpy as np
 import os
 import json
-from source.magnetic_gear_classes import MagneticGearWithBallMagnets, MagneticGearWithBarMagnets, MagneticGear
+from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
 from source.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.mesh_tools import read_mesh
 
-class CoaxialGearsBase:
+
+class CoaxialGearsProblem:
     def __init__(self, first_gear: MagneticGear, second_gear: MagneticGear, D, main_dir=None):
         """Base class for Coaxial Gears problem.
 
@@ -18,6 +19,9 @@ class CoaxialGearsBase:
             main_dir (str, optional): Main directory. Defaults to None. Current working
                                       directory is used in that case.
         """
+        # make sure gears are coaxial
+        assert np.isclose(np.dot(first_gear.axis, second_gear.axis), \
+            np.linalg.norm(first_gear.axis) * np.linalg.norm(second_gear.axis))
         # set write and read directory
         if main_dir is None:
             self._main_dir = os.getcwd()
@@ -25,12 +29,18 @@ class CoaxialGearsBase:
             assert isinstance(main_dir, str)
             assert os.path.exists(main_dir)
             self._main_dir = main_dir
-        assert D > 0. 
+        assert D > first_gear.outer_radius + second_gear.outer_radius
         self._D = D
         self._gear_1 = first_gear
         self._gear_2 = second_gear
         # overwrite in subclass
-        self._gear_2.x_M = self._gear_1.x_M + np.array([0., self._gear_1.R + D + self._gear_2.R, 0.])
+        assert hasattr(self._gear_1, "outer_radius")
+        assert hasattr(self._gear_2, "outer_radius")
+        vec = self.gear_2.x_M - self.gear_1.x_M
+        assert np.isclose(np.dot(first_gear.axis, vec), 0.), "Gears are seperated in direction of rotation axis!"
+        assert not np.allclose(vec, 0.)
+        vec /= np.linalg.norm(vec)
+        self.gear_2.x_M = self.gear_1.x_M + D * vec
         self._magnet_type = None
 
     @property
@@ -66,9 +76,36 @@ class CoaxialGearsBase:
             "magnet_type": gear.magnet_type,
             "domain_radius": domain_radius / gear.scale_parameter,
         }
+        if isinstance(gear, MagneticBarGear):
+            par.update({
+                "w": gear.w / gear.h,
+                "d": gear.d / gear.h
+                })
         return par
 
-    def _find_reference_files(self, gear, rtol=1.0):
+    def align_gears(self):
+        """Rotate both gears such that magnets align."""
+        self.align_gear(self.gear_1, self.gear_2)
+        self.align_gear(self.gear_2, self.gear_1)
+
+    def align_gear(self, gear, other_gear):
+        """Align gear with another gear.
+
+        Args:
+            gear (MagneticGear): Gear that should be aligned.
+            other_gear (MagneticGear): Gear that the other should be aligned with.
+        """
+        assert hasattr(gear, "_magnets")
+        vec = (other_gear.x_M - gear.x_M)
+        vec /= np.linalg.norm(vec)
+        x_M_magnet = gear.x_M + gear.R * vec  # goal position for magnet
+        angle = np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2)
+        sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(gear.axis))
+        gear.update_parameters(sign * angle)
+        assert np.allclose(x_M_magnet, gear.magnets[0].x_M)
+        gear.reset_angle(0.)
+
+    def _find_reference_files(self, gear, mesh_size_min, mesh_size_max, rtol=1.0):
         assert hasattr(self, "_domain_size")
         # some parameters
         found_dir = False
@@ -84,34 +121,33 @@ class CoaxialGearsBase:
                     # read paramters
                     par = json.loads(f.read())
                     # check if all paramters match
-                    if par["domain_radius"] / gear.scale_parameter < domain_radius_file and self._match_reference_parameters(gear, par):
+                    if par["domain_radius"] < domain_radius_file and \
+                        self._match_reference_parameters(par, gear, mesh_size_min, mesh_size_max):
                         found_dir = True
                         domain_radius_file = par["domain_radius"]
                         dir_name = subdir
         return dir_name, found_dir
 
-    def _find_gear_mesh_file(self, gear):
-        # some parameters
-        found_file = False
-        par_ref = gear.parameters
-        par = None
+    def _match_reference_parameters(self, par_file, gear, mesh_size_min, mesh_size_max):
+        # check if magnet type agrees
+        if not par_file["magnet_type"] == gear.magnet_type:
+            return False
 
-        # search existing gear mesh directories for matching parameter file
-        subdirs = [r[0] for r in os.walk(self._main_dir + "/data/gears/")]
-        for subdir in subdirs:
-            if "par.json" in os.listdir(subdir):
-                with open(f"{subdir}/par.json", "r") as f:
-                    # read paramters
-                    par = json.loads(f.read())
-                    if par["magnet_type"] != gear.magnet_type:
-                        continue
-                    # get paramters that need to match (all except x_M and angle, domain_radius)
-                    match_par = [p for p in par.keys() if p not in ("x_M", "angle", "domain_radius")]
-                    # if all paramters match, return the subdir
-                    if all([par[p] == par_ref[p] for p in match_par]):
-                        found_file = True
-                        return subdir, found_file, par
-        return None, found_file, par
+        # check if mesh size is correct
+        if not np.isclose(par_file["mesh_size_min"], mesh_size_min):
+            return False
+        if not np.isclose(par_file["mesh_size_max"], mesh_size_max):
+            return False
+
+        # check if domain size and geometry matches
+        if not par_file["domain_radius"] * gear.scale_parameter >= self._domain_size:
+            return False
+      
+        if isinstance(gear, MagneticBarGear):
+            if not np.allclose((gear.w / gear.scale_parameter, gear.d / gear.scale_parameter), (par_file["w"], par_file["d"])):
+                return False
+
+        return True
 
     def _load_reference_field(self, gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Load reference field from hdf5 file. If no appropriate file is
@@ -134,23 +170,21 @@ class CoaxialGearsBase:
         assert isinstance(gear, MagneticGear)
         assert field_name in ("Vm", "B"), "I do not know this field."
         vector_valued = (field_name == "B")  # check if field is vector valued
-        domain_size = int(domain_size)  # cast domain size to int
 
         # find directory with matching files
-        ref_dir, found_dir = self._find_reference_files(gear)
+        ref_dir, found_dir = self._find_reference_files(gear, mesh_size_min, mesh_size_max)
 
         # check if both mesh file and hdf5 file exist; if not, create both
         if not found_dir:
             # create directory
             subdirs = [r[0] for r in os.walk(self._main_dir + "data/reference")]
-            ref_dir = f"{self._main_dir}/data/reference/{self.magnet_type}_{domain_size}_{np.random.randint(10_000, 50_000)}"
+            ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
             while ref_dir in subdirs:
-                ref_dir = f"{self._main_dir}/data/reference/{self.magnet_type}_R_{domain_size}_{np.random.randint(10_000, 50_000)}"
+                ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_R_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
             os.makedirs(ref_dir)
 
             # create reference mesh
             ref_mag = gear.reference_magnet()
-            print(domain_size, gear.scale_parameter)
             create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, fname=f"{ref_dir}/reference_mesh")
 
             # read the reference mesh
@@ -172,7 +206,12 @@ class CoaxialGearsBase:
 
             # write parameter file
             with open(f"{ref_dir}/par.json", "w") as f:
-                f.write(json.dumps(self._reference_parameters_dict(gear, domain_size)))
+                ref_par = self._reference_parameters_dict(gear, domain_size)
+                ref_par.update({
+                    "mesh_size_min": mesh_size_min, 
+                    "mesh_size_max": mesh_size_max
+                    })
+                f.write(json.dumps(ref_par))
         else:
             # read the reference mesh
             reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
@@ -181,6 +220,7 @@ class CoaxialGearsBase:
         reference_field = read_hd5f_file(f"{ref_dir}/{field_name}.h5", field_name, reference_mesh, cell_type, p_deg, vector_valued=vector_valued)
 
         # set reference field and mesh for gear
+        gear.scale_mesh(reference_mesh)
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
@@ -232,9 +272,8 @@ class CoaxialGearsBase:
 
         print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
-        D = np.linalg.norm(self.gear_1.x_M - self.gear_2.x_M)
         for mag in field_gear.magnets:
-            if np.linalg.norm(mag.x_M - mesh_gear.x_M) <= D:
+            if np.linalg.norm(mag.x_M - mesh_gear.x_M) <= self.D:
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_gear._B_reference_mesh, \
                     mesh_gear.mesh, cell_type, p_deg)
                 field_sum += interpol_field._cpp_object.vector()
@@ -251,12 +290,10 @@ class CoaxialGearsBase:
 
         # scale, rotate and shift reference mesh according to magnet placement
         # rotate first, then shift!
-        self._scale_mesh(reference_mesh_copy, magnet)
         reference_mesh_copy.coordinates()[:] = magnet.Q.dot(reference_mesh_copy.coordinates().T).T
         reference_mesh_copy.translate(dlf.Point(*magnet.x_M))
 
         # interpolate field to new function space and add the result
-        # interpol_field = dlf.interpolate(reference_field_copy, V_copy)
         interpol_field = dlf.Function(V)
         LagrangeInterpolator.interpolate(interpol_field, reference_field_copy)
 
@@ -296,16 +333,12 @@ class CoaxialGearsBase:
         print("Done.")
         return tau
  
-    def set_gear_meshes(self, mesh_size_space, mesh_size_magnets, write_to_pvd=True, verbose=False):
-        """Mesh both gears.
+    def create_gear_mesh(self, gear: MagneticGear, **kwargs):
+        """Mesh a gear.
 
         Args:
-            mesh_size_space (str): Mesh size for the surrounding space.
-            mesh_size_magnets (str): Mesh size for the magnets.
-            write_to_pvd (bool, optional): If true write meshes to paraview-files.
-                                           Defaults to True.
-            verbose (bool, optional): If true the gmsh meshing information will be
-                                      displayed. Defaults to False.
+            gear (MagneticGear): The gear. 
+            kwargs (any): Input to gear's mesh function.
         """
         assert hasattr(self, "_gear_1")
         assert hasattr(self, "_gear_2")
@@ -313,39 +346,34 @@ class CoaxialGearsBase:
         # create directory if it does not exist
         if not os.path.exists(self._main_dir + "/data/gears/"):
             os.makedirs(self._main_dir + "/data/gears/")
+        if gear is self.gear_1:
+            dir_name = "gear_1"
+        elif gear is self.gear_2:
+            dir_name = "gear_2"
+        else:
+            raise RuntimeError()
 
-        for gear in self.gears:
-            dir_name, found_file, par = self._find_gear_mesh_file(gear)
-            # read markers and mesh from file
-            # if no file was found, generate both 
-            if found_file:
-                print(f"Reading gear mesh... ", end="")
-                gear.set_mesh_and_markers_from_file(f"{dir_name}/gear", par["domain_radius"])
-                gear.translate_mesh(gear.x_M - np.array(par["x_M"]))
-                gear.rotate_mesh(gear.angle - par["angle"], axis=0)
-                print("Done.")
-            else:
-                # generate dir_name
-                subdirs = [r[0] for r in os.walk(self._main_dir + "/data/gears/")]
-                # generate some random integer value
-                dir_name = f"{gear.magnet_type}_n_{gear.n}_{np.random.randint(10_000, 50_000)}"
-                while dir_name in subdirs:
-                    dir_name = f"{gear.magnet_type}_n_{gear.n}_{np.random.randint(10_000, 50_000)}"
+        target_dir = f"{self._main_dir}/data/gears/{dir_name}"
+        if not os.path.exists(target_dir):
+            os.mkdir(target_dir)
+        fname = kwargs["fname"] 
+        kwargs.update({"fname": f"{target_dir}/{fname}"})
 
-                target_dir = f"{self._main_dir}/data/gears/{dir_name}"
-                os.mkdir(target_dir)
-                gear.create_mesh(mesh_size_space, mesh_size_magnets, fname=f"{target_dir}/gear", \
-                    write_to_pvd=write_to_pvd, verbose=verbose)
-                # write parameter file
-                with open(f"{target_dir}/par.json", "w") as f:
-                    f.write(json.dumps(gear.parameters))
+        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags, \
+            box_subdomain_tag = gear.mesh_gear(gear, **kwargs)
 
-        assert hasattr(self, "_set_domain_size")
-        self._set_domain_size()
+        gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
+            magnet_boundary_subdomain_tags, box_subdomain_tag, padding=kwargs["padding"])
+
+        if hasattr(self.gear_1, "_domain_radius") and hasattr(self.gear_2, "_domain_radius"):
+            assert hasattr(self, "_set_domain_size")
+            self._set_domain_size()
 
     def _set_domain_size(self):
-        """Purely virtual method."""
-        pass
+        # set domain size (the maximum distance between two points on either of the two meshes)
+        assert hasattr(self.gear_1, "domain_radius")
+        assert hasattr(self.gear_2, "domain_radius")
+        self._domain_size = self.D + self.gear_1.domain_radius + self.gear_2.domain_radius
 
     def update_angles(self, d_angle_1, d_angle_2):
         """Update the paramaters of the problem.
@@ -356,78 +384,3 @@ class CoaxialGearsBase:
         """
         self.gear_1.update_parameters(d_angle_1)
         self.gear_2.update_parameters(d_angle_2)
-
-
-class CoaxialGearsWithBallMagnets(CoaxialGearsBase):
-    def __init__(self, first_gear, second_gear, D, main_dir=None):
-        super().__init__(first_gear, second_gear, D, main_dir)
-        assert isinstance(first_gear, MagneticGearWithBallMagnets)
-        assert isinstance(second_gear, MagneticGearWithBallMagnets)
-        # compute midpoint of second gear from geometry
-        self.gear_2.x_M = self.gear_1.x_M + \
-            np.array([0., self.gear_1.R + self.gear_1.r + D + self.gear_2.r + self.gear_2.R, 0.])
-        self._magnet_type = "Ball"
-
-    def _match_reference_parameters(self, gear, par_file):
-        # check if magnet type agrees
-        if not par_file["magnet_type"] == self.magnet_type:
-            return False
-
-        # check if domain size is large enough
-        print(par_file["domain_radius"] * gear.r, self._domain_size)
-        if not par_file["domain_radius"] * gear.r >= self._domain_size:
-            return False
-
-        return True
-
-    def _scale_mesh(self, mesh, magnet):
-        mesh.scale(magnet.R)
-
-    def _set_domain_size(self):
-        # set domain size (the maximum distance between two points on either of the two meshes)
-        assert hasattr(self.gear_1, "domain_radius")
-        assert hasattr(self.gear_2, "domain_radius")
-        self._domain_size = self.D + 2 * (self.gear_1.domain_radius + self.gear_2.domain_radius)
-
-
-class CoaxialGearsWithBarMagnets(CoaxialGearsBase):
-    def __init__(self, first_gear, second_gear, D, main_dir=None):
-        super().__init__(first_gear, second_gear, D, main_dir)
-        assert isinstance(first_gear, MagneticGearWithBarMagnets)
-        assert isinstance(second_gear, MagneticGearWithBarMagnets)
-        # compute midpoint of second gear from geometry
-        self.gear_2.x_M = self.gear_1.x_M + \
-            np.array([0., self.gear_1.R + self.gear_1.w + self.D + self.gear_2.w + self.gear_2.R, 0.])
-        self._magnet_type = "Bar"
-
-    def _match_reference_parameters(self, gear, par_file):
-        # check if magnet type agrees
-        if not par_file["magnet_type"] == self.magnet_type:
-            return False
-
-        # check if domain size is large enough
-        if not par_file["domain_radius"] * gear.h >= self._domain_size:
-            return False
-
-        # check if geometry matches
-        if not np.allclose((gear.w / gear.h, gear.d / gear.h), (par_file["w"], par_file["d"])):
-            return False
-        
-        return True
-
-    def _reference_parameters_dict(self, gear, domain_radius):
-        par = super()._reference_parameters_dict(gear, domain_radius)
-        par.update({
-            "w": gear.w / gear.h,
-            "d": gear.d / gear.h
-        })
-        return par
-
-    def _scale_mesh(self, mesh, magnet):
-        mesh.scale(magnet.h)
-
-    def _set_domain_size(self):
-        # set domain size (the maximum distance between two points on either of the two meshes)
-        assert hasattr(self._gear_1, "domain_radius")
-        assert hasattr(self._gear_2, "domain_radius")
-        self._domain_size = self.D + 2 * (self.gear_1.domain_radius + self.gear_2.domain_radius)
