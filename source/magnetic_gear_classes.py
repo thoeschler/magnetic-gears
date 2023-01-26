@@ -317,9 +317,27 @@ class MagneticBallGear(MagneticGear):
         x_M_base = self.R * unit_vec
         for k in range(self.n):
             rot = Rotation.from_rotvec(2 * np.pi / self.n * k * self.axis).as_matrix()
-            # compute position and rotation matrix 
-            x_M = self.x_M + rot.dot(x_M_base)
-            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * self.axis).as_matrix()
+            # compute position and rotation matrix
+            x_M_rel = rot.dot(x_M_base)
+            x_M = self.x_M + x_M_rel
+            # rotation:
+            # 1. turn magnet until magnetization vector aligns with axis
+            d1 = np.cross(np.array([0., 0., 1.]), self.axis)
+            d1 /= np.linalg.norm(d1)
+            Q1 = Rotation.from_rotvec(
+                np.arccos(np.dot(self.axis, np.array([0., 0., 1.]))) * d1
+                ).as_matrix()
+            # 2. turn magnet to align with relative position vector
+            d2 = np.cross(self.axis, x_M_rel)
+            d2 /= np.linalg.norm(d2)
+            Q2 = Rotation.from_rotvec(
+                np.arccos(np.dot(self.axis, x_M_rel / self.R)) * d2
+                ).as_matrix()
+            # 3. turn by pi/2 around axis
+            Q3 = Rotation.from_rotvec(np.pi / 2 * self.axis).as_matrix()
+            Q = Q3.dot(Q2).dot(Q1)
+            assert np.isclose(x_M_rel.dot(Q.dot(np.array([0., 0., 1.]))), 0.)  # magnetization is tangential
+            assert np.isclose(self.axis.dot(Q.dot(np.array([0., 0., 1.]))), 0.)
             self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
         print("Done.")
 
@@ -392,9 +410,33 @@ class MagneticBarGear(MagneticGear):
         x_M_base = self.R * unit_vec
         for k in range(self.n):
             rot = Rotation.from_rotvec(2 * np.pi / self.n * k * self.axis).as_matrix()
-            # compute position and rotation matrix 
-            x_M = self.x_M + rot.dot(x_M_base)
-            Q = Rotation.from_rotvec((2 * np.pi / self.n * k + self.angle) * self.axis).as_matrix()
+            x_M_rel = rot.dot(x_M_base)
+            x_M = self.x_M + x_M_rel
+            # rotation:
+            # 1. turn magnet until magnetization vector aligns with axis
+            d1 = np.cross(np.array([0., 0., 1.]), self.axis)
+            d1 /= np.linalg.norm(d1)
+            Q1 = Rotation.from_rotvec(
+                np.arccos(np.dot(self.axis, np.array([0., 0., 1.]))) * d1
+                ).as_matrix()
+            # 2. turn magnet to align with relative position vector
+            d2 = np.cross(self.axis, x_M_rel)
+            d2 /= np.linalg.norm(d2)
+            Q2 = Rotation.from_rotvec(
+                np.arccos(np.dot(self.axis, x_M_rel / self.R)) * d2
+                ).as_matrix()
+            # 3. turn by pi/2 around axis
+            Q3 = Rotation.from_rotvec(np.pi / 2 * self.axis).as_matrix()
+            # 4. turn around magnetization direction until x direction is aligned with axis
+            x = Q3.dot(Q2).dot(Q1).dot(np.array([1., 0., 0.]))
+            d4 = np.cross(x, self.axis)
+            d4 /= np.linalg.norm(d4)
+            Q4 = Rotation.from_rotvec(np.arccos(np.dot(x, self.axis)) * d4).as_matrix()
+            # compute final rotation
+            Q = Q4.dot(Q3).dot(Q2).dot(Q1)
+
+            assert np.isclose(x_M_rel.dot(Q.dot(np.array([0., 0., 1.]))), 0.)  # magnetization is tangential
+            assert np.isclose(self.axis.dot(Q.dot(np.array([0., 0., 1.]))), 0.)
             self._magnets.append(BarMagnet(self.h, self.w, self.d, magnetization_strength, x_M, Q))
         print("Done.")
 
