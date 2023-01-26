@@ -5,30 +5,30 @@ from source.mesh_tools import generate_mesh_with_markers
 
 
 def add_physical_groups(model, box_entity, magnet_entities, magnet_boundary_entities):
-        """Add box and magnets as physical groups to gmsh model.
-        
-        The respective tags will later be used by the facet/cell markers.
-        """
-        # store the physical group tags, they will later be used to reference subdomains
-        magnet_subdomain_tags = []
-        magnet_boundary_subdomain_tags = []
+    """Add box and magnets as physical groups to gmsh model.
+    
+    The respective tags will later be used by the facet/cell markers.
+    """
+    # store the physical group tags, they will later be used to reference subdomains
+    magnet_subdomain_tags = []
+    magnet_boundary_subdomain_tags = []
 
-        # magnet boundary
-        for n, tag in enumerate(magnet_boundary_entities):
-            physical_tag = model.addPhysicalGroup(2, np.atleast_1d(tag), name="magnet_" + str(n + 1), tag=int("1%.2d" % (n + 1)))
-            magnet_boundary_subdomain_tags.append(physical_tag)
+    # magnet boundary
+    for n, tag in enumerate(magnet_boundary_entities):
+        physical_tag = model.addPhysicalGroup(2, np.atleast_1d(tag), name="magnet_" + str(n + 1), tag=int("1%.2d" % (n + 1)))
+        magnet_boundary_subdomain_tags.append(physical_tag)
 
-        # box volume
-        box_subdomain_tag = model.addPhysicalGroup(3, [box_entity], name="box", tag=1)
+    # box volume
+    box_subdomain_tag = model.addPhysicalGroup(3, [box_entity], name="box", tag=1)
 
-        # magnet volume
-        for n, tag in enumerate(magnet_entities):
-            physical_tag = model.addPhysicalGroup(3, [tag], name="magnet_" + str(n + 1), tag=int("3%.2d" % (n + 1)))
-            magnet_subdomain_tags.append(physical_tag)
+    # magnet volume
+    for n, tag in enumerate(magnet_entities):
+        physical_tag = model.addPhysicalGroup(3, [tag], name="magnet_" + str(n + 1), tag=int("3%.2d" % (n + 1)))
+        magnet_subdomain_tags.append(physical_tag)
 
-        return magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag
+    return magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag
 
-def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_space, mesh_size_magnets):
+def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_space, mesh_size_magnets):        
     # global mesh size
     model.mesh.setSize(model.occ.getEntities(0), mesh_size_space)
 
@@ -52,7 +52,7 @@ def ball_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, wri
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
     model = gmsh.model()
-    box_entity = add_box_ball_gear(model, gear.x_M, gear.R, gear.r, padding)
+    box_entity = add_box_ball_gear(model, gear, padding)
 
     magnet_entities = []
     for magnet in gear.magnets:
@@ -94,12 +94,12 @@ def add_ball_magnet(model, magnet):
     magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
     return magnet_tag
 
-def add_box_ball_gear(model, x_M, R, r, padding):
+def add_box_ball_gear(model, gear, padding):
     """Create the surrounding cylindrical box."""
     # create the cylindrical box 
-    A = x_M - np.array([r + padding, 0., 0.])
-    diff = np.array([2. * (r + padding), 0., 0.])
-    box_entity = model.occ.addCylinder(*A, *diff, R + r + padding, tag=1)
+    A = gear.x_M - (gear.r + padding) * gear.axis
+    diff = 2. * (gear.r + padding) * gear.axis
+    box_entity = model.occ.addCylinder(*A, *diff, gear.R + gear.r + padding, tag=1)
     model.occ.synchronize()
     return box_entity
 
@@ -113,11 +113,11 @@ def bar_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, writ
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
     model = gmsh.model()
-    box_entity = add_box_bar_gear(model, gear.x_M, gear.R, gear.d, gear.w, padding)
+    box_entity = add_box_bar_gear(model, gear, padding)
 
     magnet_entities = []
     for magnet in gear.magnets:
-        magnet_tag = add_bar_magnet(model, magnet)
+        magnet_tag = add_bar_magnet(model, gear, magnet)
         model.occ.cut([(3, box_entity)], [(3, magnet_tag)], removeObject=True, removeTool=False)
         magnet_entities.append(magnet_tag)
     model.occ.synchronize()
@@ -148,40 +148,43 @@ def bar_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, writ
         dlf.File(fname.rstrip("/") + "_facet_marker.pvd") << facet_marker
 
     gmsh.finalize()
+    print("Done.")
     return mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag
 
-def add_bar_magnet(model, magnet):
-        # add magnet corner points
-        p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, magnet.h]))))
-        p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, magnet.h]))))
-        p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, - magnet.h]))))
-        p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, - magnet.h]))))
+def add_bar_magnet(model, axis, magnet):
+    # add magnet corner points
+    p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, magnet.h]))))
+    p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, magnet.h]))))
+    p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, - magnet.h]))))
+    p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, - magnet.h]))))
 
-        # combine points with lines
-        l1 = model.occ.addLine(p1, p2)
-        l2 = model.occ.addLine(p2, p3)
-        l3 = model.occ.addLine(p3, p4)
-        l4 = model.occ.addLine(p4, p1)
+    # combine points with lines
+    l1 = model.occ.addLine(p1, p2)
+    l2 = model.occ.addLine(p2, p3)
+    l3 = model.occ.addLine(p3, p4)
+    l4 = model.occ.addLine(p4, p1)
 
-        # add front surface
-        loop = model.occ.addCurveLoop([l1, l2, l3, l4])
-        surf = model.occ.addPlaneSurface([loop])
-        model.occ.synchronize()
+    # add front surface
+    loop = model.occ.addCurveLoop([l1, l2, l3, l4])
+    surf = model.occ.addPlaneSurface([loop])
+    model.occ.synchronize()
 
-        # extrude front surface to create the bar magnet
-        magnet_gmsh = model.occ.extrude([(2, surf)], 2 * magnet.d, 0, 0)
+    # extrude front surface to create the bar magnet
+    vec = 2 * magnet.d * axis
+    dx, dy, dz = vec
+    magnet_gmsh = model.occ.extrude([(2, surf)], dx, dy, dz)
 
-        # find entity with dimension 3 (the extruded volume) and save its tag
-        index = np.where(np.array(magnet_gmsh)[:, 0] == 3)[0].item()
-        magnet_tag = magnet_gmsh[index][1]
+    # find entity with dimension 3 (the extruded volume) and save its tag
+    index = np.where(np.array(magnet_gmsh)[:, 0] == 3)[0].item()
+    magnet_tag = magnet_gmsh[index][1]
 
-        return magnet_tag
+    return magnet_tag
 
-def add_box_bar_gear(model, x_M, R, d, w, padding):
+def add_box_bar_gear(model, gear, padding):
     """Create the surrounding cylindrical box."""
     # create the cylindrical box 
-    A = x_M - np.array([d + padding, 0., 0.])
-    diff = np.array([2. * (d + padding), 0., 0.])
-    box_entity = model.occ.addCylinder(*A, *diff, R + w + padding, tag=1)
+    A = gear.x_M - (gear.d + padding) * gear.axis
+    diff = 2. * (gear.d + padding) * gear.axis
+    box_entity = model.occ.addCylinder(*A, *diff, gear.R + gear.w + padding, tag=1)
     model.occ.synchronize()
     return box_entity

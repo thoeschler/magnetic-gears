@@ -1,38 +1,11 @@
-import dolfin as dlf
 import numpy as np
 from source.magnetic_field import free_current_potential_bar_magnet, magnetic_potential_bar_magnet
+from source.tools import CustomScalarExpression, CustomVectorExpression
 
 
-class CustomVectorExpression(dlf.UserExpression):
-    def __init__(self, f_callable, dim=3, **kwargs):
-        self.f = f_callable
-        self.dim = dim
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        val = self.f(x)
-        for ind, c_val in enumerate(val):
-            values[ind] = c_val
-
-    def value_shape(self):
-        return (self.dim, )
-
-class CustomScalarExpression(dlf.UserExpression):
-    def __init__(self, f_callable, dim=1, **kwargs):
-        self.f = f_callable
-        self.dim = dim
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        values[0] = self.f(x)
-
-    def value_shape(self):
-        return tuple()
-
-
-class PermanentAxialMagnet():
+class PermanentAxialMagnet:
     def __init__(self, type_classifier, magnetization_strength, position_vector, rotation_matrix):
-        r"""Base constructor method.
+        """Base constructor method.
         Args:
             type_classifier (str): the magnet geometry type (e.g. 'Ball' in subclass Ball_Magnet)
             magnetization_strength (float): the magnetization strength
@@ -47,6 +20,7 @@ class PermanentAxialMagnet():
         """
         self._type = type_classifier
         self._xM = position_vector
+        assert np.allclose(rotation_matrix.dot(rotation_matrix.T), np.eye(3))
         self._Q = rotation_matrix
         self._M = self._Q.dot(np.array([0., 0., 1.]))
         self._M0 = magnetization_strength
@@ -75,7 +49,7 @@ class PermanentAxialMagnet():
     @property
     def Q(self):
         return self._Q
-    
+
     @Q.setter
     def Q(self, Q):
         self._Q = Q
@@ -133,7 +107,8 @@ class PermanentAxialMagnet():
         return CustomScalarExpression(Vm)
 
     def update_parameters(self, x_M, Q):
-        self._Q = Q  # updates M automatically
+        self._Q = Q
+        self._M = self._Q.dot(np.array([0., 0., 1.]))
         self._xM = x_M
 
 

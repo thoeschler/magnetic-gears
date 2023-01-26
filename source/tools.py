@@ -1,10 +1,36 @@
 import gmsh
 import dolfin as dlf
 import numpy as np
-from source.magnet_classes import BallMagnet, BarMagnet, CustomVectorExpression, CustomScalarExpression
+import source.magnet_classes as mc
 from source.mesh_tools import generate_xdmf_mesh
 from source.grid_generator import add_ball_magnet, add_bar_magnet
 
+
+class CustomVectorExpression(dlf.UserExpression):
+    def __init__(self, f_callable, dim=3, **kwargs):
+        self.f = f_callable
+        self.dim = dim
+        super().__init__(**kwargs)
+
+    def eval(self, values, x):
+        val = self.f(x)
+        for ind, c_val in enumerate(val):
+            values[ind] = c_val
+
+    def value_shape(self):
+        return (self.dim, )
+
+class CustomScalarExpression(dlf.UserExpression):
+    def __init__(self, f_callable, dim=1, **kwargs):
+        self.f = f_callable
+        self.dim = dim
+        super().__init__(**kwargs)
+
+    def eval(self, values, x):
+        values[0] = self.f(x)
+
+    def value_shape(self):
+        return tuple()
 
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
     fname="reference_mesh", verbose=False):
@@ -26,10 +52,10 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     # create surrounding box sphere
     x_M = np.zeros(3)
     box = model.occ.addSphere(*x_M, domain_radius)
-    if isinstance(reference_magnet, BallMagnet):
-        magnet = add_ball_magnet(model, reference_magnet)
-    elif isinstance(reference_magnet, BarMagnet):
-        magnet = add_bar_magnet(model, reference_magnet)
+    if isinstance(reference_magnet, mc.BallMagnet):
+        magnet = add_ball_magnet(model, magnet=reference_magnet)
+    elif isinstance(reference_magnet, mc.BarMagnet):
+        magnet = add_bar_magnet(model, axis=np.array([1., 0., 0]), magnet=reference_magnet)
     else:
         raise RuntimeError()
 
@@ -48,7 +74,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     model.occ.synchronize()
     distance_tag = model.mesh.field.add("Distance")
     model.mesh.field.setNumbers(distance_tag, "PointsList", [mid_point])
-    
+
     # add MathEval field that depends on distance
     math_eval_tag = model.mesh.field.add("MathEval")
     model.mesh.field.setString(math_eval_tag, "F", f"F{distance_tag} / {domain_radius} * "\
