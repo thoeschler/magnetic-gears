@@ -85,6 +85,8 @@ class CoaxialGearsProblem:
 
     def align_gears(self):
         """Rotate both gears such that magnets align."""
+        assert hasattr(self.gear_1, "_magnets")
+        assert hasattr(self.gear_1, "_magnets")
         self.align_gear(self.gear_1, self.gear_2)
         self.align_gear(self.gear_2, self.gear_1)
 
