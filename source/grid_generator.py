@@ -65,7 +65,7 @@ def ball_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, wri
     magnet_boundary_entities = [model.getBoundary([(3, magnet_tag)], oriented=False)[0][1] \
         for magnet_tag in magnet_entities]
 
-    # create namedtuple
+    # create mesh and markers
     magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag = add_physical_groups(
         model, box_entity, magnet_entities, magnet_boundary_entities
         )
@@ -104,7 +104,7 @@ def add_box_ball_gear(model, gear, padding):
     return box_entity
 
 ##################################################
-################## bar magnets ##################
+################## bar magnets ###################
 ##################################################
 
 def bar_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd=False, verbose=False):
@@ -117,7 +117,7 @@ def bar_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, writ
 
     magnet_entities = []
     for magnet in gear.magnets:
-        magnet_tag = add_bar_magnet(model, gear, magnet)
+        magnet_tag = add_bar_magnet(model, gear.axis, magnet)
         model.occ.cut([(3, box_entity)], [(3, magnet_tag)], removeObject=True, removeTool=False)
         magnet_entities.append(magnet_tag)
     model.occ.synchronize()
@@ -140,7 +140,7 @@ def bar_gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, writ
     # write mesh to msh file
     gmsh.write(fname + '.msh')
 
-    # create namedtuple
+    # create mesh and markers
     mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname.rstrip("/"), delete_source_files=False)
     if write_to_pvd:
         dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
@@ -188,3 +188,94 @@ def add_box_bar_gear(model, gear, padding):
     box_entity = model.occ.addCylinder(*A, *diff, gear.R + gear.w + padding, tag=1)
     model.occ.synchronize()
     return box_entity
+
+##################################################
+############### cylinder segment #################
+##################################################
+
+def segment_mesh(x_M, x_M_start, axis, Ri, Ro, t, angle, mesh_size, fname, write_to_pvd=False, verbose=False):
+    """Mesh a cylinder segment.
+
+    The occ model is created by first creating an initial surface with 
+    center point x_M_start. This initial surface is extruded along curve
+    around the rotational axis. The surface is extruded by angle / 2 in
+    each direction.
+
+    Args:
+        x_M (np.ndarray): Center point.
+        x_M_start (np.ndarray): Starting point.
+        axis (np.ndarray): Rotational axis.
+        Ri (float): Inner radius.
+        Ro (float): Outer radius.
+        t (float): Thickness (height).
+        angle (float): Angle.
+        mesh_size (float): Global mesh size.
+        fname (str): File name (relative or absolute path).
+        write_to_pvd (bool, optional): If True write mesh and markers
+                                       to .pvd files. Defaults to False.
+        verbose (bool, optional): If True print gmsh info. Defaults to False.
+
+    Returns:
+        tuple: mesh, cell_marker, facet_marker
+    """
+    print("Meshing gear... ", end="")
+    gmsh.initialize()
+    if not verbose:
+        gmsh.option.setNumber("General.Terminal", 0)
+    model = gmsh.model()
+    axis /= np.linalg.norm(axis)
+
+    # some parameters
+    dR = Ro - Ri
+    d = x_M_start - x_M
+    assert np.isclose(np.dot(d, axis), 0.)
+    Rm = np.linalg.norm(x_M - x_M_start)
+    d /= Rm
+
+    # add first surface
+    # add points
+    p1 = model.occ.addPoint(*(x_M_start + dR / 2 * d + t / 2 * axis))
+    p2 = model.occ.addPoint(*(x_M_start - dR / 2 * d + t / 2 * axis))
+    p3 = model.occ.addPoint(*(x_M_start - dR / 2 * d - t / 2 * axis))
+    p4 = model.occ.addPoint(*(x_M_start + dR / 2 * d - t / 2 * axis))
+
+    # combine points with lines
+    l1 = model.occ.addLine(p1, p2)
+    l2 = model.occ.addLine(p2, p3)
+    l3 = model.occ.addLine(p3, p4)
+    l4 = model.occ.addLine(p4, p1)
+    
+    # add front surface
+    loop = model.occ.addCurveLoop([l1, l2, l3, l4])
+    surf = model.occ.addPlaneSurface([loop])
+
+    # add wire
+    curve = model.occ.addCircle(*x_M, r=Rm, angle1=-angle / 2, angle2=angle / 2, zAxis=axis, xAxis=d)
+    wire = model.occ.addWire([curve])
+    pipe = model.occ.addPipe([(2, surf)], wire)[0][1]
+    model.occ.synchronize()
+
+    segment_boundary = model.getBoundary([(3, pipe)], oriented=False)[0][1]
+
+    model.addPhysicalGroup(2, [segment_boundary])
+    model.addPhysicalGroup(3, [pipe])
+
+    # global mesh size
+    model.mesh.setSize(model.occ.getEntities(0), mesh_size)
+
+    # generate mesh
+    model.mesh.generate(dim=3)
+
+    # write mesh to msh file
+    gmsh.write(fname + '.msh')
+
+    # create namedtuple
+    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname.rstrip("/"), delete_source_files=False)
+    if write_to_pvd:
+        dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
+        dlf.File(fname.rstrip("/") + "_cell_marker.pvd") << cell_marker
+        dlf.File(fname.rstrip("/") + "_facet_marker.pvd") << facet_marker
+
+    gmsh.finalize()
+    print("Done.")
+    return mesh, cell_marker, facet_marker

@@ -1,7 +1,7 @@
 import numpy as np
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear
 from coaxial.coaxial_gears import CoaxialGearsProblem
-from coaxial.grid_generator import ball_gear_mesh, bar_gear_mesh
+from source.grid_generator import ball_gear_mesh, bar_gear_mesh
 import subprocess
 import os
 
@@ -24,7 +24,7 @@ class CoaxialGearsTest(CoaxialGearsProblem):
 
     def mesh_gear(self, gear, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd=True):
         other_gear = self.gear_2 if gear is self.gear_1 else self.gear_1
-        self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size_space=mesh_size_space, \
+        self.create_gear_mesh(gear, mesh_size_space=mesh_size_space, \
             mesh_size_magnets=mesh_size_magnets, fname=fname, padding=padding, \
                 write_to_pvd=write_to_pvd)
 
@@ -85,5 +85,5 @@ def test_bar_gear_problem(test_dir):
 
 if __name__ == "__main__":
     test_dir = os.getcwd() + "/test_dir"
-    #test_ball_gear_problem(test_dir)
-    test_bar_gear_problem(test_dir)
+    test_ball_gear_problem(test_dir)
+    #test_bar_gear_problem(test_dir)
