@@ -91,5 +91,5 @@ def sample_torque_bar(n_iterations):
 
 
 if __name__ == "__main__":
-    sample_torque_ball(n_iterations=30)
+    #sample_torque_ball(n_iterations=30)
     sample_torque_bar(n_iterations=30)

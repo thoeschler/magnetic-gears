@@ -1,0 +1,64 @@
+import os
+import re
+from collections import OrderedDict
+
+
+def to_python(expr):
+    assert isinstance(expr, str)
+    # 1. replace paratheses
+    expr = expr.replace("[", "(")
+    expr = expr.replace("]", ")")
+    expr = re.sub(r"\\\((\w+)\)", r"\1", expr)  # \(Alpha) --> Alpha
+
+    # 2. insert some "*", replace names
+    map_dir = OrderedDict((
+        ("\)\s*\(", ") * ("),  # ) ( -> ) s ( 
+        #(".\s+\w", "\w\s*\s\w"), # Rm np.cos -> Rm * np.cos
+        ("^", " ** "),
+        ("ArcTan", "np.arctan2"),
+        ("Sin", "np.sin"),
+        ("Cos","np.cos"),
+        ("Tan", "np.tan"),
+        ("Log", "np.log"),
+        ("Sqrt", "np.sqrt"),
+        ("Alpha", "alpha")
+    ))
+
+    for math, py in map_dir.items():
+        expr = expr.replace(math, py)
+    
+    # fill in some "*"
+    fill = re.findall("[\w\)]\s+[\w\(]", expr)
+    for f in fill:
+        expr = expr.replace(f, f.replace(" ", " * "))
+    expr = re.sub(r"([\w\)])\s+([\w\(])", r"\1 * \2", expr)
+    expr = re.sub(r"\s{2,}", " ", expr)
+
+    # some whitespace stuff
+    expr = re.sub(r"(\()\s+", r"(", expr)
+    expr = re.sub(r"(\S)[/](\S)", r"\1 / \2", expr)
+    return expr
+
+def bar_magnet_python():
+    dir_name = os.path.dirname(os.path.realpath(__file__))
+    # x-component
+    for fname in ("x_t1.1.txt", "x_t1.2.txt", "x_t2.txt", "x_t3.txt", "x_t4.txt"):
+        with open(dir_name + f"/bar/{fname}", "r") as f:
+            expr = f.read()
+            with open(dir_name + "/bar/bar_magnet_x.py.raw", "a+") as f_py:
+                f_py.write(to_python(expr) + "\n")
+    # y-component
+    for fname in ("y_t1.1.txt", "y_t1.2.txt", "y_t2.txt", "y_t3.txt", "y_t4.txt"):
+        with open(dir_name + f"/bar/{fname}", "r") as f:
+            expr = f.read()
+            with open(dir_name + "/bar/bar_magnet_y.py.raw", "a+") as f_py:
+                f_py.write(to_python(expr) + "\n")
+    # z-component
+    for fname in ("z_t1.txt", "z_t2.1.txt", "z_t2.2.txt", "z_t3.txt", "z_t4.txt"):
+        with open(dir_name + f"/bar/{fname}", "r") as f:
+            expr = f.read()
+            with open(dir_name + "/bar/bar_magnet_z.py.raw", "a+") as f_py:
+                f_py.write(to_python(expr) + "\n")
+
+if __name__ == "__main__":
+    bar_magnet_python()

@@ -45,7 +45,7 @@ class PermanentAxialMagnet:
     @property
     def M0(self):
         return self._M0
-    
+
     @property
     def Q(self):
         return self._Q
@@ -120,7 +120,7 @@ class BallMagnet(PermanentAxialMagnet):
                          rotation_matrix=rotation_matrix
                          )
         self._radius = radius
-    
+
     @property
     def R(self):
         return self._radius
@@ -128,11 +128,11 @@ class BallMagnet(PermanentAxialMagnet):
     def is_inside(self, x0):
         diff = self.x_M - x0
         return (np.dot(diff, diff) < self.R**2)
-    
+
     def on_boundary(self, x0):
         diff = self.x_M - x0
         return np.isclose(np.dot(diff, diff), self.R ** 2)
-    
+
     def Vm_eigen(self, x_eigen, limit_direction=-1):
         """Magnetic potential of spherical magnet.
 
@@ -266,7 +266,7 @@ class BarMagnet(PermanentAxialMagnet):
         # function of tuple of eigen cordinates (x, y, z), e.g.:
         #   H_test = self.H_eigen((1, 2, 3))
         self.H_eigen = free_current_potential_bar_magnet(
-            self._height, self._width, self._depth, lambdify=True
+            self._height, self._width, self._depth
             )
 
     def _set_Vm_eigen(self):
