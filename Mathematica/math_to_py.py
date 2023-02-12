@@ -12,10 +12,10 @@ def to_python(expr):
 
     # 2. insert some "*", replace names
     map_dir = OrderedDict((
-        ("\)\s*\(", ") * ("),  # ) ( -> ) s ( 
-        #(".\s+\w", "\w\s*\s\w"), # Rm np.cos -> Rm * np.cos
+        ("\\\n", " "),  # \\\n --> nothing
+        ("\)\s*\(", ") * ("),  # ) ( -> ) * ( 
         ("^", " ** "),
-        ("ArcTan", "np.arctan2"),
+        ("ArcTan", "np.arctan"),
         ("Sin", "np.sin"),
         ("Cos","np.cos"),
         ("Tan", "np.tan"),
@@ -28,11 +28,12 @@ def to_python(expr):
         expr = expr.replace(math, py)
     
     # fill in some "*"
-    fill = re.findall("[\w\)]\s+[\w\(]", expr)
-    for f in fill:
-        expr = expr.replace(f, f.replace(" ", " * "))
-    expr = re.sub(r"([\w\)])\s+([\w\(])", r"\1 * \2", expr)
     expr = re.sub(r"\s{2,}", " ", expr)
+    """fill = re.findall("[\w\)]\s+[\w\(]", expr)
+    for f in fill:
+        expr = expr.replace(f, f.replace(" ", " * "))"""
+    expr = re.sub(r"([\w\)])\s+([\w\(])", r"\1 * \2", expr)
+    expr = re.sub(r"([\w\)])\s+([\w\(])", r"\1 * \2", expr)
 
     # some whitespace stuff
     expr = re.sub(r"(\()\s+", r"(", expr)
@@ -60,5 +61,30 @@ def bar_magnet_python():
             with open(dir_name + "/bar/bar_magnet_z.py.raw", "a+") as f_py:
                 f_py.write(to_python(expr) + "\n")
 
+
+def magnet_segment_python():
+    dir_name = os.path.dirname(os.path.realpath(__file__))
+    for c in ("x", "y", "z"):
+        open(dir_name + f"/circle_segment/circle_segment_{c}.py.raw", "w").close()
+    # x-component
+    for fname in ("x_t1.1.txt", "x_t1.2.txt", "x_t2.1.txt", "x_t2.2.txt", "x_t3.txt"):
+        with open(dir_name + f"/circle_segment/{fname}", "r") as f:
+            expr = f.read()
+            with open(dir_name + "/circle_segment/circle_segment_x.py.raw", "a+") as f_py:
+                f_py.write(to_python(expr) + "\n")
+    # y-component
+    for fname in ("y_t1.1.txt", "y_t1.2.txt", "y_t2.1.txt", "y_t2.2.txt", "y_t3.txt"):
+        with open(dir_name + f"/circle_segment/{fname}", "r") as f:
+            expr = f.read()
+            with open(dir_name + "/circle_segment/circle_segment_y.py.raw", "a+") as f_py:
+                f_py.write(to_python(expr) + "\n")
+    # z-component
+    for fname in ("z_t1.txt", "z_t2.txt", "z_t3.1.txt", "z_t3.2.txt"):
+        with open(dir_name + f"/circle_segment/{fname}", "r") as f:
+            expr = f.read()
+            with open(dir_name + "/circle_segment/circle_segment_z.py.raw", "a+") as f_py:
+                f_py.write(to_python(expr) + "\n")
+
+
 if __name__ == "__main__":
-    bar_magnet_python()
+    magnet_segment_python()

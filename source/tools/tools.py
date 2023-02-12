@@ -2,35 +2,10 @@ import gmsh
 import dolfin as dlf
 import numpy as np
 import source.magnet_classes as mc
-from source.mesh_tools import generate_xdmf_mesh
-from source.grid_generator import add_ball_magnet, add_bar_magnet
+from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpression
+from source.tools.mesh_tools import generate_xdmf_mesh, generate_mesh_with_markers
+from source.grid_generator import add_ball_magnet, add_bar_magnet, add_magnet_segment
 
-
-class CustomVectorExpression(dlf.UserExpression):
-    def __init__(self, f_callable, dim=3, **kwargs):
-        self.f = f_callable
-        self.dim = dim
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        val = self.f(x)
-        for ind, c_val in enumerate(val):
-            values[ind] = c_val
-
-    def value_shape(self):
-        return (self.dim, )
-
-class CustomScalarExpression(dlf.UserExpression):
-    def __init__(self, f_callable, dim=1, **kwargs):
-        self.f = f_callable
-        self.dim = dim
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        values[0] = self.f(x)
-
-    def value_shape(self):
-        return tuple()
 
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
     fname="reference_mesh", verbose=False):
@@ -55,7 +30,9 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     if isinstance(reference_magnet, mc.BallMagnet):
         magnet = add_ball_magnet(model, magnet=reference_magnet)
     elif isinstance(reference_magnet, mc.BarMagnet):
-        magnet = add_bar_magnet(model, axis=np.array([1., 0., 0]), magnet=reference_magnet)
+        magnet = add_bar_magnet(model, magnet=reference_magnet)
+    elif isinstance(reference_magnet, mc.MagnetSegment):
+        magnet = add_magnet_segment(model, magnet=reference_magnet)
     else:
         raise RuntimeError()
 

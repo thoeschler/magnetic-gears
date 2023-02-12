@@ -4,7 +4,7 @@ import numpy as np
 import os
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet
-from source.mesh_tools import generate_mesh_with_markers
+from source.tools.mesh_tools import generate_mesh_with_markers
 from source.transform import sph_to_cart
 
 

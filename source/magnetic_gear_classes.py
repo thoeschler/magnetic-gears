@@ -1,19 +1,17 @@
 import dolfin as dlf
 import numpy as np
 from scipy.spatial.transform import Rotation
-from source.magnet_classes import BallMagnet, BarMagnet
-from source.mesh_tools import read_mesh_and_markers
-from source.math_tools import get_perpendicular
+from source.magnet_classes import BallMagnet, BarMagnet, MagnetSegment
+from source.tools.mesh_tools import read_mesh_and_markers
 
 
 class MagneticGear:
-    def __init__(self, n, R, x_M, axis):
+    def __init__(self, n, R, x_M):
         self._n = n  # the number of magnets
         self._R = R  # the radius of the gear
         assert len(x_M) == 3
         self._x_M = x_M  # the mid point
         self._angle = 0.  # angle
-        self._axis = axis / np.linalg.norm(axis)  # rotation axis
         self._scale_parameter = None
         self._magnet_type = None
 
@@ -58,10 +56,6 @@ class MagneticGear:
         self._angle = angle
         if hasattr(self, "_magnets"):
             self.update_magnets(d_angle, np.zeros(3))
-
-    @property
-    def axis(self):
-        return self._axis
 
     @property
     def magnets(self):
@@ -218,7 +212,7 @@ class MagneticGear:
             d_x_M (np.ndarray): Center of mass increment.
         """
         assert hasattr(self, "magnets")
-        rot = Rotation.from_rotvec(d_angle * self.axis).as_matrix()
+        rot = Rotation.from_rotvec(d_angle * np.array([1., 0., 0.])).as_matrix()
         for mag in self._magnets:
             x_M = mag.x_M + d_x_M
             x_M = self._x_M + rot.dot(x_M - self._x_M)
@@ -249,10 +243,7 @@ class MagneticGear:
         Args:
             d_angle (float): Angle increment in rad.
         """
-        # rotate mesh around axis 0 (x-axis) through gear midpoint by angle d_angle
-        # rotation only possible around x, y, z axes
-        Q = Rotation.from_rotvec(d_angle * self.axis).as_matrix()
-        self.mesh.coordinates()[:] = Q.dot((self.mesh.coordinates()[:]).T - self.x_M[:, None]).T + self.x_M[None]
+        self.mesh.rotate(d_angle * 180 / np.pi, 0, dlf.Point(*self.x_M))
 
     def scale_mesh(self, mesh):
         """Scale mesh by gear's scaling parameter.
@@ -273,8 +264,8 @@ class MagneticGear:
 
 
 class MagneticBallGear(MagneticGear):
-    def __init__(self, n, R, r, x_M, axis):
-        super().__init__(n, R, x_M, axis)
+    def __init__(self, n, R, r, x_M):
+        super().__init__(n, R, x_M)
         self._r = r  # the magnet radius
         self._scale_parameter = r
         self._magnet_type = "Ball"
@@ -312,32 +303,10 @@ class MagneticBallGear(MagneticGear):
         """
         print("Creating magnets... ", end="")
         self._magnets = []
-        # create unit vector perpendicular to axis
-        unit_vec = get_perpendicular(self.axis, normalized=True)
-        x_M_base = self.R * unit_vec
+
         for k in range(self.n):
-            rot = Rotation.from_rotvec(2 * np.pi / self.n * k * self.axis).as_matrix()
-            # compute position and rotation matrix
-            x_M_rel = rot.dot(x_M_base)
-            x_M = self.x_M + x_M_rel
-            # rotation:
-            # 1. turn magnet until magnetization vector aligns with axis
-            d1 = np.cross(np.array([0., 0., 1.]), self.axis)
-            d1 /= np.linalg.norm(d1)
-            Q1 = Rotation.from_rotvec(
-                np.arccos(np.dot(self.axis, np.array([0., 0., 1.]))) * d1
-                ).as_matrix()
-            # 2. turn magnet to align with relative position vector
-            d2 = np.cross(self.axis, x_M_rel)
-            d2 /= np.linalg.norm(d2)
-            Q2 = Rotation.from_rotvec(
-                np.arccos(np.dot(self.axis, x_M_rel / self.R)) * d2
-                ).as_matrix()
-            # 3. turn by pi/2 around axis
-            Q3 = Rotation.from_rotvec(np.pi / 2 * self.axis).as_matrix()
-            Q = Q3.dot(Q2).dot(Q1)
-            assert np.isclose(x_M_rel.dot(Q.dot(np.array([0., 0., 1.]))), 0.)  # magnetization is tangential
-            assert np.isclose(self.axis.dot(Q.dot(np.array([0., 0., 1.]))), 0.)
+            Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
+            x_M = self.x_M + Q.dot(self.R * np.array([0., 1., 0.]))
             self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
         print("Done.")
 
@@ -351,25 +320,25 @@ class MagneticBallGear(MagneticGear):
 
 
 class MagneticBarGear(MagneticGear):
-    def __init__(self, n, R, h, w, d, x_M, axis):
-        super().__init__(n, R, x_M, axis)
-        self._h = h  # the magnet height
-        self._w = w  # the magnet width
-        self._d = d  # the magnet depth
+    def __init__(self, n, R, d, w, h, x_M):
+        super().__init__(n, R, x_M)
+        self._d = d  # the magnet depth (here: x-direction!)
+        self._w = w  # the magnet width (here: y-direction!)
+        self._h = h  # the magnet height (here: z-direction!)
         self._scale_parameter = h
         self._magnet_type = "Bar"
 
     @property
-    def h(self):
-        return self._h
+    def d(self):
+        return self._d
 
     @property
     def w(self):
         return self._w
 
     @property
-    def d(self):
-        return self._d
+    def h(self):
+        return self._h
 
     @property
     def outer_radius(self):
@@ -379,9 +348,9 @@ class MagneticBarGear(MagneticGear):
     def parameters(self):
         par = super().parameters
         par.update({
-            "h": self.h,
+            "d": self.d,
             "w": self.w,
-            "d": self.d
+            "h": self.h
         })
         return par
     
@@ -394,8 +363,9 @@ class MagneticBarGear(MagneticGear):
         Returns:
             BarMagnet: The reference magnet.
         """
-        return BarMagnet(height=1.0, width=self.w / self.h, depth=self.d / self.h, magnetization_strength=1.0, \
-            position_vector=np.zeros(3), rotation_matrix=np.eye(3))
+        return BarMagnet(width=self.w / self.scale_parameter, depth=self.d / self.scale_parameter, \
+                         height=self.h / self.scale_parameter, magnetization_strength=1.0, \
+                            position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     def create_magnets(self, magnetization_strength):
         """Create ball magnets, given some magnetization strength.
@@ -405,39 +375,86 @@ class MagneticBarGear(MagneticGear):
         """
         print("Creating magnets... ", end="")
         self._magnets = []
-        # create random unit vector different from axis
-        unit_vec = get_perpendicular(self.axis, normalized=True)
-        x_M_base = self.R * unit_vec
-        for k in range(self.n):
-            rot = Rotation.from_rotvec(2 * np.pi / self.n * k * self.axis).as_matrix()
-            x_M_rel = rot.dot(x_M_base)
-            x_M = self.x_M + x_M_rel
-            # rotation:
-            # 1. turn magnet until magnetization vector aligns with axis
-            d1 = np.cross(np.array([0., 0., 1.]), self.axis)
-            d1 /= np.linalg.norm(d1)
-            Q1 = Rotation.from_rotvec(
-                np.arccos(np.dot(self.axis, np.array([0., 0., 1.]))) * d1
-                ).as_matrix()
-            # 2. turn magnet to align with relative position vector
-            d2 = np.cross(self.axis, x_M_rel)
-            d2 /= np.linalg.norm(d2)
-            Q2 = Rotation.from_rotvec(
-                np.arccos(np.dot(self.axis, x_M_rel / self.R)) * d2
-                ).as_matrix()
-            # 3. turn by pi/2 around axis
-            Q3 = Rotation.from_rotvec(np.pi / 2 * self.axis).as_matrix()
-            # 4. turn around magnetization direction until x direction is aligned with axis
-            x = Q3.dot(Q2).dot(Q1).dot(np.array([1., 0., 0.]))
-            d4 = np.cross(x, self.axis)
-            d4 /= np.linalg.norm(d4)
-            Q4 = Rotation.from_rotvec(np.arccos(np.dot(x, self.axis)) * d4).as_matrix()
-            # compute final rotation
-            Q = Q4.dot(Q3).dot(Q2).dot(Q1)
 
-            assert np.isclose(x_M_rel.dot(Q.dot(np.array([0., 0., 1.]))), 0.)  # magnetization is tangential
-            assert np.isclose(self.axis.dot(Q.dot(np.array([0., 0., 1.]))), 0.)
-            self._magnets.append(BarMagnet(self.h, self.w, self.d, magnetization_strength, x_M, Q))
+        for k in range(self.n):
+            Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
+            x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
+            self._magnets.append(BarMagnet(width=self.w, depth=self.d, height=self.h, \
+                                           magnetization_strength=magnetization_strength, \
+                                           position_vector=x_M, rotation_matrix=Q
+                                           ))
+        print("Done.")
+
+    def _set_padded_radius(self, val=None):
+        if val is not None:
+            self._domain_radius = val
+            self._padding = val - self.R - self.w
+        else:
+            assert hasattr(self, "_padding")
+            self._domain_radius = self.R + self.w + self._padding
+
+
+class SegmentGear(MagneticGear):
+    def __init__(self, n, R, d, w, x_M):
+        super().__init__(n, R, x_M)
+        self._d = d  # the magnet depth (here: x-direction!)
+        self._w = w  # the magnet width (here: y-direction!)
+        self._alpha = np.pi / n
+        self._scale_parameter = self.w
+        self._magnet_type = "SegmentMagnet"
+
+    @property
+    def w(self):
+        return self._w
+
+    @property
+    def d(self):
+        return self._d
+
+    @property
+    def alpha(self):
+        return self._alpha
+
+    @property
+    def outer_radius(self):
+        return self.R + self.w
+
+    @property
+    def parameters(self):
+        par = super().parameters
+        par.update({
+            "alpha": self.alpha,
+            "w": self.w,
+            "d": self.d
+        })
+        return par
+
+    def reference_magnet(self):
+        """Return reference magnet instance.
+
+        The reference magnet has a fixed height of 1.0. Width and depth are
+        scaled accordingly.
+
+        Returns:
+            BarMagnet: The reference magnet.
+        """
+        return MagnetSegment(radius=self.R / self.scale_parameter, width=self.w / self.scale_parameter, \
+                             depth=self.d / self.scale_parameter, magnetization_strength=1.0, \
+                                position_vector=np.zeros(3), rotation_matrix=np.eye(3))
+
+    def create_magnets(self, magnetization_strength):
+        """Create ball magnets, given some magnetization strength.
+
+        Args:
+            magnetization_strength (float): Magnetization strength.
+        """
+        print("Creating magnets... ", end="")
+        self._magnets = []
+
+        for k in range(self.n):
+            Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
+            x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
+            self._magnets.append(MagnetSegment(self.R, self.w, self.d, self.alpha, magnetization_strength, x_M, Q))
         print("Done.")
 
     def _set_padded_radius(self, val=None):
