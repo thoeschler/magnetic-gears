@@ -1,6 +1,7 @@
 import numpy as np
-from source.magnetic_field import free_current_potential_bar_magnet, magnetic_potential_bar_magnet
-from source.tools import CustomScalarExpression, CustomVectorExpression
+from source.magnetic_field import free_current_potential_bar_magnet, magnetic_potential_bar_magnet, \
+    free_current_potential_magnet_segment, magnetic_potential_magnet_segment
+from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpression
 
 
 class PermanentAxialMagnet:
@@ -197,22 +198,23 @@ class BallMagnet(PermanentAxialMagnet):
 
 
 class BarMagnet(PermanentAxialMagnet):
-    def __init__(self, height, width, depth, magnetization_strength, position_vector, rotation_matrix):
+    def __init__(self, width, depth, height, magnetization_strength, position_vector, rotation_matrix):
         super().__init__(type_classifier='Bar',
                          position_vector=position_vector,
                          magnetization_strength=magnetization_strength,
                          rotation_matrix=rotation_matrix
                          )
         # note: input values for height, width and depth only half the actual values
+        self._width = width  # x-direction
+        self._depth = depth  # y-direction
         self._height = height  # z-direction
-        self._width = width  # y-direction
-        self._depth = depth  # x-direction
         self._set_Vm_eigen()
         self._set_H_eigen()
-
-    @property
-    def h(self):
-        return self._height
+        # the eigen coordinate system is different than the one used
+        # for the gears => additional rotation
+        self._Q_rel = np.array([[0., -1., 0.],
+                                [1., 0., 0.],
+                                [0., 0., 1.]])
 
     @property
     def w(self):
@@ -222,13 +224,40 @@ class BarMagnet(PermanentAxialMagnet):
     def d(self):
         return self._depth
 
+    @property
+    def h(self):
+        return self._height
+
     def is_inside(self, x0):
-        x_eigen = self.Q.T.dot(x0)
-        return np.all(np.absolute(x_eigen) < np.array([self.d, self.w, self.h]))
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
+        return np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
 
     def on_boundary(self, x0):
-        x_eigen = self.Q.T.dot(x0)
-        return np.any(np.isclose(np.absolute(x_eigen), np.array([self.d, self.w, self.h])))
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
+        return np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
+
+    def B(self, x_0, dynamic=False):
+        """The magnetic field at point x_0 in laboratory cartesian coordinate system and reference frame.
+
+        Args:
+            x_0 (np.ndarray): A point in space.
+            dynamic (bool, optional): True if a dynamic problem is considered. Defaults to False.
+
+        Raises:
+            NotImplementedError: dynamic=True is not yet available
+
+        Returns:
+            np.ndarray: The magnetic field at point x_0 in laboratory cartesian coordinates.
+        """
+
+        if dynamic:
+            raise NotImplementedError()
+        else:
+            assert hasattr(self, 'B_eigen')
+
+            x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
+            B_eigen = self.B_eigen(x_eigen)
+            return self.Q.dot(self._Q_rel.T.dot(B_eigen))
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.
@@ -249,13 +278,18 @@ class BarMagnet(PermanentAxialMagnet):
         
         A factor of mu0 * M0 is excluded.
         """
-        inside = np.all(np.absolute(x_eigen) < np.array([self.d, self.w, self.h]))
-        on_boundary = np.any(np.isclose(np.absolute(x_eigen), np.array([self.d, self.w, self.h])))
+        inside = np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
+        on_boundary = np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
 
         if inside or (on_boundary and (limit_direction == -1)):
             return self.H_eigen(x_eigen) + np.array([0., 0., 1.])
         else:
             return self.H_eigen(x_eigen)
+
+    def H(self, x_0):
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
+        H_eigen = self.H_eigen(x_eigen)
+        return self.Q.dot(self._Q_rel.T.dot(H_eigen))
 
     def _set_H_eigen(self):
         """Free current potential in eigen coordinates.
@@ -266,7 +300,7 @@ class BarMagnet(PermanentAxialMagnet):
         # function of tuple of eigen cordinates (x, y, z), e.g.:
         #   H_test = self.H_eigen((1, 2, 3))
         self.H_eigen = free_current_potential_bar_magnet(
-            self._height, self._width, self._depth
+            self._width, self._depth, self._height
             )
 
     def _set_Vm_eigen(self):
@@ -274,9 +308,158 @@ class BarMagnet(PermanentAxialMagnet):
 
         A factor of M0 is excluded.
         """
+        # set dimensionless magnetic potential as a lambda
+        # function of tuple of eigen cordinates (x, y, z), e.g.:
+        #   Vm_test = self.Vm_eigen((1, 2, 3))
+        self.Vm_eigen = magnetic_potential_bar_magnet(
+            self._width, self._depth, self._height, lambdify=True
+            )
+
+
+class MagnetSegment(PermanentAxialMagnet):
+    def __init__(self, radius, width, depth, alpha, magnetization_strength, position_vector, rotation_matrix):
+        super().__init__(type_classifier='MagnetSegment',
+                         position_vector=position_vector,
+                         magnetization_strength=magnetization_strength,
+                         rotation_matrix=rotation_matrix
+                         )
+        self._Rm = radius
+        self._width = width
+        self._depth = depth
+        self._alpha = alpha
+        self._set_Vm_eigen()
+        self._set_H_eigen()
+        # the eigen coordinate system is different than the one used
+        # for the gears => additional rotation
+        self._Q_rel = np.array([[0., 1., 0.],
+                                [0., 0., 1.],
+                                [1., 0., 0.]])
+
+    @property
+    def Rm(self):
+        return self._Rm
+
+    @property
+    def w(self):
+        return self._width
+
+    @property
+    def d(self):
+        return self._depth
+
+    @property
+    def alpha(self):
+        return self._alpha
+
+    def is_inside(self, x0):
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
+        return self.is_inside_eigen(x_eigen)
+    
+    def is_inside_eigen(self, x_eigen):
+        x, y, z = x_eigen
+        rho = np.sqrt(x ** 2 + y ** 2)
+        phi = np.arctan2(y, x)
+        if np.abs(phi) >= self.alpha:
+            return False
+        if rho <= (self.Rm - self.d) or rho >= (self.Rm + self.d):
+            return False
+        if (x >= self.w) or (x <= - self.w):
+            return False
+        return True
+
+    def on_boundary(self, x0):
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
+        return self.on_boundary_eigen(x_eigen)
+
+    def on_boundary_eigen(self, x_eigen):
+        x, y, z = x_eigen
+        rho = np.sqrt(x ** 2 + y ** 2)
+        phi = np.arctan2(y, x)
+
+        if np.abs(phi) > self.alpha and not(np.isclose(np.abs(phi), self.alpha)):
+            return False
+        if (rho < (self.Rm - self.d) or rho > (self.Rm + self.d)) and \
+            not(np.isclose(rho, self.Rm - self.d) or np.isclose(rho, self.Rm + self.d)):
+            return False
+        if (np.abs(x) > self.w) and not(np.isclose(np.abs(x), self.w)):
+            return False
+        if np.isclose(np.abs(phi), self.alpha) or rho < (self.Rm - self.d) or \
+            rho > (self.Rm + self.d) or np.isclose(np.abs(x), self.w):
+            return True
+        return False
+
+    def B(self, x_0, dynamic=False):
+        """The magnetic field at point x_0 in laboratory cartesian coordinate system and reference frame.
+
+        Args:
+            x_0 (np.ndarray): A point in space.
+            dynamic (bool, optional): True if a dynamic problem is considered. Defaults to False.
+
+        Raises:
+            NotImplementedError: dynamic=True is not yet available
+
+        Returns:
+            np.ndarray: The magnetic field at point x_0 in laboratory cartesian coordinates.
+        """
+
+        if dynamic:
+            raise NotImplementedError()
+        else:
+            assert hasattr(self, 'B_eigen')
+
+            x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
+            B_eigen = self.B_eigen(x_eigen)
+            return self.Q.dot(self._Q_rel.T.dot(B_eigen))
+
+    def B_eigen_plus(self, x_eigen):
+        """External magnetic field in eigen coordinates.
+
+        A factor of mu0 * M0 is excluded.
+        """
+        return self.H_eigen(x_eigen)
+
+    def B_eigen_minus(self, x_eigen):
+        """Internal magnetic field in eigen coordinates.
+
+        A factor of mu0 * M0 is excluded.
+        """
+        phi = np.arctan2(x_eigen[1], x_eigen[0])
+        M_eigen = np.array([-np.sin(phi), np.cos(phi), 0.])
+        return self.H_eigen(x_eigen) + M_eigen
+
+    def B_eigen(self, x_eigen, limit_direction=-1):
+        """Magnetic field in eigen coordinates.
+
+        A factor of mu0 * M0 is excluded.
+        """
+        inside = self.is_inside_eigen(x_eigen)
+        on_boundary = self.on_boundary_eigen(x_eigen)
+
+        if inside or (on_boundary and (limit_direction == -1)):
+            return self.B_eigen_minus(x_eigen)
+        else:
+            return self.B_eigen_plus(x_eigen)
+
+    def _set_H_eigen(self):
+        """Free current potential in eigen coordinates.
+        
+        A factor of M0 is excluded.
+        """
         # set dimensionless free current potential as a lambda
         # function of tuple of eigen cordinates (x, y, z), e.g.:
-        #   H_test = self.H_eigenfield_dimless((1, 2, 3))
-        self.Vm_eigen = magnetic_potential_bar_magnet(
-            self._height, self._width, self._depth, lambdify=True
+        #   H_test = self.H_eigen((1, 2, 3))
+        self.H_eigen = free_current_potential_magnet_segment(
+            self._Rm, self._width, self._depth, self._alpha
+            )
+
+    def _set_Vm_eigen(self):
+        """Magnetic potential in eigen coordinates.
+
+        A factor of M0 is excluded.
+        """
+        # set dimensionless magnetic potential as a lambda
+        # function of tuple of eigen cordinates (x, y, z), e.g.:
+        #   Vm_test = self.Vm_eigen((1, 2, 3))
+        self.Vm_eigen = magnetic_potential_magnet_segment(
+            self._Rm, self._width, self._depth, self._alpha, lambdify=True
             )

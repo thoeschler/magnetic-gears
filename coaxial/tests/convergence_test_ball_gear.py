@@ -1,0 +1,5 @@
+from source.magnetic_gear_classes import MagneticBallGear
+from coaxial.coaxial_gears import CoaxialGearsProblem
+from coaxial.sample_torque import sample_torque_ball
+
+sample_torque_ball(1)

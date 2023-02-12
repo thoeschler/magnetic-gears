@@ -4,8 +4,8 @@ import numpy as np
 import os
 import json
 from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
-from source.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
-from source.mesh_tools import read_mesh
+from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
+from source.tools.mesh_tools import read_mesh
 
 
 class CoaxialGearsProblem:
@@ -19,9 +19,6 @@ class CoaxialGearsProblem:
             main_dir (str, optional): Main directory. Defaults to None. Current working
                                       directory is used in that case.
         """
-        # make sure gears are coaxial
-        assert np.isclose(np.dot(first_gear.axis, second_gear.axis), \
-            np.linalg.norm(first_gear.axis) * np.linalg.norm(second_gear.axis))
         # set write and read directory
         if main_dir is None:
             self._main_dir = os.getcwd()
@@ -37,7 +34,6 @@ class CoaxialGearsProblem:
         assert hasattr(self._gear_1, "outer_radius")
         assert hasattr(self._gear_2, "outer_radius")
         vec = self.gear_2.x_M - self.gear_1.x_M
-        assert np.isclose(np.dot(first_gear.axis, vec), 0.), "Gears are seperated in direction of rotation axis!"
         assert not np.allclose(vec, 0.)
         vec /= np.linalg.norm(vec)
         self.gear_2.x_M = self.gear_1.x_M + D * vec
@@ -101,8 +97,10 @@ class CoaxialGearsProblem:
         vec = (other_gear.x_M - gear.x_M)
         vec /= np.linalg.norm(vec)
         x_M_magnet = gear.x_M + gear.R * vec  # goal position for magnet
-        angle = np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2)
-        sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(gear.axis))
+        angle = np.abs(np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2))
+        sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(np.array([1., 0., 0.])))
+        if np.isclose(angle, np.pi):
+            sign = 1
         gear.update_parameters(sign * angle)
         assert np.allclose(x_M_magnet, gear.magnets[0].x_M)
         gear.reset_angle(0.)
@@ -226,12 +224,12 @@ class CoaxialGearsProblem:
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
-    def interpolate_field_gear(self, field_gear, mesh_gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max):
-        """Interpolate a field of the magnets of a gear on a given mesh of another gear.
+    def interpolate_field_gear(self, field_gear, mesh, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max):
+        """Interpolate a field of a given gear on a given mesh.
 
         Args:
-            field_gear (Magnetic gear): The magnetic gear that owns the field.
-            mesh_gear (Magnetic gear): The magnetic gear which owns the mesh.
+            field_gear (MagneticGear): The magnetic gear that owns the field.
+            mesh (dlf.Mesh): The finite element mesh.
             field_name (str): Name of the field, e.g. "B".
             cell_type (str): Finite element cell type.
             p_deg (int): Polynomial degree of finite element.
@@ -250,7 +248,7 @@ class CoaxialGearsProblem:
         """
         assert field_name in ("B", "Vm")
         assert hasattr(self, "_domain_size")
-  
+
         # load reference field if not done yet
         if not hasattr(field_gear, f"_{field_name}_ref"):
             self._load_reference_field(field_gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
@@ -259,11 +257,11 @@ class CoaxialGearsProblem:
         if field_name == "B":
             ref_field = field_gear._B_ref
             # new function space
-            V = dlf.VectorFunctionSpace(mesh_gear.mesh, cell_type, p_deg)
+            V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
         elif field_name == "Vm":
             ref_field = field_gear._Vm_ref
             # new function space
-            V = dlf.FunctionSpace(mesh_gear.mesh, cell_type, p_deg)
+            V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
 
@@ -275,10 +273,9 @@ class CoaxialGearsProblem:
         print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
         for mag in field_gear.magnets:
-            if np.linalg.norm(mag.x_M - mesh_gear.x_M) <= self.D:
-                interpol_field = self._interpolate_field_magnet(mag, ref_field, field_gear._B_reference_mesh, \
-                    mesh_gear.mesh, cell_type, p_deg)
-                field_sum += interpol_field._cpp_object.vector()
+            interpol_field = self._interpolate_field_magnet(mag, ref_field, field_gear._B_reference_mesh, \
+                mesh, cell_type, p_deg)
+            field_sum += interpol_field._cpp_object.vector()
 
         print("Done.")
         return dlf.Function(V, field_sum)
@@ -300,6 +297,31 @@ class CoaxialGearsProblem:
         LagrangeInterpolator.interpolate(interpol_field, reference_field_copy)
 
         return interpol_field
+
+    def compute_force_on_gear(self, gear, B):
+        """Compute the force on a gear caused by a magnetic field B.
+
+        Args:
+            gear (MagneticGear): The magnetic gear.
+            B (dlf.Function): The magnetic field.
+
+        Returns:
+            np.ndarray: The force.
+        """
+        assert hasattr(gear, "magnets")
+        print("Computing force on gear... ", end="")
+
+        # only compute y and z component!
+        F = np.zeros(2)
+        for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
+            M = dlf.as_vector(mag.M)  # magnetization
+            t = dlf.cross(dlf.cross(gear.normal_vector('+'), M), B)  # traction vector
+            for i, c in enumerate((t[1], t[2])):
+                f_expr = c * gear.dA(tag)
+                F[i] += dlf.assemble(f_expr)  # add to force
+
+        print("Done.")
+        return F
 
     def compute_torque_on_gear(self, gear, B):
         """Compute the torque on a gear caused by a magnetic field B.
@@ -323,14 +345,12 @@ class CoaxialGearsProblem:
             x_M_ref = self.gear_1.x_M
         else:
             raise RuntimeError()
-        D = np.linalg.norm(gear.x_M - x_M_ref)
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
-            if np.linalg.norm(mag.x_M - x_M_ref) <= D:
-                M = dlf.as_vector(mag.M)  # magnetization
-                t = dlf.cross(dlf.cross(gear.normal_vector('+'), M), B)  # traction vector
-                m = dlf.cross(x - x_M, t)  # torque density
-                tau_expr = m[0] * gear.dA(tag)
-                tau += dlf.assemble(tau_expr)  # add to torque
+            M = dlf.as_vector(mag.M)  # magnetization
+            t = dlf.cross(dlf.cross(gear.normal_vector('+'), M), B)  # traction vector
+            m = dlf.cross(x - x_M, t)  # torque density
+            tau_expr = m[0] * gear.dA(tag)
+            tau += dlf.assemble(tau_expr)  # add to torque
 
         print("Done.")
         return tau
