@@ -2,7 +2,6 @@ import dolfin as dlf
 import numpy as np
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
-from source.tools.mesh_tools import read_mesh_and_markers
 
 
 class MagneticGear:

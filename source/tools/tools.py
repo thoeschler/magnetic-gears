@@ -74,7 +74,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     print("Done.")
 
 def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False):
-    """Interpolate a given field on a given mesh.
+    """Interpolate a field on a mesh.
 
     Args:
         field (callable): The field to interpolate.
