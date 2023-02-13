@@ -325,7 +325,7 @@ class MagneticBarGear(MagneticGear):
         self._d = d  # the magnet depth (here: x-direction!)
         self._w = w  # the magnet width (here: y-direction!)
         self._h = h  # the magnet height (here: z-direction!)
-        self._scale_parameter = h
+        self._scale_parameter = w
         self._magnet_type = "Bar"
 
     @property

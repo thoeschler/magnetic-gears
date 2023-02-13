@@ -407,8 +407,13 @@ class MagnetSegment(PermanentAxialMagnet):
         else:
             assert hasattr(self, 'B_eigen')
 
-            x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
+            # special attention needs to be paid to the x_eigen in this case
+            # the magnetic field is implemented with the assumption that x_M
+            # is the magnet's reference point for rotation. But here x_M is
+            # rather the magnet's center point. Therefore, a shift need
+            x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M)) + np.array([self.Rm, 0., 0.])
             B_eigen = self.B_eigen(x_eigen)
+
             return self.Q.dot(self._Q_rel.T.dot(B_eigen))
 
     def B_eigen_plus(self, x_eigen):

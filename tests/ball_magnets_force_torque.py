@@ -27,7 +27,6 @@ def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
 
     # file name
     fname = "mesh"
-
     model = gmsh.model()
 
     # create surrounding box
@@ -191,12 +190,13 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     Args:
         magnet_1 (BallMagnet): First magnet.
         magnet_2 (BallMagnet): Second magnet.
-        force (np.ndarray): The force on magnet_2 caused by magnet_1.
+        force (np.ndarray): The force on magnet_2 caused by magnet_1 given in the
+                            laboratory system.
         coordinate_system (str, optional): Coordinate system used to represent the
                                            force vector. Defaults to "laboratory".
 
     Returns:
-        np.ndarray: The force in the specified coordinated system.
+        np.ndarray: The torque in the specified coordinated system.
     """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
@@ -211,8 +211,9 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
     tau += vol_magnet_2 * np.cross(M_2, B)
 
-    # second term
-    tau += np.cross(x_M_2, force)
+    # force in cartesian eigenbasis of magnet 1
+    f = magnet_1.Q.T.dot(force)
+    tau += np.cross(x_M_2, f)
 
     # return force w.r.t. chosen basis
     if coordinate_system == "laboratory":
@@ -222,7 +223,7 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     elif coordinate_system == "cartesian_2":
         return magnet_2.Q.T.dot(magnet_1.Q.dot(tau))
     else:
-        raise RuntimeError() 
+        raise RuntimeError()
 
 def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_system="laboratory"):
     """Compute torque on magnet_2 caused by magnetic field of magnet_1 for a special case.
@@ -363,8 +364,8 @@ def convergence_test(distance_values, mesh_size_values, degree=1):
     # first magnet
     r1 = 1.
     M_0_1 = 1.
-    x_M_1 = np.zeros(3)
-    angle_1 = 0.
+    x_M_1 = np.random.rand(3)
+    angle_1 = np.random.rand(1).item()
     Q1 = Rotation.from_rotvec(angle_1 * np.array([1., 0., 0.])).as_matrix()
     mag_1 = BallMagnet(r1, M_0_1, x_M_1, Q1)
     # distance between magnets
@@ -438,9 +439,9 @@ if __name__ == "__main__":
         os.mkdir("test_dir")
     os.chdir("test_dir")
 
-    compute_force_and_torque(n_iterations=20, mesh_size=0.5)
+    compute_force_and_torque(n_iterations=20, mesh_size=1.0)
 
     # some variables
     distance_values = np.array([0.1, 0.5, 1., 5.])
-    mesh_size_values = np.linspace(5e-2, 5e-1, num=5)
-    convergence_test(distance_values, mesh_size_values, degree=4)
+    mesh_size_values = np.linspace(1e-2, 5e-2, num=4)
+    convergence_test(distance_values, mesh_size_values, degree=1)

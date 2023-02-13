@@ -31,11 +31,7 @@ def test_ball_magnet():
 
     # write interpolated field to hdf5 file and read it
     write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
-    B = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
-
-    # remove test directory
-    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
-
+    _ = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
 def test_bar_magnet():
     # create field interpolator
@@ -63,10 +59,7 @@ def test_bar_magnet():
 
     # write interpolated field to hdf5 file and read it
     write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
-    B = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
-
-    # remove test directory
-    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+    _ = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
 def test_magnet_segment():
     # create field interpolator
@@ -94,10 +87,7 @@ def test_magnet_segment():
 
     # write interpolated field to hdf5 file and read it
     write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
-    B = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
-
-    # remove test directory
-    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+    _ = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
 if __name__ == "__main__":
     # create test directory
@@ -108,3 +98,6 @@ if __name__ == "__main__":
     #test_ball_magnet()
     #test_bar_magnet()
     test_magnet_segment()
+
+    # remove test directory
+    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)

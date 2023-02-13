@@ -251,6 +251,6 @@ def free_current_potential_bar_magnet(w, d, h):
 
 def free_current_potential_magnet_segment(Rm, w, d, alpha):
     return lambda coords: np.array([H_x_segment(Rm, w, d, alpha, *coords),
-                                    H_z_segment(Rm, w, d, alpha, *coords),
+                                    H_y_segment(Rm, w, d, alpha, *coords),
                                     H_z_segment(Rm, w, d, alpha, *coords)
                                     ])
