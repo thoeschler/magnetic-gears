@@ -1,5 +1,5 @@
 import numpy as np
-from source.magnet_classes import BallMagnet, BarMagnet, MagnetSegment
+from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
 from scipy.spatial.transform import Rotation
 
 
@@ -130,10 +130,10 @@ def test_magnet_segment():
     M0 = 20.
     Q = np.eye(3)
     x_M = np.random.rand(3)
-    magnet_segment = MagnetSegment(radius=Rm, width=w, depth=d, alpha=np.pi / 4, magnetization_strength=M0, \
+    magnet_segment = CylinderSegment(radius=Rm, width=w, depth=d, alpha=np.pi / 4, magnetization_strength=M0, \
         position_vector=x_M, rotation_matrix=Q)
 
-    assert magnet_segment.type == "MagnetSegment"
+    assert magnet_segment.type == "CylinderSegment"
     assert magnet_segment.w == w
     assert magnet_segment.d == d
     assert magnet_segment.Rm == Rm

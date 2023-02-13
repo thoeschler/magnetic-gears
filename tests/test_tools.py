@@ -1,6 +1,6 @@
 from source.tools.tools import create_reference_mesh, read_hd5f_file, write_hdf5_file, interpolate_field
 from source.tools.mesh_tools import read_mesh
-from source.magnet_classes import BallMagnet, BarMagnet, MagnetSegment
+from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
 import numpy as np
 import os
 import subprocess
@@ -13,7 +13,7 @@ def test_ball_magnet():
     p_deg = 1
     mesh_size_min = 0.3
     mesh_size_max = 1.0
-    
+
     # file names
     mesh_fname = "reference_mesh.xdmf"
 
@@ -73,7 +73,7 @@ def test_magnet_segment():
     mesh_fname = "reference_mesh_segment.xdmf"
 
     # reference magnet
-    ref_mag = MagnetSegment(radius=5., width=1., depth=1., alpha=np.pi / 4, magnetization_strength=1.0, \
+    ref_mag = CylinderSegment(radius=5., width=1., depth=1., alpha=np.pi / 4, magnetization_strength=1.0, \
                             position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     # create mesh, write it to xdmf file and read it
@@ -100,4 +100,4 @@ if __name__ == "__main__":
     test_magnet_segment()
 
     # remove test directory
-    subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)

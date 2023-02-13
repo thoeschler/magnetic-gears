@@ -1,4 +1,4 @@
-from source.magnet_classes import BallMagnet, BarMagnet, MagnetSegment
+from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear
 import numpy as np
 import subprocess
