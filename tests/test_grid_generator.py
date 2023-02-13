@@ -31,8 +31,12 @@ def test_bar_gear_mesh():
     M0 = 10.  # magnetization strength
     bar_gear.create_magnets(M0)
 
-    _ = gear_mesh(bar_gear, mesh_size_space=1.0, mesh_size_magnets=0.3, padding=bar_gear.h, \
-        fname="testbar", write_to_pvd=True, verbose=True)
+    mesh_size_space = 3.0
+    mesh_size_magnets = 0.4
+    fname = "testbar"
+
+    _ = gear_mesh(bar_gear, mesh_size_space, mesh_size_magnets, fname, \
+                  padding=bar_gear.h, write_to_pvd=True, verbose=True)
 
 def test_segment_mesh():
     # create gear

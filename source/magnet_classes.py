@@ -8,22 +8,24 @@ class PermanentAxialMagnet:
     def __init__(self, type_classifier, magnetization_strength, position_vector, rotation_matrix):
         """Base constructor method.
         Args:
-            type_classifier (str): the magnet geometry type (e.g. 'Ball' in subclass Ball_Magnet)
-            magnetization_strength (float): the magnetization strength
-            position_vector (np.ndarray): magnet's center of mass in laboratory cartesian coordinates
-            rotation_matrix (np.ndarray): the rotation defines the magnet's orientation
-                Mathematically, we have for the cartesian basis vectors in the laboratory system (termed (0))
-                and in the magnets eigensystem (termed (1)):
+            type_classifier (str): Magnet geometry (e.g. "Ball", "Bar").
+            magnetization_strength (float): Magnetization strength.
+            position_vector (np.ndarray): Magnet's position vector (not necessarily the center
+                                          of mass) in laboratory cartesian coordinates.
+            rotation_matrix (np.ndarray): Rotation matrix defining the magnet's orientation.
+                Mathematically, we have for the cartesian basis vectors in the laboratory system
+                (termed (0)) and in the magnets eigensystem (termed (1)):
                     Q^{(01})_{ij} = e_i^{(0)} \cdot e_j^{(1)}
                 The transformation behavior of the cartesian basis vector is then:
                     e_i^{(1)} = Q^{(01})_{ji} e_j^{(0)}, e_i^{(0)} = Q^{(01})_{ij} e_j^{(1)}
-                The transformation is equivalent for vector components.
+                The transformation is equivalent for vector components. A multiplication of vector
+                components from the right side can be used for the transformation (1) -> (0).
         """
         self._type = type_classifier
         self._xM = position_vector
         assert np.allclose(rotation_matrix.dot(rotation_matrix.T), np.eye(3))
         self._Q = rotation_matrix
-        self._M = self._Q.dot(np.array([0., 0., 1.]))
+        self._M = self._Q.dot(np.array([0., 0., 1.]))  # overwrite if magnetization is not constant
         self._M0 = magnetization_strength
 
     @property
@@ -54,13 +56,14 @@ class PermanentAxialMagnet:
     @Q.setter
     def Q(self, Q):
         self._Q = Q
+        # automatically adjust magnetization vector
         self._M = self._Q.dot(np.array([0., 0., 1.]))
 
     def B_eigen(self):
-        """Purely virtual method."""
+        """Magnetic field in eigen coordinates."""
 
     def Vm_eigen(self):
-        """Purely virtual method."""
+        """Magnetic potential in eigen coordinates."""
 
     def B(self, x_0, dynamic=False):
         """The magnetic field at point x_0 in laboratory cartesian coordinate system and reference frame.
@@ -100,22 +103,39 @@ class PermanentAxialMagnet:
         return self.Vm_eigen(x_eigen)
 
     def B_as_expression(self):
+        """Magnetic field as dolfin expression.
+
+        Returns:
+            CustomVectorExpression: Magnetic field as dolfin expression.
+        """
         B = lambda x: self.Q.dot(self.B_eigen(self.Q.T.dot(x - self.x_M)))
         return CustomVectorExpression(B)
 
     def Vm_as_expression(self):
+        """Magnetic potential as dolfin expression.
+
+        Returns:
+            CustomScalarExpression: Magnetic field as dolfin expression.
+        """
         Vm = lambda x: self.Vm_eigen(self.Q.T.dot(x - self.x_M))
         return CustomScalarExpression(Vm)
 
     def update_parameters(self, x_M, Q):
+        """Update magnet parameters by specifying new x_M and Q.
+
+        Args:
+            x_M (np.ndarray): New position vector.
+            Q (np.ndarray): New rotation matrix.
+        """
         self._Q = Q
+        # automatically update magnetization vector
         self._M = self._Q.dot(np.array([0., 0., 1.]))
         self._xM = x_M
 
 
 class BallMagnet(PermanentAxialMagnet):
     def __init__(self, radius, magnetization_strength, position_vector, rotation_matrix):
-        super().__init__(type_classifier='Ball',
+        super().__init__(type_classifier="Ball",
                          position_vector=position_vector,
                          magnetization_strength=magnetization_strength,
                          rotation_matrix=rotation_matrix
@@ -127,10 +147,26 @@ class BallMagnet(PermanentAxialMagnet):
         return self._radius
 
     def is_inside(self, x0):
+        """Check if point x_0 is inside the magnet's domain.
+
+        Args:
+            x0 (np.ndarray): A point in space.
+
+        Returns:
+            bool: True if x_0 is inside the domain.
+        """
         diff = self.x_M - x0
-        return (np.dot(diff, diff) < self.R**2)
+        return (np.dot(diff, diff) < self.R ** 2)
 
     def on_boundary(self, x0):
+        """Check if point x_0 is on the magnet's boundary.
+
+        Args:
+            x0 (np.ndarray): A point in space.
+
+        Returns:
+            bool: True if x_0 is on the boundary.
+        """
         diff = self.x_M - x0
         return np.isclose(np.dot(diff, diff), self.R ** 2)
 
@@ -143,7 +179,8 @@ class BallMagnet(PermanentAxialMagnet):
             x_eigen (_type_): Position vector in eigen cartesian coordinates.
             limit_direction (int, optional): Limit_direction in {-1, +1} where -1
                                              corresponds to limit from the inside
-                                             and +1 limit from the outside. Defaults to -1.
+                                             and +1 limit from the outside.
+                                             Defaults to -1.
 
         Returns:
             float: The magnetic potential at point x_eigen.
@@ -163,7 +200,13 @@ class BallMagnet(PermanentAxialMagnet):
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.
         
-        A factor of mu0 * M0 is excluded.
+        A factor of mu_0 * M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
         """
         r = np.linalg.norm(x_eigen) / self.R
         x, y, z = x_eigen
@@ -174,15 +217,31 @@ class BallMagnet(PermanentAxialMagnet):
 
     def B_eigen_minus(self, x_eigen):
         """Internal magnetic field in eigen coordinates.
+        
+        A factor of mu_0 * M0 is excluded.
 
-        A factor of mu0 * M0 is excluded.
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
         """
         return np.array([0., 0., 2. / 3.])
 
     def B_eigen(self, x_eigen, limit_direction=-1):
         """Magnetic field in eigen coordinates.
 
-        A factor of mu0 * M0 is excluded.
+        A factor of mu_0 * M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+            limit_direction (int, optional): Limit_direction in {-1, +1} where -1
+                                             corresponds to limit from the inside
+                                             and +1 limit from the outside.
+                                             Defaults to -1.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
         """
         inside = (x_eigen.dot(x_eigen) < self.R ** 2)
         on_boundary = np.isclose(x_eigen.dot(x_eigen), self.R ** 2)
@@ -215,6 +274,11 @@ class BarMagnet(PermanentAxialMagnet):
         self._Q_rel = np.array([[0., -1., 0.],
                                 [1., 0., 0.],
                                 [0., 0., 1.]])
+        # Q_rel is only used internally to transform between coordinate systems.
+        # Q_rel transforms the actual eigensystem into another eigensystem that
+        # can be transformed to the laboratory system by means of Q.
+        # A multiplication from the right transforms vector components into the
+        # actual eigen coordinates.
 
     @property
     def w(self):
@@ -229,10 +293,26 @@ class BarMagnet(PermanentAxialMagnet):
         return self._height
 
     def is_inside(self, x0):
+        """Check if point x_0 is inside the magnet's domain.
+
+        Args:
+            x0 (np.ndarray): A point in space.
+
+        Returns:
+            bool: True if x_0 is inside the domain.
+        """
         x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
         return np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
 
     def on_boundary(self, x0):
+        """Check if point x_0 is on the magnet's boundary.
+
+        Args:
+            x0 (np.ndarray): A point in space.
+
+        Returns:
+            bool: True if x_0 is on the boundary.
+        """
         x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
         return np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
 
@@ -255,28 +335,53 @@ class BarMagnet(PermanentAxialMagnet):
         else:
             assert hasattr(self, 'B_eigen')
 
+            # Here, Q_rel has to be applied twice
+            # First, transform components to eigen coordinates
             x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
             B_eigen = self.B_eigen(x_eigen)
+            # Second, transform back to laboratory coordinates
             return self.Q.dot(self._Q_rel.T.dot(B_eigen))
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.
+        
+        A factor of mu_0 * M0 is excluded.
 
-        A factor of mu0 * M0 is excluded.
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
         """
         return self.H_eigen(x_eigen)
 
     def B_eigen_minus(self, x_eigen):
         """Internal magnetic field in eigen coordinates.
 
-        A factor of mu0 * M0 is excluded.
+        A factor of mu_0 * M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
         """
         return self.H_eigen(x_eigen) + np.array([0., 0., 1.])
 
     def B_eigen(self, x_eigen, limit_direction=-1):
         """Magnetic field in eigen coordinates.
         
-        A factor of mu0 * M0 is excluded.
+        A factor of mu_0 * M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+            limit_direction (int, optional): Limit_direction in {-1, +1} where -1
+                                             corresponds to limit from the inside
+                                             and +1 limit from the outside.
+                                             Defaults to -1.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
         """
         inside = np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
         on_boundary = np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
@@ -287,13 +392,23 @@ class BarMagnet(PermanentAxialMagnet):
             return self.H_eigen(x_eigen)
 
     def H(self, x_0):
+        """Free current potential.
+
+        A factor of M0 is excluded.
+
+        Args:
+            x_0 (np.ndarray): A point in space in laboratory coordinates.
+
+        Returns:
+            np.ndarray: The free current potential at x_0.
+        """
         x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
         H_eigen = self.H_eigen(x_eigen)
         return self.Q.dot(self._Q_rel.T.dot(H_eigen))
 
     def _set_H_eigen(self):
-        """Free current potential in eigen coordinates.
-        
+        """Set free current potential in eigen coordinates.
+
         A factor of M0 is excluded.
         """
         # set dimensionless free current potential as a lambda
@@ -304,7 +419,7 @@ class BarMagnet(PermanentAxialMagnet):
             )
 
     def _set_Vm_eigen(self):
-        """Magnetic potential in eigen coordinates.
+        """Set magnetic potential in eigen coordinates.
 
         A factor of M0 is excluded.
         """
@@ -316,9 +431,9 @@ class BarMagnet(PermanentAxialMagnet):
             )
 
 
-class MagnetSegment(PermanentAxialMagnet):
+class CylinderSegment(PermanentAxialMagnet):
     def __init__(self, radius, width, depth, alpha, magnetization_strength, position_vector, rotation_matrix):
-        super().__init__(type_classifier='MagnetSegment',
+        super().__init__(type_classifier='CylinderSegment',
                          position_vector=position_vector,
                          magnetization_strength=magnetization_strength,
                          rotation_matrix=rotation_matrix
@@ -326,6 +441,7 @@ class MagnetSegment(PermanentAxialMagnet):
         self._Rm = radius
         self._width = width
         self._depth = depth
+        # half the angle of the segment
         self._alpha = alpha
         self._set_Vm_eigen()
         self._set_H_eigen()
@@ -334,6 +450,7 @@ class MagnetSegment(PermanentAxialMagnet):
         self._Q_rel = np.array([[0., 1., 0.],
                                 [0., 0., 1.],
                                 [1., 0., 0.]])
+        # Tranformation behavior is same as for the BarMagnet.
 
     @property
     def Rm(self):
@@ -351,24 +468,48 @@ class MagnetSegment(PermanentAxialMagnet):
     def alpha(self):
         return self._alpha
 
-    def is_inside(self, x0):
-        x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
+    def is_inside(self, x_0):
+        """Check if point x_0 is inside the magnet's domain.
+
+        Args:
+            x0 (np.ndarray): A point in space.
+
+        Returns:
+            bool: True if x_0 is inside the domain.
+        """
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M)) + np.array([self.Rm, 0., 0.])
         return self.is_inside_eigen(x_eigen)
     
     def is_inside_eigen(self, x_eigen):
+        """Check if point x_eigen is inside the magnet's domain.
+
+        Args:
+            x_eigen (np.ndarray): A point in cartesian eigen coordinates.
+
+        Returns:
+            bool: True if x_eigen is inside the domain.
+        """
         x, y, z = x_eigen
         rho = np.sqrt(x ** 2 + y ** 2)
         phi = np.arctan2(y, x)
         if np.abs(phi) >= self.alpha:
             return False
-        if rho <= (self.Rm - self.d) or rho >= (self.Rm + self.d):
+        if rho <= (self.Rm - self.w) or rho >= (self.Rm + self.w):
             return False
-        if (x >= self.w) or (x <= - self.w):
+        if np.abs(z) >= self.d:
             return False
         return True
 
-    def on_boundary(self, x0):
-        x_eigen = self._Q_rel.dot(self.Q.T.dot(x0 - self.x_M))
+    def on_boundary(self, x_0):
+        """Check if point x_0 is on the magnet's boundary.
+
+        Args:
+            x0 (np.ndarray): A point in space in laboratory coordinates.
+
+        Returns:
+            bool: True if x_0 is on the boundary.
+        """
+        x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M)) + np.array([self.Rm, 0., 0.])
         return self.on_boundary_eigen(x_eigen)
 
     def on_boundary_eigen(self, x_eigen):
@@ -376,15 +517,20 @@ class MagnetSegment(PermanentAxialMagnet):
         rho = np.sqrt(x ** 2 + y ** 2)
         phi = np.arctan2(y, x)
 
+        # check if phi is too large
         if np.abs(phi) > self.alpha and not(np.isclose(np.abs(phi), self.alpha)):
             return False
-        if (rho < (self.Rm - self.d) or rho > (self.Rm + self.d)) and \
-            not(np.isclose(rho, self.Rm - self.d) or np.isclose(rho, self.Rm + self.d)):
+        # check if rho is too small or too large
+        if (rho < (self.Rm - self.w) or rho > (self.Rm + self.w)) and \
+            not(np.isclose(rho, self.Rm - self.w) or np.isclose(rho, self.Rm + self.w)):
             return False
-        if (np.abs(x) > self.w) and not(np.isclose(np.abs(x), self.w)):
+        # check if z is too small or too large
+        if (np.abs(z) > self.d) and not(np.isclose(np.abs(z), self.d)):
             return False
-        if np.isclose(np.abs(phi), self.alpha) or rho < (self.Rm - self.d) or \
-            rho > (self.Rm + self.d) or np.isclose(np.abs(x), self.w):
+        # now, if a single value corresponds to the boundary value, the point
+        # is indeed on the boundary 
+        if np.isclose(np.abs(phi), self.alpha) or np.isclose(rho, self.Rm - self.w) or \
+            np.isclose(rho, self.Rm + self.w) or np.isclose(np.abs(z), self.d):
             return True
         return False
 
@@ -407,8 +553,13 @@ class MagnetSegment(PermanentAxialMagnet):
         else:
             assert hasattr(self, 'B_eigen')
 
-            x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M))
+            # special attention needs to be paid to the x_eigen in this case
+            # the magnetic field is implemented with the assumption that x_M
+            # is the magnet's reference point for rotation. But here x_M is
+            # rather the magnet's center point. Therefore, a shift is required
+            x_eigen = self._Q_rel.dot(self.Q.T.dot(x_0 - self.x_M)) + np.array([self.Rm, 0., 0.])
             B_eigen = self.B_eigen(x_eigen)
+
             return self.Q.dot(self._Q_rel.T.dot(B_eigen))
 
     def B_eigen_plus(self, x_eigen):
@@ -442,7 +593,7 @@ class MagnetSegment(PermanentAxialMagnet):
 
     def _set_H_eigen(self):
         """Free current potential in eigen coordinates.
-        
+
         A factor of M0 is excluded.
         """
         # set dimensionless free current potential as a lambda

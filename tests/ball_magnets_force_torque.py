@@ -27,7 +27,6 @@ def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
 
     # file name
     fname = "mesh"
-
     model = gmsh.model()
 
     # create surrounding box
@@ -94,12 +93,13 @@ def compute_force_analytically(magnet_1: BallMagnet, magnet_2: BallMagnet, coord
         np.ndarray: The force in the specified coordinated system.
     """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
-    factor = 4 / 3 * magnet_1.M0 * magnet_2.M0 * np.pi * \
+    factor = 4. / 3. * magnet_1.M0 * magnet_2.M0 * np.pi * \
         (magnet_1.R * magnet_2.R) ** 3
 
     # some quantities
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M)
+    # position vector in eigen coordinates of magnet_1
+    x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M - magnet_1.x_M)
     x, y, z = x_M_2
     rho = np.sqrt(x ** 2 + y ** 2)
 
@@ -176,9 +176,9 @@ def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag
     dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
 
     # compute force
-    M = dlf.as_vector(magnet.M)  # magnetization
+    M_jump = dlf.as_vector(- magnet.M)  # jump of magnetization
     n = dlf.FacetNormal(mesh)
-    t = dlf.cross(dlf.cross(n('+'), M), B)  # traction vector
+    t = dlf.cross(dlf.cross(n('-'), M_jump), B)  # traction vector
     F = np.ones(3)
     for i, c in enumerate(t):
         a = dlf.assemble(c * dA(magnet_boundary_tag))
@@ -191,12 +191,13 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     Args:
         magnet_1 (BallMagnet): First magnet.
         magnet_2 (BallMagnet): Second magnet.
-        force (np.ndarray): The force on magnet_2 caused by magnet_1.
+        force (np.ndarray): The force on magnet_2 caused by magnet_1 given in the
+                            laboratory system.
         coordinate_system (str, optional): Coordinate system used to represent the
                                            force vector. Defaults to "laboratory".
 
     Returns:
-        np.ndarray: The force in the specified coordinated system.
+        np.ndarray: The torque in the specified coordinated system.
     """
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
@@ -204,15 +205,16 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     x_M_2 = magnet_1.Q.T.dot(magnet_2.x_M - magnet_1.x_M)
     M_2 = magnet_1.Q.T.dot(magnet_2.M)
 
-    # compute torque 
+    # compute torque
     tau = np.zeros(3)  # initialize
     # first term
     B = magnet_1.B_eigen_plus(x_M_2)
     vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
     tau += vol_magnet_2 * np.cross(M_2, B)
 
-    # second term
-    tau += np.cross(x_M_2, force)
+    # force in cartesian eigenbasis of magnet 1
+    f = magnet_1.Q.T.dot(force)
+    tau += np.cross(x_M_2, f)
 
     # return force w.r.t. chosen basis
     if coordinate_system == "laboratory":
@@ -222,7 +224,7 @@ def compute_torque_analytically(magnet_1, magnet_2, force, coordinate_system="la
     elif coordinate_system == "cartesian_2":
         return magnet_2.Q.T.dot(magnet_1.Q.dot(tau))
     else:
-        raise RuntimeError() 
+        raise RuntimeError()
 
 def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_system="laboratory"):
     """Compute torque on magnet_2 caused by magnetic field of magnet_1 for a special case.
@@ -243,17 +245,6 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
     assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
 
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-
-    """# compute torque 
-    tau = np.zeros(3)  # initialize
-    # first term
-    B = magnet_1.B_eigen_plus(x_M_2)
-    vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
-    tau += vol_magnet_2 * np.cross(M_2, B)
-
-    # second term
-    tau += np.cross(x_M_2, force)"""
-
 
     tau = - 8. / 9. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 / \
         r ** 3 * np.array([np.sin(angle), 0., 0.])
@@ -288,8 +279,8 @@ def compute_torque_numerically(magnet_1, magnet_2, mesh, B, facet_marker, magnet
 
     x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=degree)
     x_M = dlf.as_vector(magnet_1.x_M)
-    M = dlf.as_vector(magnet_2.M)  # magnetization
-    t = dlf.cross(dlf.cross(n('+'), M), B)  # traction vector
+    M_jump = dlf.as_vector(- magnet_2.M)  # jump of magnetization
+    t = dlf.cross(dlf.cross(n('-'), M_jump), B)  # traction vector
     m = dlf.cross(x - x_M, t)  # torque density
 
     tau = np.empty(3)
@@ -318,7 +309,9 @@ def compute_force_and_torque(n_iterations, mesh_size):
 
     # get magnet force for different angles
     mesh, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag = create_single_magnet_mesh(mag_2, mesh_size)
+    print("Interpolate magnetic field...", end="")
     B = interpolate_magnetic_field(mag_1, mesh)
+    print("Done.")
 
     # compute force
     angles = np.linspace(0, 2 * np.pi, n_iterations + 1, endpoint=True)
@@ -363,8 +356,8 @@ def convergence_test(distance_values, mesh_size_values, degree=1):
     # first magnet
     r1 = 1.
     M_0_1 = 1.
-    x_M_1 = np.zeros(3)
-    angle_1 = 0.
+    x_M_1 = np.random.rand(3)
+    angle_1 = np.random.rand(1).item()
     Q1 = Rotation.from_rotvec(angle_1 * np.array([1., 0., 0.])).as_matrix()
     mag_1 = BallMagnet(r1, M_0_1, x_M_1, Q1)
     # distance between magnets
@@ -373,7 +366,7 @@ def convergence_test(distance_values, mesh_size_values, degree=1):
     r2 = 1.
     M_0_2 = 1.
     x_M_2 = x_M_1 + np.array([0., r1 + r2 + d, 0.])
-    angle_2 = 0.
+    angle_2 = np.random.rand(1).item()
     Q2 = Rotation.from_rotvec(angle_2 * np.array([1., 0., 0.])).as_matrix()
     mag_2 = BallMagnet(r2, M_0_2, x_M_2, Q2)
 
@@ -404,8 +397,9 @@ def convergence_test(distance_values, mesh_size_values, degree=1):
             assert np.isclose(vec.dot(vec), 1.0)
 
             # move magnet and mesh
-            mesh.translate(dlf.Point(*((d + mag_1.R + mag_2.R) * vec - mag_2.x_M)))
-            mag_2.x_M = (d + mag_1.R + mag_2.R) * vec
+            mesh.translate(dlf.Point(*((d + mag_1.R + mag_2.R) * vec - (mag_2.x_M - mag_1.x_M))))
+            mag_2.x_M = mag_1.x_M + (d + mag_1.R + mag_2.R) * vec
+            assert np.isclose(np.linalg.norm(mag_2.x_M - mag_1.x_M), d + mag_1.R + mag_2.R)
 
             #### Get magnetic field
             B = interpolate_magnetic_field(mag_1, mesh, degree)
@@ -438,9 +432,9 @@ if __name__ == "__main__":
         os.mkdir("test_dir")
     os.chdir("test_dir")
 
-    compute_force_and_torque(n_iterations=20, mesh_size=0.5)
+    compute_force_and_torque(n_iterations=5, mesh_size=1.0)
 
     # some variables
     distance_values = np.array([0.1, 0.5, 1., 5.])
-    mesh_size_values = np.linspace(5e-2, 5e-1, num=5)
-    convergence_test(distance_values, mesh_size_values, degree=4)
+    mesh_size_values = np.linspace(1e-1, 5e-1, num=4)
+    convergence_test(distance_values, mesh_size_values, degree=1)
