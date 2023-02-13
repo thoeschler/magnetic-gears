@@ -245,17 +245,6 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
 
     r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
 
-    """# compute torque 
-    tau = np.zeros(3)  # initialize
-    # first term
-    B = magnet_1.B_eigen_plus(x_M_2)
-    vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
-    tau += vol_magnet_2 * np.cross(M_2, B)
-
-    # second term
-    tau += np.cross(x_M_2, force)"""
-
-
     tau = - 8. / 9. * magnet_1.M0 * magnet_2.M0 * np.pi * (magnet_1.R * magnet_2.R) ** 3 / \
         r ** 3 * np.array([np.sin(angle), 0., 0.])
 

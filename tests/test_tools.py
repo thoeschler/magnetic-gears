@@ -95,9 +95,9 @@ if __name__ == "__main__":
     if not os.path.exists(test_dir):
         os.mkdir(test_dir)
     
-    #test_ball_magnet()
-    #test_bar_magnet()
+    test_ball_magnet()
+    test_bar_magnet()
     test_magnet_segment()
 
     # remove test directory
-    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
