@@ -135,6 +135,8 @@ def segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, padding, mesh_size, w
     Ro += 3 * padding  # make sure rotating the gear inside the segment is possible
     t += 2 * padding
     angle += 2 * padding / Ri
+    if angle > 2 * np.pi:
+        angle = 2 * np.pi
     assert x_M_ref is not None
     assert len(x_M_ref) == 3
     x_axis /= np.linalg.norm(x_axis)

@@ -446,11 +446,14 @@ class CoaxialGearsProblem:
             magnet_boundary_subdomain_tags, box_subdomain_tag, padding=kwargs["padding"])
 
         if hasattr(self.gear_1, "_domain_radius") and hasattr(self.gear_2, "_domain_radius"):
-            assert hasattr(self, "_set_domain_size")
-            self._set_domain_size()
+            assert hasattr(self, "set_domain_size")
+            self.set_domain_size()
 
-    def _set_domain_size(self):
-        # set domain size (the maximum distance between two points on either of the two meshes)
-        assert hasattr(self.gear_1, "domain_radius")
-        assert hasattr(self.gear_2, "domain_radius")
-        self._domain_size = self.D + self.gear_1.domain_radius + self.gear_2.domain_radius
+    def set_domain_size(self, val=None):
+        if val is not None: 
+            # set domain size (the maximum distance between two points on either of the two meshes)
+            assert hasattr(self.gear_1, "domain_radius")
+            assert hasattr(self.gear_2, "domain_radius")
+            self._domain_size = self.D + self.gear_1.domain_radius + self.gear_2.domain_radius
+        else:
+            self._domain_size = val

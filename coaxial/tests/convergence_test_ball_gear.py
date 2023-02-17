@@ -36,7 +36,7 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
             self.lg = self.gear_2  # larger gear
         else:
             self.sg = self.gear_2  # smaller gear
-            self.lg = self.gear_2  # other gear
+            self.lg = self.gear_1  # larger gear
 
         # set geometrical paramters
         assert isinstance(self.sg, MagneticBallGear)
@@ -47,11 +47,17 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
         # angle to contain smaller gear
         angle = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
         angle += 2 * np.pi / self.lg.n  # allow rotation by +- pi / n
+        if angle > 2 * np.pi:
+            angle = 2 * np.pi
 
         # create segment mesh
         Ri = self.D - self.sg.outer_radius
-        alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets))
-        print(f"Removed magnets: {self.sg.n - len(self.sg.magnets)}")
+        # "-1" to allow rotation by +- pi / n
+        # => assume one magnet less has been removed
+        if self.sg.n > len(self.sg.magnets):
+            alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets) - 1)
+        else:
+            alpha_r = 0.
         x_axis = np.array([0., 1., 0.])
         if self.sg.x_M[1] < self.lg.x_M[1]:
             x_axis *= -1
@@ -60,14 +66,15 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
         ref_path = self._main_dir + "/data/reference"
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
+        self.set_domain_size(Ro + self.lg.outer_radius)
         self.seg_mesh, _, _ = segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
                                            x_axis=x_axis, fname=ref_path + "/reference_segment", padding=pad, \
                                            mesh_size=mesh_size_magnets, write_to_pvd=True)
         # interpolate field of other gear on segment
         self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
                                                  mesh_size_magnets / max(self.gear_1.scale_parameter, \
-                                                                         self.gear_2.scale_parameter), 8.0)
-
+                                                                         self.gear_2.scale_parameter), 3 * mesh_size_magnets)
+        dlf.File("B_ref.pvd") << self.B_ref
     def update_gear(self, gear, d_angle, segment_mesh=None):
         gear.update_parameters(d_angle)
         if segment_mesh is not None:
@@ -90,7 +97,7 @@ def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
         force (np.ndarray): The force on magnet_2 caused by magnet_1.
         x_M_gear_2 (np.ndarray): The gear's center that magnet_2 belongs to.
     Returns:
-        np.ndarray: The force in the specified coordinated system.
+        np.ndarray: The torque in the specified coordinated system.
     """
 
     # all quantities are represented in the cartesian eigenbasis of magnet 1 
@@ -101,10 +108,7 @@ def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
     tau = np.zeros(3)  # initialize
     B = magnet_1.B_eigen_plus(x_M_2)
     vol_magnet_2 = 4. / 3. * np.pi * magnet_2.R ** 3
-    tau += vol_magnet_2 * np.cross(M_2, B)
-
-    # in laboratory cs
-    tau = magnet_1.Q.dot(tau)
+    tau += magnet_1.Q.dot(vol_magnet_2 * np.cross(M_2, B))
 
     # this is the torque w.r.t. the second magnet's center
     # now, compute torque w.r.t. gear's center (x_M_gear_2)
@@ -114,18 +118,21 @@ def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
 
 
 def main():
-    mesh_sizes = np.geomspace(1e-2, 1.5, 10)
+    mesh_sizes = np.geomspace(5e-2, 0.5, 5)
 
     for ms in mesh_sizes[::-1]:
         # create two ball gears
-        gear_1 = MagneticBallGear(7, 5, 1, np.zeros(3))
+        gear_1 = MagneticBallGear(5, 5, 1, np.zeros(3))
         gear_1.create_magnets(magnetization_strength=1.0)
-        gear_2 = MagneticBallGear(7, 6, 1, np.array([0., 1., 0.]))
+        gear_2 = MagneticBallGear(5, 6, 1, np.array([0., 1., 0.]))
         gear_2.create_magnets(magnetization_strength=1.0)
 
         # create coaxial gears problem
         D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 1.0
-        cg = CoaxialGearsConvergenceTest(gear_1, gear_2, D)
+        main_dir = "convergence_test"
+        if not os.path.exists(main_dir):
+            os.mkdir(main_dir)
+        cg = CoaxialGearsConvergenceTest(gear_1, gear_2, D, main_dir)
 
         # mesh both gears
         cg.mesh_gear(cg.gear_1, mesh_size_space=2.0, mesh_size_magnets=ms, \
@@ -137,14 +144,19 @@ def main():
         cg.interpolate_to_segment(ms)
 
         # introduce some randomness: rotate gears and segment by arbitrary angles
-        cg.update_gear(cg.sg, d_angle=np.pi/4)#(np.random.rand(1) * 2 * np.pi).item())
-        cg.update_gear(cg.lg, segment_mesh=cg.seg_mesh, d_angle=np.pi/4)#(np.random.rand(1) * 2 * np.pi).item())
+        cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
+        cg.update_gear(cg.lg, segment_mesh=cg.seg_mesh, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item())
+
+        print(cg.lg.angle)
+        print(cg.sg.angle)
 
         ####################################
         ### 1. compute torque numerically ##
         ####################################
 
-        V = dlf.VectorFunctionSpace(cg.sg.mesh, "CG", 1)
+        # copy segment mesh
+        gear_mesh = dlf.Mesh(cg.sg.mesh)
+        V = dlf.VectorFunctionSpace(gear_mesh, "CG", 1)
         B_lg = dlf.Function(V)
 
         # copy reference_field
@@ -153,21 +165,25 @@ def main():
         B_ref = dlf.Function(V_ref, cg.B_ref._cpp_object.vector())
         LagrangeInterpolator.interpolate(B_lg, B_ref)
 
+        dlf.File("B_lg.pvd") << B_lg
+
         # compute force
         F = cg.compute_force_on_gear(cg.sg, B_lg)
 
         # compute torque
         tau_sg = cg.compute_torque_on_gear(cg.sg, B_lg)
         F_pad = np.array([0., F[0], F[1]])
-        tau_lg = (np.cross((cg.lg.x_M - cg.sg.x_M), F_pad) - tau_sg)[0]
+        tau_lg = (np.cross(cg.lg.x_M - cg.sg.x_M, F_pad) - tau_sg)[0]
 
         if cg.gear_1 is cg.sg:
             tau_21_num = tau_sg
             tau_12_num = tau_lg
-        else:
+        elif cg.gear_2 is cg.sg:
             tau_21_num = tau_lg
             tau_12_num = tau_sg
-
+        else:
+            raise RuntimeError()
+        
         ####################################
         ## 2. compute torque analytically ##
         ####################################
@@ -191,13 +207,13 @@ def main():
               mesh size: {ms} \n
               tau_12_num: {tau_12_num} \n
               tau_12_ana: {tau_12_ana} \n
-              tau_12_error: {np.abs(tau_12_ana - tau_12_num)}
+              tau_12_error: {np.abs(tau_12_ana - tau_12_num)} \n
               tau_21_num: {tau_21_num} \n
               tau_21_ana: {tau_21_ana} \n
               tau_21_error: {np.abs(tau_21_ana - tau_21_num)} \n
               """)
-        
         del cg
-
+        
+        
 if __name__ == "__main__":
     main()

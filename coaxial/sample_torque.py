@@ -37,7 +37,7 @@ class CoaxialGears(CoaxialGearsProblem):
             self.lg = self.gear_2  # larger gear
         else:
             self.sg = self.gear_2  # smaller gear
-            self.lg = self.gear_2  # other gear
+            self.lg = self.gear_1  # larger gear
 
         # set geometrical paramters        
         if isinstance(self.sg, MagneticBallGear):
@@ -55,7 +55,12 @@ class CoaxialGears(CoaxialGearsProblem):
 
         # create segment mesh
         Ri = self.D - self.sg.outer_radius
-        alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets))
+        if self.sg.n > len(self.sg.magnets):
+            # "-1" to allow rotation by +- pi / n
+            # => assume one magnet less has been removed
+            alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets) - 1)
+        else:
+            alpha_r = 0.
         assert alpha_r > 0
         x_axis = np.array([0., 1., 0.])
         if self.sg.x_M[1] < self.lg.x_M[1]:
@@ -69,6 +74,8 @@ class CoaxialGears(CoaxialGearsProblem):
                                            x_axis=x_axis, fname=ref_path + "/reference_segment", padding=pad, \
                                            mesh_size=mesh_size_magnets, write_to_pvd=True)
         # interpolate field of other gear on segment
+        # size of basic reference field
+        self.set_domain_size(self.D + self.gear_1.R + self.gear_2.R + pad)
         self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
                                                  mesh_size_magnets / max(self.gear_1.scale_parameter, \
                                                                          self.gear_2.scale_parameter), 8.0)
@@ -87,7 +94,6 @@ class CoaxialGears(CoaxialGearsProblem):
 
     def simulate(self, n_iterations, data_fname):
         if self.gear_1 is self.sg:
-            print("yeah")
             d_angle_sg = 2. * np.pi / self.gear_1.n / n_iterations
             d_angle_lg = 2. * np.pi / self.gear_2.n / n_iterations
         else:
