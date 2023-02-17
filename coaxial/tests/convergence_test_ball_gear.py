@@ -78,13 +78,10 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
 
         self.B_ref = compute_magnetic_field(self.Vm_ref)
 
-        dlf.File("B_ref.pvd") << self.B_ref
+        #self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
+        #                                         mesh_size_magnets / max(self.gear_1.scale_parameter, \
+        #                                                                 self.gear_2.scale_parameter), 3 * mesh_size_magnets)
 
-        self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
-                                                 mesh_size_magnets / max(self.gear_1.scale_parameter, \
-                                                                         self.gear_2.scale_parameter), 3 * mesh_size_magnets)
-        dlf.File("B_ref_2.pvd") << self.B_ref
-        exit()
     def update_gear(self, gear, d_angle, segment_mesh=None):
         gear.update_parameters(d_angle)
         if segment_mesh is not None:
