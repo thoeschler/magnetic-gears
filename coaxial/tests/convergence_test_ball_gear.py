@@ -3,6 +3,7 @@ from dolfin import LagrangeInterpolator
 import numpy as np
 import os
 from source.magnetic_gear_classes import MagneticBallGear
+from source.tools.fenics_tools import compute_magnetic_field
 from coaxial.coaxial_gears import CoaxialGearsProblem
 from coaxial.grid_generator import gear_mesh, segment_mesh
 from tests.ball_magnets_force_torque import compute_force_analytically
@@ -70,11 +71,20 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
         self.seg_mesh, _, _ = segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
                                            x_axis=x_axis, fname=ref_path + "/reference_segment", padding=pad, \
                                            mesh_size=mesh_size_magnets, write_to_pvd=True)
-        # interpolate field of other gear on segment
+        # interpolate fields of other gear on segment
+        self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "DG", 1, \
+                                                 mesh_size_magnets / max(self.gear_1.scale_parameter, \
+                                                                         self.gear_2.scale_parameter), 3 * mesh_size_magnets)
+
+        self.B_ref = compute_magnetic_field(self.Vm_ref)
+
+        dlf.File("B_ref.pvd") << self.B_ref
+
         self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
                                                  mesh_size_magnets / max(self.gear_1.scale_parameter, \
                                                                          self.gear_2.scale_parameter), 3 * mesh_size_magnets)
-        dlf.File("B_ref.pvd") << self.B_ref
+        dlf.File("B_ref_2.pvd") << self.B_ref
+        exit()
     def update_gear(self, gear, d_angle, segment_mesh=None):
         gear.update_parameters(d_angle)
         if segment_mesh is not None:
@@ -128,7 +138,7 @@ def main():
         gear_2.create_magnets(magnetization_strength=1.0)
 
         # create coaxial gears problem
-        D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 1.0
+        D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 3.0
         main_dir = "convergence_test"
         if not os.path.exists(main_dir):
             os.mkdir(main_dir)

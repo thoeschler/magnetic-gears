@@ -26,3 +26,17 @@ class CustomScalarExpression(dlf.UserExpression):
 
     def value_shape(self):
         return tuple()
+
+def compute_magnetic_field(Vm: dlf.Function):
+    """Compute magnetic field from magnetic potential.
+
+    Args:
+        Vm (dlf.Function): Magnetic potential.
+    """
+    # create function space
+    V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "CG", 1)
+    
+    # compute magnetic field and project to function space
+    H = dlf.project(- dlf.grad(Vm), V)
+
+    return H

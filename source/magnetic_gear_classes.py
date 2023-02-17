@@ -118,6 +118,42 @@ class MagneticGear:
             par.update({"domain_radius": self._domain_radius})
         return par
 
+    def reference_field(self, name):
+        """Get reference field by name.
+
+        Args:
+            name (str): Name of the field. Can be "B" or "Vm".
+
+        Returns:
+            dlf.Function: The reference field.
+        """
+        if name == "B":
+            assert hasattr(self, "_B_ref")
+            return self._B_ref
+        elif name == "Vm":
+            assert hasattr(self, "_Vm_ref")
+            return self._Vm_ref
+        else:
+            raise RuntimeError()
+    
+    def reference_mesh(self, name):
+        """Get reference mesh by name.
+
+        Args:
+            name (str): Name of the field. Can be "B" or "Vm".
+
+        Returns:
+            dlf.Mesh: The reference mesh.
+        """
+        if name == "B":
+            assert hasattr(self, "_B_ref")
+            return self._B_reference_mesh
+        elif name == "Vm":
+            assert hasattr(self, "_Vm_ref")
+            return self._Vm_reference_mesh
+        else:
+            raise RuntimeError()
+
     def create_magnets(self):
         """Purely virtual method"""
         pass
