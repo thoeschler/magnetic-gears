@@ -32,23 +32,16 @@ def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
     fname = "mesh"
     model = gmsh.model()
 
-    # create surrounding box
-    pad = magnet.R / 4  # padding value
-    A = magnet.x_M - (pad + magnet.R) * np.ones(3)
-    B = 2 * (pad + magnet.R) * np.ones(3)
-    box_tag = model.occ.addBox(*A, *B)
-
     # create magnet
     magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
 
     # cut magnet from box
-    model.occ.cut([(3, box_tag)], [(3, magnet_tag)], removeObject=True, removeTool=False)
+    #model.occ.cut([(3, box_tag)], [(3, magnet_tag)], removeObject=True, removeTool=False)
     model.occ.synchronize()
 
     # add physical groups
     magnet_boundary = model.getBoundary([(3, magnet_tag)], oriented=False)[0][1]
     magnet_boundary_tag = model.addPhysicalGroup(2, [magnet_boundary])
-    box_volume_tag = model.addPhysicalGroup(3, [box_tag])
     magnet_volume_tag = model.addPhysicalGroup(3, [magnet_tag])
 
     # set mesh size

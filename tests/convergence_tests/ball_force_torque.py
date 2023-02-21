@@ -175,12 +175,12 @@ def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
-    dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
+    dA = dlf.Measure('ds', domain=mesh, subdomain_data=facet_marker)
 
     # compute force
     M_jump = dlf.as_vector(- magnet.M)  # jump of magnetization
     n = dlf.FacetNormal(mesh)
-    t = dlf.cross(dlf.cross(n('-'), M_jump), B)  # traction vector
+    t = dlf.cross(dlf.cross(n, M_jump), B)  # traction vector
     F = np.zeros(3)
     for i, c in enumerate(t):
         a = dlf.assemble(c * dA(magnet_boundary_tag))
@@ -202,13 +202,13 @@ def compute_torque_numerically(magnet, mesh, B, facet_marker, magnet_boundary_ta
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
-    dA = dlf.Measure('dS', domain=mesh, subdomain_data=facet_marker)
+    dA = dlf.Measure('ds', domain=mesh, subdomain_data=facet_marker)
     n = dlf.FacetNormal(mesh)
 
     x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=degree)
     x_M = dlf.as_vector(magnet.x_M)
     M_jump = dlf.as_vector(- magnet.M)  # jump of magnetization
-    t = dlf.cross(dlf.cross(n('-'), M_jump), B)  # traction vector
+    t = dlf.cross(dlf.cross(n, M_jump), B)  # traction vector
     m = dlf.cross(x - x_M, t)  # torque density
 
     tau = np.zeros(3)
