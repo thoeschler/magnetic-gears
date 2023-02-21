@@ -4,9 +4,11 @@ import numpy as np
 import os
 from source.magnetic_gear_classes import MagneticBallGear
 from source.tools.fenics_tools import compute_magnetic_field
-from coaxial.coaxial_gears import CoaxialGearsProblem
-from coaxial.grid_generator import gear_mesh, segment_mesh
-from tests.ball_magnets_force_torque import compute_force_analytically
+from spur_gears.spur_gears import CoaxialGearsProblem
+from spur_gears.grid_generator import segment_mesh#, gear_mesh
+from source.grid_generator import gear_mesh
+from tests.convergence_tests.ball_force_torque_convergence import compute_force_analytically
+
 
 class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
     def __init__(self, first_gear, second_gear, D, main_dir=None):
@@ -26,7 +28,10 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
             other_gear = self.gear_1
         else:
             raise RuntimeError()
-        self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size_space=mesh_size_space, \
+        """self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size_space=mesh_size_space, \
+            mesh_size_magnets=mesh_size_magnets, fname=fname, padding=padding, \
+                write_to_pvd=write_to_pvd)"""
+        self.create_gear_mesh(gear, mesh_size_space=mesh_size_space, \
             mesh_size_magnets=mesh_size_magnets, fname=fname, padding=padding, \
                 write_to_pvd=write_to_pvd)
 
@@ -72,15 +77,15 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
                                            x_axis=x_axis, fname=ref_path + "/reference_segment", padding=pad, \
                                            mesh_size=mesh_size_magnets, write_to_pvd=True)
         # interpolate fields of other gear on segment
-        self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "DG", 1, \
-                                                 mesh_size_magnets / max(self.gear_1.scale_parameter, \
-                                                                         self.gear_2.scale_parameter), 3 * mesh_size_magnets)
-
-        self.B_ref = compute_magnetic_field(self.Vm_ref)
-
-        #self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
+        #self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "DG", 1, \
         #                                         mesh_size_magnets / max(self.gear_1.scale_parameter, \
         #                                                                 self.gear_2.scale_parameter), 3 * mesh_size_magnets)
+
+        #self.B_ref = compute_magnetic_field(self.Vm_ref)
+
+        self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", 1, \
+                                                 mesh_size_magnets / max(self.gear_1.scale_parameter, \
+                                                                         self.gear_2.scale_parameter), 3 * mesh_size_magnets)
 
     def update_gear(self, gear, d_angle, segment_mesh=None):
         gear.update_parameters(d_angle)
@@ -120,7 +125,6 @@ def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
     # this is the torque w.r.t. the second magnet's center
     # now, compute torque w.r.t. gear's center (x_M_gear_2)
     tau += np.cross(magnet_2.x_M - x_M_gear, force)
-
     return tau
 
 
@@ -129,9 +133,9 @@ def main():
 
     for ms in mesh_sizes[::-1]:
         # create two ball gears
-        gear_1 = MagneticBallGear(5, 5, 1, np.zeros(3))
+        gear_1 = MagneticBallGear(1, 5, 1, np.zeros(3))
         gear_1.create_magnets(magnetization_strength=1.0)
-        gear_2 = MagneticBallGear(5, 6, 1, np.array([0., 1., 0.]))
+        gear_2 = MagneticBallGear(1, 6, 1, np.array([0., 1., 0.]))
         gear_2.create_magnets(magnetization_strength=1.0)
 
         # create coaxial gears problem
@@ -151,8 +155,8 @@ def main():
         cg.interpolate_to_segment(ms)
 
         # introduce some randomness: rotate gears and segment by arbitrary angles
-        cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
-        cg.update_gear(cg.lg, segment_mesh=cg.seg_mesh, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item())
+        cg.update_gear(cg.sg, d_angle=np.pi/8/cg.sg.n)#((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
+        cg.update_gear(cg.lg, segment_mesh=cg.seg_mesh, d_angle=np.pi/8/cg.lg.n)#((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item())
 
         print(cg.lg.angle)
         print(cg.sg.angle)
@@ -172,8 +176,6 @@ def main():
         B_ref = dlf.Function(V_ref, cg.B_ref._cpp_object.vector())
         LagrangeInterpolator.interpolate(B_lg, B_ref)
 
-        dlf.File("B_lg.pvd") << B_lg
-
         # compute force
         F = cg.compute_force_on_gear(cg.sg, B_lg)
 
@@ -185,42 +187,62 @@ def main():
         if cg.gear_1 is cg.sg:
             tau_21_num = tau_sg
             tau_12_num = tau_lg
+            f_21_num_vec = F_pad
+            f_12_num_vec = - F_pad
         elif cg.gear_2 is cg.sg:
             tau_21_num = tau_lg
             tau_12_num = tau_sg
+            f_12_num_vec = F_pad
+            f_21_num_vec = - F_pad
         else:
             raise RuntimeError()
-        
+
         ####################################
         ## 2. compute torque analytically ##
         ####################################
 
         # compute torque analytically
+        f_12_ana_vec = np.zeros(3)
+        f_21_ana_vec = np.zeros(3)
         tau_12_ana_vec = np.zeros(3)
         tau_21_ana_vec = np.zeros(3)
         for m1 in cg.gear_1.magnets:
             for m2 in cg.gear_2.magnets:
                 f_ana = compute_force_analytically(m1, m2)
-                tau_12_ana_vec += compute_torque_analytically(m1, m2, f_ana, cg.gear_2.x_M)
+                f_12_ana_vec += f_ana
+                tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_2.x_M)
+                tau_12_ana_vec += tau_mag
+
         for m1 in cg.gear_2.magnets:
+            tau_test = np.zeros(3)
             for m2 in cg.gear_1.magnets:
                 f_ana = compute_force_analytically(m1, m2)
-                tau_21_ana_vec += compute_torque_analytically(m1, m2, f_ana, cg.gear_1.x_M)
+                f_21_ana_vec += f_ana
+                tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_1.x_M)
+                tau_21_ana_vec += tau_mag
+                tau_test += tau_mag
+            print("TORQUE_ANA", tau_test)
         tau_12_ana = tau_12_ana_vec[0]
         tau_21_ana = tau_21_ana_vec[0]
 
         # compare values
         print(f"""INFO: \n
               mesh size: {ms} \n
+              f_12_num: {f_12_num_vec} \n
+              f_12_ana: {f_12_ana_vec} \n
+              f_12_error: {np.linalg.norm(f_12_ana_vec[1:] - f_12_num_vec[1:]) / np.linalg.norm(f_12_ana_vec[1:])} \n
+              f_21_num: {f_21_num_vec} \n
+              f_21_ana: {f_21_ana_vec} \n
+              f_21_error: {np.linalg.norm(f_21_ana_vec[1:] - f_21_num_vec[1:]) / np.linalg.norm(f_21_ana_vec[1:])} \n
               tau_12_num: {tau_12_num} \n
               tau_12_ana: {tau_12_ana} \n
-              tau_12_error: {np.abs(tau_12_ana - tau_12_num)} \n
+              tau_12_error: {np.abs(tau_12_ana - tau_12_num) / np.linalg.norm(tau_12_ana)} \n
               tau_21_num: {tau_21_num} \n
               tau_21_ana: {tau_21_ana} \n
-              tau_21_error: {np.abs(tau_21_ana - tau_21_num)} \n
+              tau_21_error: {np.abs(tau_21_ana - tau_21_num) / np.linalg.norm(tau_21_ana)} \n
               """)
         del cg
-        
-        
+
+
 if __name__ == "__main__":
     main()

@@ -76,7 +76,7 @@ def test_segment_gear():
     segment_gear.create_magnets(M0)
 
     for magnet in segment_gear.magnets:
-        assert isinstance(magnet, MagnetSegment)
+        assert isinstance(magnet, CylinderSegment)
         assert np.isclose(np.linalg.norm(magnet.x_M - segment_gear.x_M), segment_gear.R)
         assert np.allclose(magnet.Q.dot(np.array([1., 0., 0])), np.array([1., 0., 0]))
 

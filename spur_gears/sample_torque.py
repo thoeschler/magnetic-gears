@@ -1,9 +1,9 @@
 import numpy as np
 import dolfin as dlf
 from dolfin import LagrangeInterpolator
-from coaxial.coaxial_gears import CoaxialGearsProblem
+from spur_gears.spur_gears import CoaxialGearsProblem
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear
-from coaxial.grid_generator import gear_mesh, segment_mesh
+from spur_gears.grid_generator import gear_mesh, segment_mesh
 import json
 import os
 

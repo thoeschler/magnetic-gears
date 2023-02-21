@@ -1,4 +1,4 @@
-from coaxial.grid_generator import gear_mesh, segment_mesh
+from spur_gears.grid_generator import gear_mesh, segment_mesh
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear
 import numpy as np
 import os

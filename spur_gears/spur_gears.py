@@ -373,7 +373,7 @@ class CoaxialGearsProblem:
 
         return interpol_field
 
-    def compute_force_on_gear(self, gear, B):
+    def compute_force_on_gear(self, gear: MagneticGear, B):
         """Compute the force on a gear caused by a magnetic field B.
 
         Only computes the y- and z-components of the force as only
@@ -391,9 +391,10 @@ class CoaxialGearsProblem:
 
         # only compute y and z component!
         F = np.zeros(2)
+        #for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
             M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
-            t = dlf.cross(dlf.cross(gear.normal_vector('-'), M_jump), B)  # traction vector
+            t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             # select y and z components
             for i, c in enumerate((t[1], t[2])):
                 f_expr = c * gear.dA(tag)
@@ -402,7 +403,7 @@ class CoaxialGearsProblem:
         print("Done.")
         return F
 
-    def compute_torque_on_gear(self, gear, B):
+    def compute_torque_on_gear(self, gear: MagneticGear, B):
         """Compute the torque on a gear caused by a magnetic field B.
 
         Args:
@@ -419,12 +420,14 @@ class CoaxialGearsProblem:
         x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=1)
         x_M = dlf.as_vector(gear.x_M)
 
+        #for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
             M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
-            t = dlf.cross(dlf.cross(gear.normal_vector('-'), M_jump), B)  # traction vector
+            t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             m = dlf.cross(x - x_M, t)  # torque density
-            tau_expr = m[0] * gear.dA(tag)
-            tau += dlf.assemble(tau_expr)  # add to torque
+            tau_mag = dlf.assemble(m[0] * gear.dA(tag))
+            print("TORQUE_NUM", tau_mag)
+            tau += tau_mag  # add to torque
 
         print("Done.")
         return tau

@@ -135,7 +135,7 @@ class MagneticGear:
             return self._Vm_ref
         else:
             raise RuntimeError()
-    
+
     def reference_mesh(self, name):
         """Get reference mesh by name.
 
@@ -265,7 +265,7 @@ class MagneticGear:
         # set differential measures
         self._normal_vector = dlf.FacetNormal(self._mesh)
         self._dV = dlf.Measure('dx', domain=self._mesh, subdomain_data=self._cell_marker)
-        self._dA = dlf.Measure('dS', domain=self._mesh, subdomain_data=self._facet_marker)
+        self._dA = dlf.Measure('ds', domain=self._mesh, subdomain_data=self._facet_marker)
 
     def set_mesh_function(self, mesh_function):
         """Set function used to mesh the gear (may differ depending on the problem).
