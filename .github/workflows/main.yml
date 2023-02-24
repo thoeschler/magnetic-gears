@@ -1,0 +1,33 @@
+name: Build using Conda
+
+on: [push, pull_request]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install gmsh and python API
+      run: |
+        conda install -c conda-forge gmsh python-gmsh
+    - name: Install fenics
+      run: |
+        conda install -c conda-forge fenics
+    - name: Code coverage with pytest
+      run: |
+        export PYTHONPATH=$(pwd)/
+        conda install pytest
+        conda install pytest-cov
+        pytest --cov=source --ignore=sandbox/

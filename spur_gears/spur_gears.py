@@ -36,6 +36,9 @@ class CoaxialGearsProblem:
         self._gear_1 = first_gear
         self._gear_2 = second_gear
 
+        # set the domain size
+        self.set_domain_size()
+
         # overwrite in subclass
         self.gear_2.x_M = self.gear_1.x_M + np.array([0., D, 0.])
         self._magnet_type = None
@@ -113,17 +116,18 @@ class CoaxialGearsProblem:
         # rotate gear such that first magnet is aligned
         angle = np.abs(np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2))
         sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(np.array([1., 0., 0.])))
-        if np.isclose(angle, np.pi):
+        if np.isclose(angle, np.pi):  # angle = pi leads to sign = 0, so set it manually
             sign = 1
         gear.update_parameters(sign * angle)
         assert np.allclose(x_M_magnet, gear.magnets[0].x_M)
         gear.reset_angle(0.)
 
-    def _find_reference_files(self, gear, mesh_size_min, mesh_size_max, rtol=1.0):
+    def _find_reference_files(self, gear, field_name, mesh_size_min, mesh_size_max, rtol=1.0):
         """Find reference reference mesh and reference field files.
 
         Args:
             gear (MagneticGear): Magnetic gear.
+            field_name (str): Name of the reference field.
             mesh_size_min (float): Minimum mesh size in reference field.
             mesh_size_max (float): Maximum mesh size in reference field.
             rtol (float, optional): Relative tolerance. If the domain size 
@@ -153,27 +157,32 @@ class CoaxialGearsProblem:
                     par = json.loads(f.read())
                     # check if all paramters match
                     if par["domain_radius"] < domain_radius_file and \
-                        self._match_reference_parameters(par, gear, mesh_size_min, mesh_size_max):
+                        self._match_reference_parameters(par, gear, field_name, mesh_size_min, mesh_size_max):
                         found_dir = True
                         domain_radius_file = par["domain_radius"]
                         dir_name = subdir
         return dir_name, found_dir
 
-    def _match_reference_parameters(self, par_file, gear, mesh_size_min, mesh_size_max):
+    def _match_reference_parameters(self, par_file, gear, field_name, mesh_size_min, mesh_size_max):
         """Check whether reference files are appropriate for the problem.
 
         Args:
             par_file (dict): A dictionary containing the reference file info.
             gear (MagneticGear): The magnetic gear the reference file should
-                                 be used for. 
+                                 be used for.
+            field_name (str): Name of the reference field.
             mesh_size_min (float): Minimum mesh size.
             mesh_size_max (float): Maximum mesh size.
 
         Returns:
             bool: True if parameters match (reference file can be used).
         """
-        # check if magnet type agrees
+        # check if magnet type is the same
         if not par_file["magnet_type"] == gear.magnet_type:
+            return False
+
+        # check if field name is the same
+        if not par_file["name"] == field_name:
             return False
 
         # check if mesh size is correct
@@ -217,15 +226,15 @@ class CoaxialGearsProblem:
         vector_valued = (field_name == "B")  # check if field is vector valued
 
         # find directory with matching files
-        ref_dir, found_dir = self._find_reference_files(gear, mesh_size_min, mesh_size_max, rtol=1.0)
+        ref_dir, found_dir = self._find_reference_files(gear, field_name, mesh_size_min, mesh_size_max, rtol=1.0)
 
         # check if both mesh file and hdf5 file exist; if not, create both
         if not found_dir:
             # create directory
             subdirs = [r[0] for r in os.walk(self._main_dir + "data/reference")]
-            ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
+            ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_{field_name}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
             while ref_dir in subdirs:
-                ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_R_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
+                ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_{field_name}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
             os.makedirs(ref_dir)
 
             # create reference mesh
@@ -242,7 +251,7 @@ class CoaxialGearsProblem:
             if field_name == "B":
                 field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, f"{ref_dir}/{field_name}", write_pvd=True)
             elif field_name == "Vm":
-                field_interpol = interpolate_field(ref_mag.Vm, f"{ref_dir}/{field_name}", write_pvd=True)
+                field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, f"{ref_dir}/{field_name}", write_pvd=True)
             else:
                 raise RuntimeError()
 
@@ -253,6 +262,7 @@ class CoaxialGearsProblem:
             with open(f"{ref_dir}/par.json", "w") as f:
                 ref_par = self._reference_parameters_dict(gear, domain_size)
                 ref_par.update({
+                    "name": field_name,
                     "mesh_size_min": mesh_size_min, 
                     "mesh_size_max": mesh_size_max
                     })
@@ -299,12 +309,12 @@ class CoaxialGearsProblem:
             self._load_reference_field(gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
 
         # create reference field handler
+        ref_field = gear.reference_field(field_name)
+        ref_mesh = gear.reference_mesh(field_name)
         if field_name == "B":
-            ref_field = gear._B_ref
             # new function space
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
         elif field_name == "Vm":
-            ref_field = gear._Vm_ref
             # new function space
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
@@ -318,20 +328,21 @@ class CoaxialGearsProblem:
         print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
         for mag in gear.magnets:
-            interpol_field = self._interpolate_field_magnet(mag, ref_field, gear._B_reference_mesh, \
+            interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name,ref_mesh, \
                 mesh, cell_type, p_deg)
             field_sum += interpol_field._cpp_object.vector()
 
         print("Done.")
         return dlf.Function(V, field_sum)
 
-    def _interpolate_field_magnet(self, magnet, ref_field, reference_mesh, mesh, cell_type, p_deg):
+    def _interpolate_field_magnet(self, magnet, ref_field, field_name, reference_mesh, mesh, cell_type, p_deg):
         """Interpolate a magnet's magnetic field on a mesh. 
 
         Args:
             magnet (PermanentAxialMagnet): The Magnet.
             ref_field (dlf.Function): The reference field that contains the
                                 magnetic field for a reference magnet.
+            field_name (str): Name of the field.
             reference_mesh (dlf.mesh): The reference mesh.
             mesh (dlf.Mesh): The target mesh.
             cell_type (str): Finite element type.
@@ -342,9 +353,17 @@ class CoaxialGearsProblem:
         """
         # copy everything
         reference_mesh_copy = dlf.Mesh(reference_mesh)
-        V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type, p_deg)
-        reference_field_copy = dlf.Function(V_ref, ref_field._cpp_object.vector())
-        V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
+
+        if field_name == "B":
+            V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type, p_deg)
+            reference_field_copy = dlf.Function(V_ref, ref_field._cpp_object.vector())
+            V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
+        elif field_name == "Vm":
+            V_ref = dlf.FunctionSpace(reference_mesh_copy, cell_type, p_deg)
+            reference_field_copy = dlf.Function(V_ref, ref_field._cpp_object.vector())
+            V = dlf.FunctionSpace(mesh, cell_type, p_deg)
+        else:
+            raise RuntimeError()
 
         # scale, rotate and shift reference mesh according to magnet placement
         # rotate first, then shift!
@@ -357,7 +376,7 @@ class CoaxialGearsProblem:
 
         return interpol_field
 
-    def compute_force_on_gear(self, gear, B):
+    def compute_force_on_gear(self, gear: MagneticGear, B):
         """Compute the force on a gear caused by a magnetic field B.
 
         Only computes the y- and z-components of the force as only
@@ -375,9 +394,10 @@ class CoaxialGearsProblem:
 
         # only compute y and z component!
         F = np.zeros(2)
+
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
             M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
-            t = dlf.cross(dlf.cross(gear.normal_vector('-'), M_jump), B)  # traction vector
+            t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             # select y and z components
             for i, c in enumerate((t[1], t[2])):
                 f_expr = c * gear.dA(tag)
@@ -386,7 +406,7 @@ class CoaxialGearsProblem:
         print("Done.")
         return F
 
-    def compute_torque_on_gear(self, gear, B):
+    def compute_torque_on_gear(self, gear: MagneticGear, B):
         """Compute the torque on a gear caused by a magnetic field B.
 
         Args:
@@ -405,10 +425,11 @@ class CoaxialGearsProblem:
 
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
             M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
-            t = dlf.cross(dlf.cross(gear.normal_vector('-'), M_jump), B)  # traction vector
+            t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             m = dlf.cross(x - x_M, t)  # torque density
-            tau_expr = m[0] * gear.dA(tag)
-            tau += dlf.assemble(tau_expr)  # add to torque
+            tau_mag = dlf.assemble(m[0] * gear.dA(tag))
+            print("TORQUE_NUM", tau_mag)
+            tau += tau_mag  # add to torque
 
         print("Done.")
         return tau
@@ -439,18 +460,13 @@ class CoaxialGearsProblem:
         fname = kwargs["fname"] 
         kwargs.update({"fname": f"{target_dir}/{fname}"})
 
-        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags, \
-            box_subdomain_tag = gear.mesh_gear(gear, **kwargs)
+        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags \
+            = gear.mesh_gear(gear, **kwargs)
 
         gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
-            magnet_boundary_subdomain_tags, box_subdomain_tag, padding=kwargs["padding"])
+            magnet_boundary_subdomain_tags)
 
-        if hasattr(self.gear_1, "_domain_radius") and hasattr(self.gear_2, "_domain_radius"):
-            assert hasattr(self, "_set_domain_size")
-            self._set_domain_size()
 
-    def _set_domain_size(self):
-        # set domain size (the maximum distance between two points on either of the two meshes)
-        assert hasattr(self.gear_1, "domain_radius")
-        assert hasattr(self.gear_2, "domain_radius")
-        self._domain_size = self.D + self.gear_1.domain_radius + self.gear_2.domain_radius
+    def set_domain_size(self):
+        """Set domain size of the problem."""
+        self._domain_size = self.D + self.gear_1.outer_radius + self.gear_2.outer_radius

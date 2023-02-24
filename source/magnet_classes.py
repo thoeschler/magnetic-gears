@@ -199,7 +199,7 @@ class BallMagnet(PermanentAxialMagnet):
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.
-        
+
         A factor of mu_0 * M0 is excluded.
 
         Args:
@@ -208,16 +208,16 @@ class BallMagnet(PermanentAxialMagnet):
         Returns:
             np.ndarray: The magnetic field's value at x_eigen.
         """
-        r = np.linalg.norm(x_eigen) / self.R
+        r = np.linalg.norm(x_eigen)
         x, y, z = x_eigen
-        return 2. / 3. / r ** 5 * np.array([3. / 2. * x * z,
-                                            3. / 2. * y * z,
-                                            - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
-                                            ])
+        return 2. / 3. * self.R ** 3 / r ** 5 * np.array([3. / 2. * x * z,
+                                                          3. / 2. * y * z,
+                                                          - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
+                                                          ])
 
     def B_eigen_minus(self, x_eigen):
         """Internal magnetic field in eigen coordinates.
-        
+
         A factor of mu_0 * M0 is excluded.
 
         Args:
@@ -248,12 +248,12 @@ class BallMagnet(PermanentAxialMagnet):
         if inside or (on_boundary and limit_direction == -1):
             return np.array([0., 0., 2. / 3.])
         else:
-            r = np.linalg.norm(x_eigen) / self.R
+            r = np.linalg.norm(x_eigen)
             x, y, z = x_eigen
-            return 2. / 3. / r ** 5 * np.array([3. / 2. * x * z,
-                                                3. / 2. * y * z,
-                                                - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
-                                                ])
+            return 2. / 3. * self.R ** 3 / r ** 5 * np.array([3. / 2. * x * z,
+                                                              3. / 2. * y * z,
+                                                              - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
+                                                              ])
 
 
 class BarMagnet(PermanentAxialMagnet):
