@@ -162,7 +162,7 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
 ############## Numerical computation ###############
 ####################################################
 
-def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag):
+def compute_force_numerically(magnet, mesh, B):
     """Compute force on magnet caused by magnetic field.
 
     Args:
@@ -175,7 +175,9 @@ def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
-    dA = dlf.Measure('ds', domain=mesh, subdomain_data=facet_marker)
+    assert isinstance(B, dlf.Function)
+    assert B.function_space().mesh() is mesh
+    dA = dlf.Measure('ds', domain=mesh)
 
     # compute force
     M_jump = dlf.as_vector(- magnet.M)  # jump of magnetization
@@ -183,12 +185,11 @@ def compute_force_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag
     t = dlf.cross(dlf.cross(n, M_jump), B)  # traction vector
     F = np.zeros(3)
     for i, c in enumerate(t):
-        a = dlf.assemble(c * dA(magnet_boundary_tag))
+        a = dlf.assemble(c * dA)
         F[i] = a
-    print("NUM", F)
     return F
 
-def compute_torque_numerically(magnet, mesh, B, facet_marker, magnet_boundary_tag, degree=1):
+def compute_torque_numerically(magnet, mesh, B, degree=1):
     """Compute torque on magnet caused by magnetic field.
 
     Args:
@@ -202,7 +203,7 @@ def compute_torque_numerically(magnet, mesh, B, facet_marker, magnet_boundary_ta
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
-    dA = dlf.Measure('ds', domain=mesh, subdomain_data=facet_marker)
+    dA = dlf.Measure('ds', domain=mesh)
     n = dlf.FacetNormal(mesh)
 
     x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=degree)
@@ -213,5 +214,5 @@ def compute_torque_numerically(magnet, mesh, B, facet_marker, magnet_boundary_ta
 
     tau = np.zeros(3)
     for i, c in enumerate(m):
-        tau[i] = dlf.assemble(c * dA(magnet_boundary_tag))
+        tau[i] = dlf.assemble(c * dA)
     return tau

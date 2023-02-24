@@ -217,7 +217,7 @@ class BallMagnet(PermanentAxialMagnet):
 
     def B_eigen_minus(self, x_eigen):
         """Internal magnetic field in eigen coordinates.
-        
+
         A factor of mu_0 * M0 is excluded.
 
         Args:

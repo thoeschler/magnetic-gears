@@ -5,8 +5,8 @@ from source.tools.mesh_tools import generate_mesh_with_markers
 import source.magnetic_gear_classes as mgc
 
 
-def add_physical_groups(model, box_entity, magnet_entities, magnet_boundary_entities):
-    """Add box and magnets as physical groups to gmsh model.
+def add_physical_groups(model, magnet_entities, magnet_boundary_entities):
+    """Add magnets as physical groups to gmsh model.
 
     The respective tags will later be used by the facet/cell markers.
     """
@@ -19,20 +19,14 @@ def add_physical_groups(model, box_entity, magnet_entities, magnet_boundary_enti
         physical_tag = model.addPhysicalGroup(2, np.atleast_1d(tag), name="magnet_" + str(n + 1), tag=int("1%.2d" % (n + 1)))
         magnet_boundary_subdomain_tags.append(physical_tag)
 
-    # box volume
-    box_subdomain_tag = model.addPhysicalGroup(3, [box_entity], name="box", tag=1)
-
     # magnet volume
     for n, tag in enumerate(magnet_entities):
         physical_tag = model.addPhysicalGroup(3, [tag], name="magnet_" + str(n + 1), tag=int("3%.2d" % (n + 1)))
         magnet_subdomain_tags.append(physical_tag)
 
-    return magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag
+    return magnet_subdomain_tags, magnet_boundary_subdomain_tags
 
-def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_space, mesh_size_magnets):        
-    # global mesh size
-    model.mesh.setSize(model.occ.getEntities(0), mesh_size_space)
-
+def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_magnets):        
     # mesh size field for magnets
     mag_field_tag = model.mesh.field.add("Constant")
     model.mesh.field.setNumber(mag_field_tag, "VIn", mesh_size_magnets)
@@ -47,14 +41,6 @@ def add_ball_magnet(model, magnet):
     magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
     return magnet_tag
 
-def add_box_ball_gear(model, gear, padding):
-    """Create the surrounding cylindrical box."""
-    # create the cylindrical box 
-    A = gear.x_M - np.array([(gear.r + padding), 0., 0.])
-    diff = np.array([2. * (gear.r + padding), 0., 0.])
-    box_entity = model.occ.addCylinder(*A, *diff, gear.R + gear.r + padding, tag=1)
-    model.occ.synchronize()
-    return box_entity
 
 def add_bar_magnet(model, magnet):
     # add magnet corner points
@@ -85,14 +71,6 @@ def add_bar_magnet(model, magnet):
 
     return magnet_tag
 
-def add_box_bar_gear(model, gear, padding):
-    """Create the surrounding cylindrical box."""
-    # create the cylindrical box 
-    A = gear.x_M - np.array([(gear.d + padding), 0., 0.])
-    diff = np.array([2. * (gear.d + padding), 0., 0.])
-    box_entity = model.occ.addCylinder(*A, *diff, gear.R + gear.w + padding, tag=1)
-    model.occ.synchronize()
-    return box_entity
 
 def add_magnet_segment(model, magnet):
     # add first surface
@@ -127,21 +105,13 @@ def add_magnet_segment(model, magnet):
 ################ the mesh function ####################
 #######################################################
 
-def gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, write_to_pvd=False, verbose=False):
+def gear_mesh(gear, mesh_size_magnets, fname, write_to_pvd=False, verbose=False):
     print("Meshing gear... ", end="")
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
     model = gmsh.model()
 
-    # add box
-    if isinstance(gear, mgc.MagneticBallGear):
-        box_entity = add_box_ball_gear(model, gear, padding)
-    elif isinstance(gear, (mgc.MagneticBarGear, mgc.SegmentGear)):
-        box_entity = add_box_bar_gear(model, gear, padding)
-    else:
-        raise RuntimeError()
-    
     # add magnets
     magnet_entities = []
     for magnet in gear.magnets:
@@ -154,7 +124,6 @@ def gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, write_to
         else:
             raise RuntimeError()
 
-        model.occ.cut([(3, box_entity)], [(3, magnet_tag)], removeObject=True, removeTool=False)
         magnet_entities.append(magnet_tag)
     model.occ.synchronize()
 
@@ -163,12 +132,12 @@ def gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, write_to
         for magnet_tag in magnet_entities]
 
     # create namedtuple
-    magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag = add_physical_groups(
-        model, box_entity, magnet_entities, magnet_boundary_entities
+    magnet_subdomain_tags, magnet_boundary_subdomain_tags = add_physical_groups(
+        model, magnet_entities, magnet_boundary_entities
         )
 
     # set mesh size fields
-    set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_space, mesh_size_magnets)
+    set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_magnets)
 
     # generate mesh
     model.mesh.generate(dim=3)
@@ -185,4 +154,4 @@ def gear_mesh(gear, mesh_size_space, mesh_size_magnets, fname, padding, write_to
 
     gmsh.finalize()
     print("Done.")
-    return mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags, box_subdomain_tag
+    return mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags

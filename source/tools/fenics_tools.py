@@ -37,6 +37,6 @@ def compute_magnetic_field(Vm: dlf.Function):
     V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "CG", 1)
     
     # compute magnetic field and project to function space
-    H = dlf.project(- dlf.grad(Vm), V)
+    H = dlf.project(- dlf.grad(Vm), V, solver_type="mumps")
 
     return H

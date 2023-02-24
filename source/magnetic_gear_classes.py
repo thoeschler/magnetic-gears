@@ -163,7 +163,7 @@ class MagneticGear:
         pass
 
     def set_mesh_markers_and_tags(self, mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
-        magnet_boundary_subdomain_tags, box_subdomain_tag, padding=None):
+        magnet_boundary_subdomain_tags):
         """Set mesh, cell- and facet markers as well as the respective tags. 
 
         Args:
@@ -172,18 +172,12 @@ class MagneticGear:
             facet_marker (dlf.cpp.mesh.MeshFunctionSizet): Facet marker.
             magnet_subdomain_tags (list): Magnet volume tags.
             magnet_boundary_subdomain_tags (list): Magnet boundary tags.
-            box_subdomain_tag (int): Box tag.
-            padding (float, optional): Padding value. Defaults to None.
         """
         self._mesh = mesh
         self._cell_marker = cell_marker
         self._facet_marker = facet_marker
         self._magnet_subdomain_tags = magnet_subdomain_tags
         self._magnet_boundary_subdomain_tags = magnet_boundary_subdomain_tags
-        self._box_subdomain_tag = box_subdomain_tag
-        if padding is not None:
-            self._padding = padding
-            self._set_padded_radius()
         self.set_differential_measures()
 
     def _set_padded_radius(self):
@@ -247,11 +241,11 @@ class MagneticGear:
         for mag in self.magnets:
             # new position vector
             x_M = mag.x_M + d_x_M  # shift by d_x_M
-            x_M = self._x_M + rot.dot(x_M - self._x_M)  # rotate around new center
+            x_M_rot = self._x_M + rot.dot(x_M - self._x_M)  # rotate around new center
             # new rotation matrix
             Q = rot.dot(mag.Q)
             # update both
-            mag.update_parameters(x_M, Q)
+            mag.update_parameters(x_M_rot, Q)
 
     def set_differential_measures(self):
         """Set differential measures. 
@@ -263,9 +257,9 @@ class MagneticGear:
         assert hasattr(self, "_facet_marker")
         assert hasattr(self, "_cell_marker")
         # set differential measures
-        self._normal_vector = dlf.FacetNormal(self._mesh)
         self._dV = dlf.Measure('dx', domain=self._mesh, subdomain_data=self._cell_marker)
         self._dA = dlf.Measure('ds', domain=self._mesh, subdomain_data=self._facet_marker)
+        self._normal_vector = dlf.FacetNormal(self._mesh)
 
     def set_mesh_function(self, mesh_function):
         """Set function used to mesh the gear (may differ depending on the problem).
@@ -360,22 +354,6 @@ class MagneticBallGear(MagneticGear):
             self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
         print("Done.")
 
-    def _set_padded_radius(self, val=None):
-        """Set padded radius.
-
-        Can be set either by value or automatically. If no value is
-        specified, padding must be known.
-
-        Args:
-            val (float, optional): Value that should be set. Defaults to None.
-        """
-        if val is not None:
-            self._domain_radius = val
-            self._padding = val - self.R - self.r
-        else:
-            assert hasattr(self, "_padding")
-            self._domain_radius = self.R + self.r + self._padding
-
 
 class MagneticBarGear(MagneticGear):
     def __init__(self, n, R, d, w, h, x_M):
@@ -451,22 +429,6 @@ class MagneticBarGear(MagneticGear):
                                            ))
         print("Done.")
 
-    def _set_padded_radius(self, val=None):
-        """Set padded radius.
-
-        Can be set either by value or automatically. If no value is
-        specified, padding must be known.
-
-        Args:
-            val (float, optional): Value that should be set. Defaults to None.
-        """
-        if val is not None:
-            self._domain_radius = val
-            self._padding = val - self.R - self.w
-        else:
-            assert hasattr(self, "_padding")
-            self._domain_radius = self.R + self.w + self._padding
-
 
 class SegmentGear(MagneticGear):
     def __init__(self, n, R, d, w, x_M):
@@ -539,19 +501,3 @@ class SegmentGear(MagneticGear):
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \
                                                     position_vector=x_M, rotation_matrix=Q))
         print("Done.")
-
-    def _set_padded_radius(self, val=None):
-        """Set padded radius.
-
-        Can be set either by value or automatically. If no value is
-        specified, padding must be known.
-
-        Args:
-            val (float, optional): Value that should be set. Defaults to None.
-        """
-        if val is not None:
-            self._domain_radius = val
-            self._padding = val - self.R - self.w
-        else:
-            assert hasattr(self, "_padding")
-            self._domain_radius = self.R + self.w + self._padding

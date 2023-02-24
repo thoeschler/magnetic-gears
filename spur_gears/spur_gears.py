@@ -36,6 +36,9 @@ class CoaxialGearsProblem:
         self._gear_1 = first_gear
         self._gear_2 = second_gear
 
+        # set the domain size
+        self.set_domain_size()
+
         # overwrite in subclass
         self.gear_2.x_M = self.gear_1.x_M + np.array([0., D, 0.])
         self._magnet_type = None
@@ -113,7 +116,7 @@ class CoaxialGearsProblem:
         # rotate gear such that first magnet is aligned
         angle = np.abs(np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2))
         sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(np.array([1., 0., 0.])))
-        if np.isclose(angle, np.pi):
+        if np.isclose(angle, np.pi):  # angle = pi leads to sign = 0, so set it manually
             sign = 1
         gear.update_parameters(sign * angle)
         assert np.allclose(x_M_magnet, gear.magnets[0].x_M)
@@ -391,7 +394,7 @@ class CoaxialGearsProblem:
 
         # only compute y and z component!
         F = np.zeros(2)
-        #for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
+
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
             M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
@@ -420,7 +423,6 @@ class CoaxialGearsProblem:
         x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=1)
         x_M = dlf.as_vector(gear.x_M)
 
-        #for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
             M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
@@ -458,21 +460,13 @@ class CoaxialGearsProblem:
         fname = kwargs["fname"] 
         kwargs.update({"fname": f"{target_dir}/{fname}"})
 
-        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags, \
-            box_subdomain_tag = gear.mesh_gear(gear, **kwargs)
+        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags \
+            = gear.mesh_gear(gear, **kwargs)
 
         gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
-            magnet_boundary_subdomain_tags, box_subdomain_tag, padding=kwargs["padding"])
+            magnet_boundary_subdomain_tags)
 
-        if hasattr(self.gear_1, "_domain_radius") and hasattr(self.gear_2, "_domain_radius"):
-            assert hasattr(self, "set_domain_size")
-            self.set_domain_size()
 
-    def set_domain_size(self, val=None):
-        if val is not None: 
-            # set domain size (the maximum distance between two points on either of the two meshes)
-            assert hasattr(self.gear_1, "domain_radius")
-            assert hasattr(self.gear_2, "domain_radius")
-            self._domain_size = self.D + self.gear_1.domain_radius + self.gear_2.domain_radius
-        else:
-            self._domain_size = val
+    def set_domain_size(self):
+        """Set domain size of the problem."""
+        self._domain_size = self.D + self.gear_1.outer_radius + self.gear_2.outer_radius
