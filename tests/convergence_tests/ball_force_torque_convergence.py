@@ -89,7 +89,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
 
     for ms in mesh_size_values[::-1]:
         # get magnet force for different angles
-        mesh = create_single_magnet_mesh(mag_2, mesh_size=ms, verbose=False)
+        mesh_mag_2 = create_single_magnet_mesh(mag_2, mesh_size=ms, verbose=False)
 
         force_error = []
         torque_error = []
@@ -100,12 +100,12 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             D_max = distance_values.max() + mag_1.R + mag_2.R
             create_reference_mesh(ref_magnet, domain_radius=D_max + mag_2.R + 1e-1, mesh_size_min=ms, mesh_size_max=ms,\
                                     fname="reference_mesh")
-            reference_mesh  = read_mesh("reference_mesh.xdmf")
+            reference_mesh = read_mesh("reference_mesh.xdmf")
             if use_Vm:
                 ########################################
                 ################ use Vm ################
                 ########################################
-                Vm_ref = interpolate_field(ref_magnet.Vm_as_expression(), mesh, "CG", p_deg)
+                Vm_ref = interpolate_field(ref_magnet.Vm_as_expression(), reference_mesh, "CG", p_deg)
             else:
                 ########################################
                 ########### use B directly #############
@@ -113,7 +113,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                 B_ref = interpolate_field(ref_magnet.B_as_expression(), reference_mesh, "CG", p_deg)
 
             # position reference mesh in the center of magnet 1
-            reference_mesh.translate(dlf.Point(mag_1.x_M))
+            reference_mesh.translate(dlf.Point(*mag_1.x_M))
             reference_mesh.rotate(180. / np.pi * angle_1, 0, dlf.Point(*mag_1.x_M))
 
         for d in distance_values:
@@ -123,8 +123,8 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
 
             # randomly rotate mag_1 (and reference mesh)
             d_angle_1 = np.random.rand(1).item()
-            new_Q = Rotation.from_rotvec(d_angle_1 * np.array([1., 0., 0.])).as_matrix().dot(np.array(mag_1.Q))
-            mag_1.Q = new_Q
+            new_Q = (Rotation.from_rotvec(d_angle_1 * np.array([1., 0., 0.])).as_matrix()).dot(np.array(mag_1.Q))
+            mag_1.update_parameters(mag_1.x_M, new_Q)
             if interpolation:
                 reference_mesh.rotate(d_angle_1 * 180 / np.pi, 0, dlf.Point(*mag_1.x_M))
 
@@ -138,40 +138,37 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             D = mag_1.R + mag_2.R + d
             x_M = mag_1.x_M + D * vec
             # translation
-            mesh.translate(dlf.Point(*(x_M - mag_2.x_M)))
-            # update magnet's center point
-            mag_2.x_M = x_M
-            assert np.isclose(np.linalg.norm(mag_2.x_M - mag_1.x_M), D)
+            mesh_mag_2.translate(dlf.Point(*(x_M - mag_2.x_M)))
             # rotation
             d_angle_2 = np.random.rand(1).item()
-            new_Q = Rotation.from_rotvec(d_angle_2 * np.array([1., 0., 0.])).as_matrix().dot(np.array(mag_2.Q))
-            mag_2.Q = new_Q
+            new_Q = (Rotation.from_rotvec(d_angle_2 * np.array([1., 0., 0.])).as_matrix()).dot(np.array(mag_2.Q))
+            mag_2.update_parameters(x_M, new_Q)
+            assert np.isclose(np.linalg.norm(mag_2.x_M - mag_1.x_M), D)
+            # no need to rotate the mesh because it is a sphere
 
             if interpolation:
                 if use_Vm:
-                    Vm_ref = interpolate_field(ref_magnet.Vm_as_expression(), mesh, "CG", p_deg)
-                    # interpolate B_ref on second magnet
-                    V = dlf.FunctionSpace(mesh, "CG", p_deg)
+                    # interpolate Vm_ref on second magnet
+                    V = dlf.FunctionSpace(mesh_mag_2, "CG", p_deg)
                     Vm = dlf.Function(V)
                     LagrangeInterpolator.interpolate(Vm, Vm_ref)
                     # compute gradient and project
                     B = compute_magnetic_field(Vm)
                 else:
-                    B_ref = interpolate_field(ref_magnet.B_as_expression(), reference_mesh, "CG", p_deg)
                     # interpolate B_ref on second magnet
-                    V = dlf.VectorFunctionSpace(mesh, "CG", p_deg)
+                    V = dlf.VectorFunctionSpace(mesh_mag_2, "CG", p_deg)
                     B = dlf.Function(V)
                     LagrangeInterpolator.interpolate(B, B_ref)
             else:
                 if use_Vm:
-                    Vm = interpolate_field(mag_1.Vm_as_expression(), mesh, "CG", p_deg)
+                    Vm = interpolate_field(mag_1.Vm_as_expression(), mesh_mag_2, "CG", p_deg)
                     # compute gradient and project
                     B = compute_magnetic_field(Vm)
                 else:
-                    B = interpolate_field(mag_1.B_as_expression(), mesh, "CG", p_deg)
+                    B = interpolate_field(mag_1.B_as_expression(), mesh_mag_2, "CG", p_deg)
 
-            F_num = compute_force_numerically(mag_2, mesh, B)
-            tau_num = compute_torque_numerically(mag_2, mesh, B, p_deg)
+            F_num = compute_force_numerically(mag_2, mesh_mag_2, B)
+            tau_num = compute_torque_numerically(mag_2, mesh_mag_2, B, p_deg)
 
             ########################################
             ########## Analytical solution #########

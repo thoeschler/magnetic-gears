@@ -37,6 +37,9 @@ def compute_magnetic_field(Vm: dlf.Function):
     V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "CG", 1)
     
     # compute magnetic field and project to function space
+    # use "mumps"-direct solver. This is due to an UMFPACK error
+    # that limits the memory usage to 4GB
+    # https://fenicsproject.org/qa/4177/reason-petsc-error-code-is-76/
     H = dlf.project(- dlf.grad(Vm), V, solver_type="mumps")
 
     return H
