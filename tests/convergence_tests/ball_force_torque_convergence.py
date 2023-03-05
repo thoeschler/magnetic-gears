@@ -74,11 +74,6 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
         if not os.path.exists(dir):
             os.mkdir(dir)
         os.chdir(dir)
-    # create magnets
-    angle_1 = np.pi / 6
-    angle_2 = 0.
-    mag_1 = BallMagnet(1., 1., np.ones(3), Rotation.from_rotvec(angle_1 * np.array([1., 0., 0.])).as_matrix())
-    mag_2 = BallMagnet(1., 1., np.zeros(3), Rotation.from_rotvec(angle_2 * np.array([1., 0., 0.])).as_matrix())
 
     for fname in ("force_error.csv", "torque_error.csv"):
         with open(fname, "w") as f:
@@ -88,6 +83,12 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             f.write("\n")
 
     for ms in mesh_size_values[::-1]:
+        # create magnets
+        angle_1 = np.random.rand(1).item()
+        angle_2 = np.random.rand(1).item()
+        mag_1 = BallMagnet(1., 1., np.ones(3), Rotation.from_rotvec(angle_1 * np.array([1., 0., 0.])).as_matrix())
+        mag_2 = BallMagnet(1., 1., np.zeros(3), Rotation.from_rotvec(angle_2 * np.array([1., 0., 0.])).as_matrix())
+
         # get magnet force for different angles
         mesh_mag_2 = create_single_magnet_mesh(mag_2, mesh_size=ms, verbose=False)
 
@@ -98,14 +99,14 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             # first evaluate on reference mesh
             ref_magnet = BallMagnet(1., 1., np.zeros(3), np.eye(3))
             D_max = distance_values.max() + mag_1.R + mag_2.R
-            create_reference_mesh(ref_magnet, domain_radius=D_max + mag_2.R + 1e-1, mesh_size_min=ms, mesh_size_max=ms,\
+            create_reference_mesh(ref_magnet, domain_radius=(D_max + mag_2.R + 1e-1) / mag_1.R, mesh_size_min=ms, mesh_size_max=ms,\
                                     fname="reference_mesh")
             reference_mesh = read_mesh("reference_mesh.xdmf")
             if use_Vm:
                 ########################################
                 ################ use Vm ################
                 ########################################
-                Vm_ref = interpolate_field(ref_magnet.Vm_as_expression(), reference_mesh, "CG", p_deg)
+                Vm_ref = interpolate_field(mag_1.R * ref_magnet.Vm_as_expression(), reference_mesh, "CG", p_deg)
             else:
                 ########################################
                 ########### use B directly #############
@@ -113,6 +114,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                 B_ref = interpolate_field(ref_magnet.B_as_expression(), reference_mesh, "CG", p_deg)
 
             # position reference mesh in the center of magnet 1
+            reference_mesh.scale(mag_1.R)
             reference_mesh.translate(dlf.Point(*mag_1.x_M))
             reference_mesh.rotate(180. / np.pi * angle_1, 0, dlf.Point(*mag_1.x_M))
 
@@ -126,7 +128,17 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             new_Q = (Rotation.from_rotvec(d_angle_1 * np.array([1., 0., 0.])).as_matrix()).dot(np.array(mag_1.Q))
             mag_1.update_parameters(mag_1.x_M, new_Q)
             if interpolation:
-                reference_mesh.rotate(d_angle_1 * 180 / np.pi, 0, dlf.Point(*mag_1.x_M))
+                # rotate reference mesh
+                reference_mesh.rotate(180. / np.pi * d_angle_1, 0, dlf.Point(mag_1.x_M))
+
+                """# copy reference function
+                ref_mesh_copy = dlf.Mesh(reference_mesh)
+                if use_Vm:
+                    V = dlf.FunctionSpace(ref_mesh_copy, "CG", p_deg)
+                    Vm_ref_copy = dlf.Function(V, Vm_ref._cpp_object.vector())
+                else:
+                    V = dlf.VectorFunctionSpace(ref_mesh_copy, "CG", p_deg)
+                    B_ref_copy = dlf.Function(V, B_ref._cpp_object.vector())"""
 
             # move mag_2 and mesh
             # Move second magnet to random point in space at distance d
@@ -207,17 +219,18 @@ if __name__ == "__main__":
 
     # perform convergence test
     distance_values = np.array([0.1])#0.5, 1., 5.])
-    mesh_size_values = np.geomspace(5e-2, 1.0, num=6)
+    mesh_size_values = np.geomspace(1e-1, 1.0, num=3)
 
-    # 1. no interpolation, use B directly
-    convergence_test(distance_values, mesh_size_values, p_deg=1, \
-                     interpolation=False, use_Vm=False, dir="B_no_interpol")
-    # 2. no interpolation, use Vm
-    convergence_test(distance_values, mesh_size_values, p_deg=1, \
-                     interpolation=False, use_Vm=True, dir="Vm_no_interpol")
-    # 3. with interpolation, use B directly
-    convergence_test(distance_values, mesh_size_values, p_deg=1, \
-                     interpolation=True, use_Vm=False, dir="B_interpol")
-    # 4. with interpolation, use Vm
-    convergence_test(distance_values, mesh_size_values, p_deg=1, \
-                     interpolation=True, use_Vm=True, dir="Vm_interpol")
+    for p_deg in (1, 2):
+        # 1. no interpolation, use B directly
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+                         interpolation=False, use_Vm=False, dir=f"B_no_interpol_pdeg_{p_deg}")
+        # 2. no interpolation, use Vm
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+                         interpolation=False, use_Vm=True, dir=f"Vm_no_interpol_pdeg_{p_deg}")
+        # 3. with interpolation, use B directly
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+                        interpolation=True, use_Vm=False, dir=f"B_interpol_pdeg_{p_deg}")
+        # 4. with interpolation, use Vm
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+                        interpolation=True, use_Vm=True, dir=f"Vm_interpol_pdeg_{p_deg}")

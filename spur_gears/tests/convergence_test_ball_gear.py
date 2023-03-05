@@ -167,12 +167,18 @@ def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
     return tau
 
 
-def main(mesh_sizes, interpolate="never", use_Vm=False, dir=None):
+def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
     if dir is not None:
         if not os.path.exists(dir):
             os.mkdir(dir)
         os.chdir(dir)
     assert interpolate in ("never", "once", "twice")
+
+    f_12_error = []
+    f_21_error = []
+    tau_12_error = []
+    tau_21_error = []
+
     for ms in mesh_sizes[::-1]:
         # create two ball gears
         gear_1 = MagneticBallGear(5, 6, 1, np.zeros(3))
@@ -196,8 +202,9 @@ def main(mesh_sizes, interpolate="never", use_Vm=False, dir=None):
             cg.interpolate_to_segment(ms, interpolate=interpolate, use_Vm=use_Vm)
 
         # introduce some randomness: rotate gears and segment by arbitrary angles
-        cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
-        cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item(), update_segment=(interpolate != "never"))
+        cg.update_gear(cg.sg, d_angle=np.pi / 4 / cg.sg.n) #((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
+        cg.update_gear(cg.lg, d_angle=np.pi / 4 / cg.lg.n, update_segment=(interpolate != "never"))
+        #cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item(), update_segment=(interpolate != "never"))
 
         ####################################
         ### 1. compute torque numerically ##
@@ -208,7 +215,7 @@ def main(mesh_sizes, interpolate="never", use_Vm=False, dir=None):
             # if interpolation is used, use the field in on the segment
             if use_Vm:
                 # create function on smaller gear
-                V = dlf.FunctionSpace(cg.sg.mesh, "CG", 1)
+                V = dlf.FunctionSpace(cg.sg.mesh, "CG", p_deg)
                 Vm_lg = dlf.Function(V)
 
                 # copy reference_field
@@ -220,31 +227,33 @@ def main(mesh_sizes, interpolate="never", use_Vm=False, dir=None):
                 B_lg = compute_magnetic_field(Vm_lg)
             else:
                 # create function on smaller gear
-                V = dlf.VectorFunctionSpace(cg.sg.mesh, "CG", 1)
+                V = dlf.VectorFunctionSpace(cg.sg.mesh, "CG", p_deg)
                 B_lg = dlf.Function(V)
 
                 # copy reference_field
                 segment_mesh_copy = dlf.Mesh(cg.seg_mesh)
-                V_ref = dlf.VectorFunctionSpace(segment_mesh_copy, "CG", 1)
+                V_ref = dlf.VectorFunctionSpace(segment_mesh_copy, "CG", p_deg)
                 B_ref = dlf.Function(V_ref, cg.B_ref._cpp_object.vector())
 
                 LagrangeInterpolator.interpolate(B_lg, B_ref)
         elif interpolate == "never":
             if use_Vm:
-                V = dlf.FunctionSpace(cg.sg.mesh, "CG", 1)
+                V = dlf.FunctionSpace(cg.sg.mesh, "CG", p_deg)
                 Vm_lg_vec = 0.
                 for mag in cg.lg.magnets:
-                    Vm_mag = interpolate_field(mag.Vm_as_expression(), cg.sg.mesh, "CG", 1)
+                    Vm_mag = interpolate_field(mag.Vm_as_expression(), cg.sg.mesh, "CG", p_deg)
                     Vm_lg_vec += Vm_mag._cpp_object.vector()
                 Vm_lg = dlf.Function(V, Vm_lg_vec)
                 B_lg = compute_magnetic_field(Vm_lg)
             else:
-                V = dlf.VectorFunctionSpace(cg.sg.mesh, "CG", 1)
+                V = dlf.VectorFunctionSpace(cg.sg.mesh, "CG", p_deg)
                 B_lg_vec = 0.
                 for mag in cg.lg.magnets:
-                    B_mag = interpolate_field(mag.B_as_expression(), cg.sg.mesh, "CG", 1)
+                    B_mag = interpolate_field(mag.B_as_expression(), cg.sg.mesh, "CG", p_deg)
                     B_lg_vec += B_mag._cpp_object.vector()
                 B_lg = dlf.Function(V, B_lg_vec)
+
+        dlf.File("B_lg.pvd") << B_lg
 
         # compute force
         F = cg.compute_force_on_gear(cg.sg, B_lg)
@@ -292,22 +301,39 @@ def main(mesh_sizes, interpolate="never", use_Vm=False, dir=None):
         tau_12_ana = tau_12_ana_vec[0]
         tau_21_ana = tau_21_ana_vec[0]
 
+
+        f_12_e = np.linalg.norm(f_12_ana_vec[1:] - f_12_num_vec[1:]) / np.linalg.norm(f_12_ana_vec[1:])
+        f_21_e = np.linalg.norm(f_21_ana_vec[1:] - f_21_num_vec[1:]) / np.linalg.norm(f_21_ana_vec[1:])
+        tau_12_e = np.abs(tau_12_ana - tau_12_num) / np.abs(tau_12_ana)
+        tau_21_e = np.abs(tau_21_ana - tau_21_num) / np.abs(tau_21_ana)
         # compare values
         print(f"""INFO: \n
               mesh size: {ms} \n
               f_12_num: {f_12_num_vec} \n
               f_12_ana: {f_12_ana_vec} \n
-              f_12_error: {np.linalg.norm(f_12_ana_vec[1:] - f_12_num_vec[1:]) / np.linalg.norm(f_12_ana_vec[1:])} \n
+              f_12_error: {f_12_e} \n
               f_21_num: {f_21_num_vec} \n
               f_21_ana: {f_21_ana_vec} \n
-              f_21_error: {np.linalg.norm(f_21_ana_vec[1:] - f_21_num_vec[1:]) / np.linalg.norm(f_21_ana_vec[1:])} \n
+              f_21_error: {f_21_e} \n
               tau_12_num: {tau_12_num} \n
               tau_12_ana: {tau_12_ana} \n
-              tau_12_error: {np.abs(tau_12_ana - tau_12_num) / np.abs(tau_12_ana)} \n
+              tau_12_error: {tau_12_e} \n
               tau_21_num: {tau_21_num} \n
               tau_21_ana: {tau_21_ana} \n
-              tau_21_error: {np.abs(tau_21_ana - tau_21_num) / np.abs(tau_21_ana)} \n
+              tau_21_error: {tau_21_e} \n
               """)
+        f_12_error.append(f_12_e)
+        f_21_error.append(f_21_e)
+        tau_12_error.append(tau_12_e)
+        tau_21_error.append(tau_21_e)
+
+    errors = (f_12_error, f_21_error, tau_12_error, tau_21_error)
+    names = ("f_12", "f_21", "tau_12", "tau_21")
+    for error, name in zip(errors, names):
+        with open(f"{name}_error.csv", "a+") as f:
+            for e, ms in zip(error, mesh_sizes[::-1]):
+                f.write(f"{ms} {e} \n")
+
     os.chdir("..")
 
 if __name__ == "__main__":
@@ -315,17 +341,17 @@ if __name__ == "__main__":
     if not os.path.exists(conv_dir):
         os.mkdir(conv_dir)
     os.chdir(conv_dir)
-    mesh_sizes = np.geomspace(0.05, 1.0, num=6)
-
-    # 1. interpolate once, use B directly
-    main(mesh_sizes, interpolate="once", use_Vm=False, dir="B_interpol_once")
-    # 2. interpolate once, use Vm
-    main(mesh_sizes, interpolate="once", use_Vm=True, dir="Vm_interpol_once")
-    # 3. no interpolation, use B directly
-    main(mesh_sizes, interpolate="never", use_Vm=False, dir="B_interpol_never")
-    # 4. no interpolation, use Vm
-    main(mesh_sizes, interpolate="never", use_Vm=True, dir="Vm_interpol_never")
-    # 5. interpolate twice, use B directly
-    main(mesh_sizes, interpolate="twice", use_Vm=False, dir="B_interpol_twice")
-    # 6. interpolate twice, use Vm
-    main(mesh_sizes, interpolate="twice", use_Vm=True, dir="Vm_interpol_twice")
+    mesh_sizes = np.geomspace(1e-1, 1.0, num=3)
+    for p_deg in (1, 2):
+        # 1. interpolate never, use Vm
+        main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, dir=f"Vm_interpol_never_pdeg_{p_deg}")
+        # 2. interpolate once, use Vm
+        main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, dir=f"Vm_interpol_once_pdeg_{p_deg}")
+        # 3. interpolate twice, use Vm
+        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=True, dir=f"Vm_interpol_twice_pdeg_{p_deg}")
+        # 4. interpolate never, use B directly
+        main(mesh_sizes, p_deg, interpolate="never", use_Vm=False, dir=f"B_interpol_never_pdeg_{p_deg}")
+        # 6. interpolate once, use  directly
+        main(mesh_sizes, p_deg, interpolate="once", use_Vm=False, dir=f"B_interpol_once_pdeg_{p_deg}")
+        # 5. interpolate twice, use B directly
+        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=False, dir=f"B_interpol_twice_pdeg_{p_deg}")

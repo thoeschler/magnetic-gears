@@ -406,12 +406,13 @@ class CoaxialGearsProblem:
         print("Done.")
         return F
 
-    def compute_torque_on_gear(self, gear: MagneticGear, B):
+    def compute_torque_on_gear(self, gear: MagneticGear, B, p_deg=1):
         """Compute the torque on a gear caused by a magnetic field B.
 
         Args:
             gear (MagneticGear): The magnetic gear.
             B (dlf.Function): The magnetic field.
+            p_deg (int): Polynomial degree.
 
         Returns:
             float: The torque.
@@ -420,7 +421,7 @@ class CoaxialGearsProblem:
         print("Computing torque on gear... ", end="")
         # initialize torque, position vectors
         tau = 0.
-        x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=1)
+        x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=p_deg)
         x_M = dlf.as_vector(gear.x_M)
 
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
