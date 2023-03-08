@@ -4,6 +4,7 @@ import numpy as np
 import os
 from source.magnetic_gear_classes import MagneticBallGear, MagneticGear
 from source.tools.tools import interpolate_field
+from source.tools.math_tools import get_rot
 from source.tools.fenics_tools import compute_magnetic_field, rotate_vector_field
 from spur_gears.spur_gears import CoaxialGearsProblem
 from spur_gears.grid_generator import segment_mesh, gear_mesh
@@ -32,65 +33,6 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
         else:
             self.sg = self.gear_2  # smaller gear
             self.lg = self.gear_1  # larger gear
-
-    def compute_force_torque_numerically(self, interpolate="never", use_Vm=False):
-        if interpolate in ("once", "twice"):
-            assert hasattr(self, "seg_mesh")
-            # if interpolation is used, use the field in on the segment
-            if use_Vm:
-                # create function on smaller gear
-                V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
-                Vm_lg = dlf.Function(V)
-
-                LagrangeInterpolator.interpolate(Vm_lg, self.Vm_ref)
-                B_lg = compute_magnetic_field(Vm_lg)
-            else:
-                # create function on smaller gear
-                V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
-                B_lg = dlf.Function(V)
-
-                LagrangeInterpolator.interpolate(B_lg, self.B_ref)
-        elif interpolate == "never":
-            if use_Vm:
-                V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
-                Vm_lg_vec = 0.
-                for mag in self.lg.magnets:
-                    Vm_mag = interpolate_field(mag.Vm_as_expression(), self.sg.mesh, "CG", p_deg)
-                    Vm_lg_vec += Vm_mag._cpp_object.vector()
-                Vm_lg = dlf.Function(V, Vm_lg_vec)
-                B_lg = compute_magnetic_field(Vm_lg)
-            else:
-                V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
-                B_lg_vec = 0.
-                for mag in self.lg.magnets:
-                    B_mag = interpolate_field(mag.B_as_expression(), self.sg.mesh, "CG", p_deg)
-                    B_lg_vec += B_mag._cpp_object.vector()
-                B_lg = dlf.Function(V, B_lg_vec)
-
-        dlf.File("B_lg.pvd") << B_lg
-
-        # compute force
-        F = self.compute_force_on_gear(self.sg, B_lg)
-
-        # compute torque
-        tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
-        F_pad = np.array([0., F[0], F[1]])
-        return F_pad, tau_sg
-
-    def mesh_gear(self, gear, mesh_size_magnets, fname, mesh_all_magnets=False, write_to_pvd=True):
-        if gear is self.gear_1:
-            other_gear = self.gear_2
-        elif gear is self.gear_2:
-            other_gear = self.gear_1
-        else:
-            raise RuntimeError()
-
-        if mesh_all_magnets:
-            self.create_gear_mesh(gear, \
-                mesh_size_magnets=mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd)
-        else:
-            self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, \
-                mesh_size_magnets=mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd)
 
     def interpolate_to_segment(self, mesh_size_magnets, p_deg=1, interpolate="once", use_Vm=False):
         assert interpolate in ("once", "twice")
@@ -168,6 +110,67 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
                                                     mesh_size_magnets / max(self.gear_1.scale_parameter, \
                                                                             self.gear_2.scale_parameter), 3 * mesh_size_magnets)
 
+    def compute_force_torque_numerically(self, p_deg=1, interpolate="never", use_Vm=False):
+        if interpolate in ("once", "twice"):
+            assert hasattr(self, "seg_mesh")
+            # if interpolation is used, use the field on the segment
+            if use_Vm:
+                assert hasattr(self, "Vm_ref")
+                # create function on smaller gear
+                V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
+                Vm_lg = dlf.Function(V)
+
+                LagrangeInterpolator.interpolate(Vm_lg, self.Vm_ref)
+                B_lg = compute_magnetic_field(Vm_lg, p_deg)
+            else:
+                assert hasattr(self, "B_ref")
+                # create function on smaller gear
+                V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
+                B_lg = dlf.Function(V)
+
+                LagrangeInterpolator.interpolate(B_lg, self.B_ref)
+        elif interpolate == "never":
+            if use_Vm:
+                V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
+                Vm_lg_vec = 0.
+                for mag in self.lg.magnets:
+                    Vm_mag = interpolate_field(mag.Vm_as_expression(), self.sg.mesh, "CG", p_deg)
+                    Vm_lg_vec += Vm_mag.vector()
+                Vm_lg = dlf.Function(V, Vm_lg_vec)
+                B_lg = compute_magnetic_field(Vm_lg, p_deg)
+            else:
+                V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
+                B_lg_vec = 0.
+                for mag in self.lg.magnets:
+                    B_mag = interpolate_field(mag.B_as_expression(), self.sg.mesh, "CG", p_deg)
+                    B_lg_vec += B_mag.vector()
+                B_lg = dlf.Function(V, B_lg_vec)
+
+        dlf.File("B_lg.pvd") << B_lg
+
+        # compute force
+        F = self.compute_force_on_gear(self.sg, B_lg)
+
+        # compute torque
+        tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
+        F_pad = np.array([0., F[0], F[1]])  # pad force (insert x-component)
+
+        return F_pad, tau_sg
+
+    def mesh_gear(self, gear, mesh_size_magnets, fname, mesh_all_magnets=False, write_to_pvd=True):
+        if gear is self.gear_1:
+            other_gear = self.gear_2
+        elif gear is self.gear_2:
+            other_gear = self.gear_1
+        else:
+            raise RuntimeError()
+
+        if mesh_all_magnets:
+            self.create_gear_mesh(gear, \
+                mesh_size_magnets=mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd)
+        else:
+            self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, \
+                mesh_size_magnets=mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd)
 
     def update_gear(self, gear: MagneticGear, d_angle, update_segment=False):
         """Update gear given an angle increment.
@@ -180,10 +183,15 @@ class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
         gear.update_parameters(d_angle)
         if update_segment:
             self.seg_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
+            if hasattr(self, "B_ref"):
+                rotate_vector_field(self.B_ref, get_rot(d_angle))
         while np.abs(gear.angle) > np.pi / gear.n:
             # first rotate segment
             if update_segment:
+                # rotate back: 
                 self.seg_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
+                if hasattr(self, "B_ref"):
+                    rotate_vector_field(self.B_ref, get_rot(- np.sign(gear.angle) * 2 * np.pi / gear.n))
             # then update parameters
             gear.update_parameters(- np.sign(gear.angle) * 2. * np.pi / gear.n)
 
@@ -235,7 +243,7 @@ def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
         gear_2.create_magnets(magnetization_strength=1.0)
 
         # create coaxial gears problem
-        D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 3.0
+        D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 1.0
         cg = CoaxialGearsConvergenceTest(gear_1, gear_2, D)
 
         # mesh both gears
@@ -250,15 +258,16 @@ def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
             cg.interpolate_to_segment(ms, p_deg, interpolate=interpolate, use_Vm=use_Vm)
 
         # introduce some randomness: rotate gears and segment by arbitrary angles
-        cg.update_gear(cg.sg, d_angle=np.pi / 4 / cg.sg.n) #((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
-        cg.update_gear(cg.lg, d_angle=np.pi / 4 / cg.lg.n, update_segment=(interpolate != "never"))
-        if interpolate != "never" and not use_Vm:
-            rotate_vector_field(cg.B_ref)
+        cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
+        # the segment contains the field of the larger gear. So rotate the segment as well
+        # when the larger gear is rotated. Updates B_ref automatically (if used). 
+        cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item(), \
+                       update_segment=(interpolate != "never"))
 
-        ####################################
-        ### 1. compute torque numerically ##
-        ####################################
-        F_pad, tau_sg = cg.compute_force_torque_numerically(interpolate=interpolate, use_Vm=use_Vm)
+        ###############################################
+        ##### 1. compute force/torque numerically #####
+        ###############################################
+        F_pad, tau_sg = cg.compute_force_torque_numerically(p_deg, interpolate=interpolate, use_Vm=use_Vm)
         tau_lg = (np.cross(cg.lg.x_M - cg.sg.x_M, F_pad) - tau_sg)[0]
 
         if cg.gear_1 is cg.sg:
@@ -274,9 +283,9 @@ def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
         else:
             raise RuntimeError()
 
-        ####################################
-        ## 2. compute torque analytically ##
-        ####################################
+        ################################################
+        ##### 2. compute force/torque analytically #####
+        ################################################
 
         # compute torque analytically
         f_12_ana_vec = np.zeros(3)
@@ -298,7 +307,6 @@ def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
                 tau_21_ana_vec += tau_mag
         tau_12_ana = tau_12_ana_vec[0]
         tau_21_ana = tau_21_ana_vec[0]
-
 
         f_12_e = np.linalg.norm(f_12_ana_vec[1:] - f_12_num_vec[1:]) / np.linalg.norm(f_12_ana_vec[1:])
         f_21_e = np.linalg.norm(f_21_ana_vec[1:] - f_21_num_vec[1:]) / np.linalg.norm(f_21_ana_vec[1:])
