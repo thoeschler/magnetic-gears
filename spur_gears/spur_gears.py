@@ -4,6 +4,7 @@ import numpy as np
 import os
 import json
 from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
+from source.tools.fenics_tools import rotate_vector_field
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
 
@@ -251,7 +252,8 @@ class CoaxialGearsProblem:
             if field_name == "B":
                 field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, f"{ref_dir}/{field_name}", write_pvd=True)
             elif field_name == "Vm":
-                field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, f"{ref_dir}/{field_name}", write_pvd=True)
+                field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, \
+                                                   scale=gear.scale_parameter, fname=f"{ref_dir}/{field_name}",write_pvd=True)
             else:
                 raise RuntimeError()
 
@@ -330,7 +332,7 @@ class CoaxialGearsProblem:
         for mag in gear.magnets:
             interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name,ref_mesh, \
                 mesh, cell_type, p_deg)
-            field_sum += interpol_field._cpp_object.vector()
+            field_sum += interpol_field.vector()
 
         print("Done.")
         return dlf.Function(V, field_sum)
@@ -356,11 +358,14 @@ class CoaxialGearsProblem:
 
         if field_name == "B":
             V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type, p_deg)
-            reference_field_copy = dlf.Function(V_ref, ref_field._cpp_object.vector())
+            reference_field_copy = dlf.Function(V_ref, ref_field.vector())
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
+            # rotate reference field
+            if field_name == "B":
+                rotate_vector_field(reference_field_copy, magnet.Q)
         elif field_name == "Vm":
             V_ref = dlf.FunctionSpace(reference_mesh_copy, cell_type, p_deg)
-            reference_field_copy = dlf.Function(V_ref, ref_field._cpp_object.vector())
+            reference_field_copy = dlf.Function(V_ref, ref_field.vector())
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
@@ -406,7 +411,7 @@ class CoaxialGearsProblem:
         print("Done.")
         return F
 
-    def compute_torque_on_gear(self, gear: MagneticGear, B, p_deg=1):
+    def compute_torque_on_gear(self, gear: MagneticGear, B):
         """Compute the torque on a gear caused by a magnetic field B.
 
         Args:
@@ -421,7 +426,7 @@ class CoaxialGearsProblem:
         print("Computing torque on gear... ", end="")
         # initialize torque, position vectors
         tau = 0.
-        x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=p_deg)
+        x = dlf.SpatialCoordinate(gear.mesh)
         x_M = dlf.as_vector(gear.x_M)
 
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
@@ -429,7 +434,6 @@ class CoaxialGearsProblem:
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             m = dlf.cross(x - x_M, t)  # torque density
             tau_mag = dlf.assemble(m[0] * gear.dA(tag))
-            print("TORQUE_NUM", tau_mag)
             tau += tau_mag  # add to torque
 
         print("Done.")

@@ -1,5 +1,10 @@
+import numpy as np
 from scipy.interpolate import RegularGridInterpolator
+from scipy.spatial.transform import Rotation
 
+
+def get_rot(angle, axis=0):
+    return Rotation.from_rotvec(angle * np.eye(3)[axis]).as_matrix()
 
 def get_interpolater(data, x, y):
     assert data.ndim == 2

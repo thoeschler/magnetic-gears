@@ -43,9 +43,6 @@ def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
     # create mesh and markers
     generate_xdmf_mesh(f"{fname}.msh", delete_source_files=True)
     mesh = read_mesh(fname + ".xdmf")
-    """dlf.File(fname + "_mesh.pvd") << mesh
-    dlf.File(fname + "_cell_marker.pvd") << cell_marker
-    dlf.File(fname + "_facet_marker.pvd") << facet_marker
-    """
+
     gmsh.finalize()
-    return mesh#, cell_marker, facet_marker, magnet_volume_tag, magnet_boundary_tag
+    return mesh

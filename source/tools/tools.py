@@ -73,7 +73,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     gmsh.finalize()
     print("Done.")
 
-def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False):
+def interpolate_field(field, mesh, cell_type, p_deg, scale=1.0, fname=None, write_pvd=False):
     """Interpolate a field on a mesh.
 
     Args:
@@ -81,6 +81,7 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
         mesh (dlf.Mesh): A finite element mesh.
         cell_type (str): Finite Element type.
         p_deg (int): Polynomial degree.
+        scale (float): Scaling factor.
         fname (str or None, optional): Output file name. Defaults to None.
         write_pvd (bool, optional): If true write mesh and markers to paraview (pvd)
                                     file. Defaults to False.
@@ -102,7 +103,8 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
         V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         field_expr = CustomScalarExpression(field, dim=1)
 
-    field_interpolated = dlf.interpolate(field_expr, V)
+    field_interpolated = dlf.Function(V)
+    dlf.LagrangeInterpolator.interpolate(field_interpolated, scale * field_expr)
     if write_pvd:
         assert fname is not None
         dlf.File(f"{fname}.pvd") << field_interpolated

@@ -42,9 +42,22 @@ def compute_magnetic_field(Vm: dlf.Function, p_deg=1):
     V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "DG", p_deg)
 
     # compute magnetic field and project to function space
-    # use "mumps"-direct solver. This is due to an UMFPACK error
+    # use mumps-direct solver. This is due to an UMFPACK error
     # that limits the memory usage to 4GB
     # https://fenicsproject.org/qa/4177/reason-petsc-error-code-is-76/
     H = dlf.project(- dlf.grad(Vm), V, solver_type="mumps")
 
     return H
+
+def rotate_vector_field(f: dlf.Function, Q):
+    """Rotate components of vector field.
+
+    Args:
+        f (dlf.Function): Vector field.
+        Q (np.ndarray): Rotation matrix.
+    """
+    ndim = f.geometric_dimension()
+    vals = f.vector().get_local().reshape(-1, ndim).T
+    rotated_vals = Q.dot(vals).T
+    assert rotated_vals.shape[1] == ndim
+    f.vector().set_local(rotated_vals.flatten())

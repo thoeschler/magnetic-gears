@@ -162,21 +162,18 @@ def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_sy
 ############## Numerical computation ###############
 ####################################################
 
-def compute_force_numerically(magnet, mesh, B):
+def compute_force_numerically(magnet, B):
     """Compute force on magnet caused by magnetic field.
 
     Args:
         magnet (BallMagnet): The magnet.
-        mesh (dlf.Mesh): The finite element mesh of the magnet.
         B (dlf.Function): The magnetic field.
-        facet_marker (dolfin.cpp.mesh.MeshFunctionSizet): Facet marker.
-        magnet_boundary_tag (int): Tag of magnet boundary.
 
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
     assert isinstance(B, dlf.Function)
-    assert B.function_space().mesh() is mesh
+    mesh = B.function_space().mesh()
     dA = dlf.Measure('ds', domain=mesh)
 
     # compute force
@@ -189,24 +186,22 @@ def compute_force_numerically(magnet, mesh, B):
         F[i] = a
     return F
 
-def compute_torque_numerically(magnet, mesh, B, degree=1):
+def compute_torque_numerically(magnet, B):
     """Compute torque on magnet caused by magnetic field.
 
     Args:
         magnet (BallMagnet): The magnet the torque acts on.
-        mesh (dlf.Mesh): The finite element mesh of the second magnet.
         B (dlf.Function): The interpolated magnetic field on the respective mesh.
-        facet_marker (dolfin.cpp.mesh.MeshFunctionSizet): Facet marker.
-        magnet_boundary_tag (int): Tag of magnet boundary.
-        degree (int): Polynomial degree of finite element space.
 
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
+    assert isinstance(B, dlf.Function)
+    mesh = B.function_space().mesh()
     dA = dlf.Measure('ds', domain=mesh)
     n = dlf.FacetNormal(mesh)
 
-    x = dlf.Expression(("x[0]", "x[1]", "x[2]"), degree=degree)
+    x = dlf.SpatialCoordinate(mesh)
     x_M = dlf.as_vector(magnet.x_M)
     M_jump = dlf.as_vector(- magnet.M)  # jump of magnetization
     t = dlf.cross(dlf.cross(n, M_jump), B)  # traction vector
