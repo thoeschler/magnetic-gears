@@ -221,7 +221,7 @@ if __name__ == "__main__":
     distance_values = np.array([0.1])
     mesh_size_values = np.geomspace(5e-2, 1.0, num=6)
 
-    for p_deg in (1, ):
+    for p_deg in (1, 2, 3, 4, 5):
         # 1. no interpolation, use B directly
         convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
                         interpolation=False, use_Vm=False, dir=f"B_no_interpol_pdeg_{p_deg}")

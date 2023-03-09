@@ -3,7 +3,7 @@ from scipy.spatial.transform import Rotation
 import dolfin as dlf
 from dolfin import LagrangeInterpolator
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear
-from spur_gears.spur_gears import CoaxialGearsProblem
+from spur_gears.spur_gears_problem import CoaxialGearsProblem
 from spur_gears.grid_generator import gear_mesh, segment_mesh
 import subprocess
 import os

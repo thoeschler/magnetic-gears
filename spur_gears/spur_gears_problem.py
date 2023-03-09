@@ -9,7 +9,7 @@ from source.tools.tools import create_reference_mesh, interpolate_field, write_h
 from source.tools.mesh_tools import read_mesh
 
 
-class CoaxialGearsProblem:
+class SpurGearsProblem:
     def __init__(self, first_gear: MagneticGear, second_gear: MagneticGear, D, main_dir=None):
         """Constructor method.
 
@@ -250,7 +250,8 @@ class CoaxialGearsProblem:
 
             # interpolate reference field
             if field_name == "B":
-                field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, f"{ref_dir}/{field_name}", write_pvd=True)
+                field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, fname=f"{ref_dir}/{field_name}", \
+                    write_pvd=True)
             elif field_name == "Vm":
                 field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, \
                                                    scale=gear.scale_parameter, fname=f"{ref_dir}/{field_name}",write_pvd=True)

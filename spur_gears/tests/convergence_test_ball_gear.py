@@ -6,17 +6,16 @@ from source.magnetic_gear_classes import MagneticBallGear, MagneticGear
 from source.tools.tools import interpolate_field
 from source.tools.math_tools import get_rot
 from source.tools.fenics_tools import compute_magnetic_field, rotate_vector_field
-from spur_gears.spur_gears import CoaxialGearsProblem
+from spur_gears.spur_gears_problem import SpurGearsProblem
 from spur_gears.grid_generator import segment_mesh, gear_mesh
 from source.grid_generator import gear_mesh as gear_mesh_all
 from tests.convergence_tests.ball_force_torque_convergence import compute_force_analytically
 
 
-class CoaxialGearsConvergenceTest(CoaxialGearsProblem):
+class SpurGearsConvergenceTest(SpurGearsProblem):
     def __init__(self, first_gear, second_gear, D, main_dir=None):
         super().__init__(first_gear, second_gear, D, main_dir)
         self.align_gears()
-        self.set_mesh_functions()
 
     def set_mesh_functions(self, mesh_all_magnets=False):
         """Set mesh function for both gears."""
@@ -224,7 +223,7 @@ def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
     return tau
 
 
-def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
+def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_Vm=False, dir=None):
     if dir is not None:
         if not os.path.exists(dir):
             os.mkdir(dir)
@@ -244,11 +243,12 @@ def main(mesh_sizes, p_deg=1, interpolate="never", use_Vm=False, dir=None):
 
         # create coaxial gears problem
         D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 1.0
-        cg = CoaxialGearsConvergenceTest(gear_1, gear_2, D)
+        cg = SpurGearsConvergenceTest(gear_1, gear_2, D)
+        cg.set_mesh_functions(mesh_all_magnets)
 
         # mesh both gears
-        cg.mesh_gear(cg.gear_1, mesh_size_magnets=ms, fname="gear_1")
-        cg.mesh_gear(cg.gear_2, mesh_size_magnets=ms, fname="gear_2")
+        cg.mesh_gear(cg.gear_1, mesh_size_magnets=ms, fname="gear_1", mesh_all_magnets=mesh_all_magnets)
+        cg.mesh_gear(cg.gear_2, mesh_size_magnets=ms, fname="gear_2", mesh_all_magnets=mesh_all_magnets)
 
         # choose smaller gear ("sg")
         cg.assign_gears()
@@ -345,15 +345,22 @@ if __name__ == "__main__":
     os.chdir(conv_dir)
     mesh_sizes = np.geomspace(8e-2, 1.0, num=5)
     for p_deg in (1, 2):
+        ma = True
         # 1. interpolate never, use Vm
-        main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, dir=f"Vm_interpol_never_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
+             dir=f"Vm_interpol_never_pdeg_{p_deg}")
         # 2. interpolate once, use Vm
-        main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, dir=f"Vm_interpol_once_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, mesh_all_magnets=ma, \
+             dir=f"Vm_interpol_once_pdeg_{p_deg}")
         # 3. interpolate twice, use Vm
-        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=True, dir=f"Vm_interpol_twice_pdeg_{p_deg}")
-        # 4. interpolate never, use B directly
-        main(mesh_sizes, p_deg, interpolate="never", use_Vm=False, dir=f"B_interpol_never_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=True, mesh_all_magnets=ma, \
+             dir=f"Vm_interpol_twice_pdeg_{p_deg}")
+        # 4. inteyrpolate never, use B directly
+        main(mesh_sizes, p_deg, interpolate="never", use_Vm=False, mesh_all_magnets=ma, \
+             dir=f"B_interpol_never_pdeg_{p_deg}")
         # 5. interpolate once, use B directly
-        main(mesh_sizes, p_deg, interpolate="once", use_Vm=False, dir=f"B_interpol_once_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="once", use_Vm=False, mesh_all_magnets=ma, \
+             dir=f"B_interpol_once_pdeg_{p_deg}")
         # 6. interpolate twice, use B directly
-        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=False, dir=f"B_interpol_twice_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=False, mesh_all_magnets=ma, \
+             dir=f"B_interpol_twice_pdeg_{p_deg}")
