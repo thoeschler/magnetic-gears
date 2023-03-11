@@ -9,7 +9,7 @@ from source.tools.fenics_tools import compute_magnetic_field, rotate_vector_fiel
 from spur_gears.spur_gears_problem import SpurGearsProblem
 from spur_gears.grid_generator import segment_mesh, gear_mesh
 from source.grid_generator import gear_mesh as gear_mesh_all
-from tests.convergence_tests.ball_force_torque_convergence import compute_force_analytically
+from tests.convergence_tests.ball_magnets_force_torque import compute_force_ana
 
 
 class SpurGearsConvergenceTest(SpurGearsProblem):
@@ -294,14 +294,14 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         tau_21_ana_vec = np.zeros(3)
         for m1 in cg.gear_1.magnets:
             for m2 in cg.gear_2.magnets:
-                f_ana = compute_force_analytically(m1, m2)
+                f_ana = compute_force_ana(m1, m2)
                 f_12_ana_vec += f_ana
                 tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_2.x_M)
                 tau_12_ana_vec += tau_mag
 
         for m1 in cg.gear_2.magnets:
             for m2 in cg.gear_1.magnets:
-                f_ana = compute_force_analytically(m1, m2)
+                f_ana = compute_force_ana(m1, m2)
                 f_21_ana_vec += f_ana
                 tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_1.x_M)
                 tau_21_ana_vec += tau_mag
