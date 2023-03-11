@@ -6,7 +6,7 @@ from source.magnet_classes import BallMagnet
 from source.tools.math_tools import get_rot
 from source.tools.mesh_tools import read_mesh
 from source.tools.tools import interpolate_field, create_reference_mesh
-from source.tools.fenics_tools import compute_magnetic_field, rotate_vector_field
+from source.tools.fenics_tools import compute_current_potential, rotate_vector_field
 from tests.convergence_tests.ball_magnets_grid_generator import create_single_magnet_mesh
 from tests.convergence_tests.ball_magnets_force_torque import compute_force_ana, \
       compute_torque_ana, compute_force_num, compute_torque_num
@@ -110,7 +110,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                     Vm = dlf.Function(V)
                     LagrangeInterpolator.interpolate(Vm, Vm_ref)
                     # compute gradient and project
-                    B = compute_magnetic_field(Vm)
+                    B = compute_current_potential(Vm)
                 else:
                     # interpolate B_ref to second magnet
                     V = dlf.VectorFunctionSpace(mesh_mag_2, "CG", p_deg)
@@ -120,7 +120,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                 if use_Vm:
                     Vm = interpolate_field(mag_1.Vm, mesh_mag_2, "CG", p_deg)
                     # compute gradient and project
-                    B = compute_magnetic_field(Vm)
+                    B = compute_current_potential(Vm)
                 else:
                     B = interpolate_field(mag_1.B, mesh_mag_2, "CG", p_deg)
 
