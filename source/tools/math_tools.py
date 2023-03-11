@@ -7,6 +7,17 @@ def get_rot(angle, axis=0):
     return Rotation.from_rotvec(angle * np.eye(3)[axis]).as_matrix()
 
 def get_interpolater(data, x, y):
+    """
+    Get interpolator object from two dimensional data.
+
+    Args:
+        data (np.ndarray): Two dimensional data set.
+        x (np.ndarray): The x values.
+        y (np.ndarray): The y values.
+
+    Returns:
+        RegularGridInterpolator: Interpolator object.
+    """
     assert data.ndim == 2
     interp = RegularGridInterpolator((x, y), data)
     return interp
@@ -16,12 +27,26 @@ def is_between(val, min, max):
         return True
     return False
 
-def interpolate(interpol_func, coords):
-    assert len(coords) == 2
-    x, y = coords
-    assert isinstance(interpol_func, RegularGridInterpolator)
-    x_values = interpol_func.grid[0]
-    y_values = interpol_func.grid[1]
+def periodic_interpolation(interpolator: RegularGridInterpolator, val):
+    """
+    Evaluate interpolator function assuming periodicity.
+
+    If the input value is outside the interpolators own grid
+    assume periodicity of the interpolation function to compute
+    the output value.
+
+    Args:
+        interpolator (RegularGridInterpolator): _description_
+        val (np.ndarray): Value to evaluate the interpolation function for.
+
+    Returns:
+        float: Interpolated value.
+    """
+    assert len(val) == 2
+    x, y = val
+    assert isinstance(interpolator, RegularGridInterpolator)
+    x_values = interpolator.grid[0]
+    y_values = interpolator.grid[1]
 
     x_period = x_values.max() - x_values.min()
     y_period = y_values.max() - y_values.min()
@@ -41,4 +66,4 @@ def interpolate(interpol_func, coords):
             yc = float(y)
             y = yc + (abs(yc - y_values.min()) // y_period + 1) * y_period
 
-    return interpol_func((x, y))
+    return interpolator((x, y))

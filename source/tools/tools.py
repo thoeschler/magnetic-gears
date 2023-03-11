@@ -3,7 +3,7 @@ import dolfin as dlf
 import numpy as np
 import source.magnet_classes as mc
 from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpression
-from source.tools.mesh_tools import generate_xdmf_mesh, generate_mesh_with_markers
+from source.tools.mesh_tools import generate_xdmf_mesh
 from source.grid_generator import add_ball_magnet, add_bar_magnet, add_magnet_segment
 
 
@@ -98,10 +98,10 @@ def interpolate_field(field, mesh, cell_type, p_deg, scale=1.0, fname=None, writ
 
     if vector_valued:
         V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
-        field_expr = CustomVectorExpression(field)
+        field_expr = CustomVectorExpression(field, degree=p_deg)
     else:
         V = dlf.FunctionSpace(mesh, cell_type, p_deg)
-        field_expr = CustomScalarExpression(field, dim=1)
+        field_expr = CustomScalarExpression(field, dim=1, degree=p_deg)
 
     field_interpolated = dlf.Function(V)
     dlf.LagrangeInterpolator.interpolate(field_interpolated, scale * field_expr)

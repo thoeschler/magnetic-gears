@@ -27,12 +27,19 @@ class CustomScalarExpression(dlf.UserExpression):
     def value_shape(self):
         return tuple()
 
-def compute_magnetic_field(Vm: dlf.Function, p_deg=1):
-    """Compute magnetic field from magnetic potential.
+def compute_current_potential(Vm: dlf.Function):
+    """Compute free current potential from magnetic potential.
+
+    If the magnetization is zero the free current potential
+    is equal to the magnetic field (divided by permeability).
 
     Args:
         Vm (dlf.Function): Magnetic potential.
+    
+    Returns:
+        dlf.Function: Free current potential.
     """
+    
     # create function space
     Vm_p_deg = Vm.ufl_element().degree()
     if Vm_p_deg > 0:
@@ -57,7 +64,10 @@ def rotate_vector_field(f: dlf.Function, Q):
         Q (np.ndarray): Rotation matrix.
     """
     ndim = f.geometric_dimension()
+    # get values
     vals = f.vector().get_local().reshape(-1, ndim).T
+    # rotate
     rotated_vals = Q.dot(vals).T
     assert rotated_vals.shape[1] == ndim
+    # set rotated values
     f.vector().set_local(rotated_vals.flatten())
