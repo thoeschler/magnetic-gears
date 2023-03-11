@@ -8,7 +8,7 @@ from source.transform import sph_to_cart
 ############## Analytical computation ##############
 ####################################################
 
-def compute_force_analytically(magnet_1: BallMagnet, magnet_2: BallMagnet, coordinate_system="laboratory"):
+def compute_force_ana(magnet_1: BallMagnet, magnet_2: BallMagnet, coordinate_system="laboratory"):
     """Compute force on magnet_2 caused by magnetic field of magnet_1.
 
     Args:
@@ -55,40 +55,7 @@ def compute_force_analytically(magnet_1: BallMagnet, magnet_2: BallMagnet, coord
     else:
         raise RuntimeError()
 
-
-def compute_force_analytically_special(magnet_1, magnet_2, angle, coordinate_system="laboratory"):
-    """Compute force on magnet_2 caused by magnetic field of magnet_1 for a special case.
-    The special choice is that of theta=pi/2 and phi=pi/2 (azimuthal and polar angles).
-    In other words, the two magnets are aligned in y-direction. Both x- and z-coordinates
-    of the centers of mass are the same for both magents.
-
-    Args:
-        magnet_1 (BallMagnet): First magnet.
-        magnet_2 (BallMagnet): Second magnet.
-        angle (float): The relative angle between the magnets around the x-axis.
-        coordinate_system (str, optional): Coordinate system used to represent the
-                                           force vector. Defaults to "laboratory".
-
-    Returns:
-        np.ndarray: The force in the specified coordinated system.
-    """
-    assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
-
-    r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-    force = 4. / 3. * np.pi * (magnet_1.R * magnet_2.R) ** 3 / r ** 4 * \
-        np.array([0., np.cos(angle), - np.sin(angle)])
-
-    # return force w.r.t. chosen basis
-    if coordinate_system == "laboratory":
-        return magnet_1.Q.dot(force)
-    elif coordinate_system == "cartesian_1":
-        return force
-    elif coordinate_system == "cartesian_2":
-        return magnet_2.Q.T.dot(magnet_1.Q.dot(force))
-    else:
-        raise RuntimeError()
-
-def compute_torque_analytically(magnet_1, magnet_2, coordinate_system="laboratory"):
+def compute_torque_ana(magnet_1, magnet_2, coordinate_system="laboratory"):
     """Compute torque on magnet_2 caused by magnetic field of magnet_1.
 
     Args:
@@ -125,44 +92,11 @@ def compute_torque_analytically(magnet_1, magnet_2, coordinate_system="laborator
     else:
         raise RuntimeError()
 
-def compute_torque_analytically_special(magnet_1, magnet_2, angle, coordinate_system="laboratory"):
-    """Compute torque on magnet_2 caused by magnetic field of magnet_1 for a special case.
-    The special choice is that of theta=pi/2 and phi=pi/2 (azimuthal and polar angles).
-    In other words, the two magnets are aligned in y-direction. Both x- and z-coordinates
-    of the centers of mass are the same for both magents.
-
-    Args:
-        magnet_1 (BallMagnet): First magnet.
-        magnet_2 (BallMagnet): Second magnet.
-        angle (float): The relative angle between the magnets around the x-axis.
-        coordinate_system (str, optional): Coordinate system used to represent the
-                                           force vector. Defaults to "laboratory".
-    
-    Returns:
-        np.ndarray: The force in the specified coordinated system.
-    """
-    assert coordinate_system in ("laboratory", "cartesian_1", "cartesian_2")
-
-    r = np.linalg.norm(magnet_1.x_M - magnet_2.x_M)
-
-    tau = 4. / 9. * np.pi * (magnet_1.R * magnet_2.R) ** 3 / \
-        r ** 3 * np.array([np.sin(angle), 0., 0.])
-
-    # return force w.r.t. chosen basis
-    if coordinate_system == "laboratory":
-        return magnet_1.Q.dot(tau)
-    elif coordinate_system == "cartesian_1":
-        return tau
-    elif coordinate_system == "cartesian_2":
-        return magnet_2.Q.T.dot(magnet_1.Q.dot(tau))
-    else:
-        raise RuntimeError()
-
 ####################################################
 ############## Numerical computation ###############
 ####################################################
 
-def compute_force_numerically(magnet, B):
+def compute_force_num(magnet, B):
     """Compute force on magnet caused by magnetic field.
 
     Args:
@@ -186,7 +120,7 @@ def compute_force_numerically(magnet, B):
         F[i] = a
     return F
 
-def compute_torque_numerically(magnet, B):
+def compute_torque_num(magnet, B):
     """Compute torque on magnet caused by magnetic field.
 
     Args:

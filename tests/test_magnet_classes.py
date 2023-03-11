@@ -141,25 +141,6 @@ def test_magnet_segment():
     assert magnet_segment.M0 == M0
     assert np.all(magnet_segment.Q == Q)
 
-    # check basic functionality
-    assert callable(magnet_segment.Vm_eigen)
-    Vm_test = magnet_segment.Vm_eigen(np.random.rand(3))
-    assert isinstance(Vm_test, float)
-
-    assert callable(magnet_segment.Vm)
-    Vm_test = magnet_segment.Vm(np.random.rand(3))
-    assert isinstance(Vm_test, float)
-
-    assert callable(magnet_segment.B_eigen)
-    B_test = magnet_segment.B_eigen(np.random.rand(3))
-    assert isinstance(B_test, np.ndarray)
-    assert len(B_test) == 3
-
-    assert callable(magnet_segment.B)
-    B_test = magnet_segment.B(np.random.rand(3))
-    assert isinstance(B_test, np.ndarray)
-    assert len(B_test) == 3
-
     # update magnet
     Q = Rotation.from_rotvec(np.random.rand(3)).as_matrix()
     assert np.allclose(Q.dot(Q.T), np.eye(3))

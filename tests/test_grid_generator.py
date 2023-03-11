@@ -15,8 +15,8 @@ def test_ball_gear_mesh():
     M0 = 10.  # magnetization strength
     ball_gear.create_magnets(M0)
 
-    _ = gear_mesh(ball_gear, mesh_size_space=2.0, mesh_size_magnets=0.3, padding=ball_gear.r, \
-        fname="testball", write_to_pvd=True, verbose=True)
+    _ = gear_mesh(ball_gear, mesh_size_magnets=0.5, fname="testball", \
+                  write_to_pvd=True, verbose=True)
 
 def test_bar_gear_mesh():
     # create gear
@@ -31,12 +31,8 @@ def test_bar_gear_mesh():
     M0 = 10.  # magnetization strength
     bar_gear.create_magnets(M0)
 
-    mesh_size_space = 3.0
-    mesh_size_magnets = 0.4
-    fname = "testbar"
-
-    _ = gear_mesh(bar_gear, mesh_size_space, mesh_size_magnets, fname, \
-                  padding=bar_gear.h, write_to_pvd=True, verbose=True)
+    _ = gear_mesh(bar_gear, mesh_size_magnets=0.5, fname="testbar", \
+                  write_to_pvd=True, verbose=True)
 
 def test_segment_mesh():
     # create gear
@@ -45,19 +41,12 @@ def test_segment_mesh():
     w = 1.
     d = .5
     x_M = np.zeros(3)
-    
-    mesh_size_space = 3.0
-    mesh_size_magnets = 0.4
-    fname = "testsegment"
 
     segment_gear = SegmentGear(n, R, d, w, x_M)
     M0 = 10.  # magnetization strength
     segment_gear.create_magnets(M0)
 
-    for mag in segment_gear.magnets:
-        print(mag.x_M)
-
-    _ = gear_mesh(segment_gear, mesh_size_space, mesh_size_magnets, fname, padding=w, \
+    _ = gear_mesh(segment_gear, mesh_size_magnets=0.5, fname="testsegment", \
                   write_to_pvd=True, verbose=True)
 
 if __name__ == "__main__":

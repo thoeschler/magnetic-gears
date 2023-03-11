@@ -1,6 +1,5 @@
 import gmsh
-import dolfin as dlf
-from source.tools.mesh_tools import generate_mesh_with_markers, generate_xdmf_mesh, read_mesh
+from source.tools.mesh_tools import generate_xdmf_mesh, read_mesh
 
 
 def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
@@ -21,7 +20,7 @@ def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
         gmsh.option.setNumber("General.Terminal", 0)
 
     # file name
-    fname = "mesh"
+    fname = "ball_magnet_mesh"
     model = gmsh.model()
 
     # create magnet
@@ -30,8 +29,8 @@ def create_single_magnet_mesh(magnet, mesh_size, verbose=True):
 
     # add physical groups
     magnet_boundary = model.getBoundary([(3, magnet_tag)], oriented=False)[0][1]
-    magnet_boundary_tag = model.addPhysicalGroup(2, [magnet_boundary])
-    magnet_volume_tag = model.addPhysicalGroup(3, [magnet_tag])
+    model.addPhysicalGroup(2, [magnet_boundary])
+    model.addPhysicalGroup(3, [magnet_tag])
 
     # set mesh size
     model.mesh.setSize(model.occ.getEntities(0), mesh_size)
