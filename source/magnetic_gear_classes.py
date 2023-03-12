@@ -6,13 +6,14 @@ from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
 
 class MagneticGear:
     def __init__(self, n, R, x_M):
-        """Constructor method.
+        """Magnetic Gear.
 
         Args:
-            n (int): Number of magnets.
+            n (int): Even number of magnets.
             R (float): The gear's radius.
             x_M (np.ndarray): Position vector.
         """
+        assert n % 2 == 0  # even number of magnets
         self._n = n  # the number of magnets
         self._R = R  # the radius of the gear
         assert len(x_M) == 3
@@ -300,10 +301,10 @@ class MagneticGear:
 
 class MagneticBallGear(MagneticGear):
     def __init__(self, n, R, r, x_M):
-        """Constructor method
+        """Magnetic gear with ball magnets.
 
         Args:
-            n (int): Number of magnets.
+            n (int): Even number of magnets.
             R (float): Gear's radius.
             r (float): Magnet's radius.
             x_M (np.ndarray): Position vector.
@@ -349,7 +350,16 @@ class MagneticBallGear(MagneticGear):
 
         # create magnets, align them in counter-clockwise order
         for k in range(self.n):
-            Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
+            if k % 2 == 0:
+                # magnetization pointing outward
+                Q = Rotation.from_rotvec(
+                    (- np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
+                    ).as_matrix()
+            else:
+                # magnetization pointing inward
+                Q = Rotation.from_rotvec(
+                    (np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
+                    ).as_matrix()
             x_M = self.x_M + Q.dot(self.R * np.array([0., 1., 0.]))
             self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
         print("Done.")
@@ -357,10 +367,10 @@ class MagneticBallGear(MagneticGear):
 
 class MagneticBarGear(MagneticGear):
     def __init__(self, n, R, d, w, h, x_M):
-        """Constructor method.
+        """Magnetic gear with bar magnets.
 
         Args:
-            n (int): Number of magnets.
+            n (int): Even number of magnets.
             R (float): Gear's radius.
             d (float): The magnet depth (x-direction).
             w (float): The magnet width (y-direction).
@@ -421,7 +431,16 @@ class MagneticBarGear(MagneticGear):
 
         # create magnets, align them in counter-clockwise order
         for k in range(self.n):
-            Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
+            if k % 2 == 0:
+                # magnetization pointing outward
+                Q = Rotation.from_rotvec(
+                    (- np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
+                    ).as_matrix()
+            else:
+                # magnetization pointing inward
+                Q = Rotation.from_rotvec(
+                    (np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
+                    ).as_matrix()
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
             self._magnets.append(BarMagnet(width=self.w, depth=self.d, height=self.h, \
                                            magnetization_strength=magnetization_strength, \
@@ -432,13 +451,13 @@ class MagneticBarGear(MagneticGear):
 
 class SegmentGear(MagneticGear):
     def __init__(self, n, R, d, w, x_M):
-        """Constructor method.
+        """Magnetic gear with cylinder segment magnets.
 
         Args:
-            n (int): Number of magnets.
+            n (int): Even number of magnets.
             R (float): Gear's radius.
-            d (float): The magnet depth (x-direction).
-            w (float): The magnet width (y-direction).
+            d (float): The magnet depth (radial direction).
+            w (float): The magnet width (thickness).
             x_M (np.ndarray): Position vector.
         """
         super().__init__(n, R, x_M)
@@ -446,7 +465,7 @@ class SegmentGear(MagneticGear):
         self._w = w  # the magnet width (here: y-direction!)
         self._alpha = np.pi / n  # half the angle per magnet
         self._scale_parameter = self.w  # use magnet with for scaling
-        self._magnet_type = "SegmentMagnet"
+        self._magnet_type = "CylinderSegment"
 
     @property
     def w(self):
@@ -495,9 +514,16 @@ class SegmentGear(MagneticGear):
 
         # create magnets, align them in counter-clockwise order
         for k in range(self.n):
+            if k % 2 == 0:
+                # magnetization pointing outward
+                magnetization_direction = "out"
+            else:
+                # magnetization pointing inward
+                magnetization_direction = "in"
             Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
             self._magnets.append(CylinderSegment(radius=self.R, width=self.w, depth=self.d, \
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \
-                                                    position_vector=x_M, rotation_matrix=Q))
+                                                    position_vector=x_M, rotation_matrix=Q, \
+                                                        magnetization_direction=magnetization_direction))
         print("Done.")
