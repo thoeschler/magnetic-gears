@@ -4,7 +4,10 @@ from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpres
 
 class PermanentMagnet:
     def __init__(self, type_classifier, magnetization_strength, position_vector, rotation_matrix):
-        """Base constructor method.
+        """Permanent magnet.
+
+        The magnetization direction is specified in each subclass.
+
         Args:
             type_classifier (str): Magnet geometry type (e.g. "Ball", "Bar").
             magnetization_strength (float): Magnetization strength.
@@ -159,6 +162,15 @@ class PermanentMagnet:
 
 class PermanentAxialMagnet(PermanentMagnet):
     def __init__(self, type_classifier, magnetization_strength, position_vector, rotation_matrix):
+        """
+        Permanent magnet that is magnetized in constant axial direction.
+
+        Args:
+            type_classifier (str): Geometry type classifier.
+            magnetization_strength (float): Magnetization strength.
+            position_vector (np.ndarray): Position vector.
+            rotation_matrix (np.ndarray): Rotation matrix.
+        """
         super().__init__(type_classifier, magnetization_strength, position_vector, rotation_matrix)
         # for the axial magnet the magnetization is in z-direction
         self._M = self._Q.dot(np.array([0., 0., 1.]))
@@ -188,6 +200,16 @@ class PermanentAxialMagnet(PermanentMagnet):
 
 class BallMagnet(PermanentAxialMagnet):
     def __init__(self, radius, magnetization_strength, position_vector, rotation_matrix):
+        """
+        Ball magnet.
+
+        Args:
+            radius (float): Radius.
+            magnetization_strength (float): Magnetization strength.
+            position_vector (np.ndarray): Position vector.
+            rotation_matrix (np.ndarray): Rotation matrix. See Permanentmagnet for
+                                          detailed info.
+        """
         super().__init__(type_classifier='Ball',
                          magnetization_strength=magnetization_strength,
                          position_vector=position_vector,
@@ -311,6 +333,17 @@ class BallMagnet(PermanentAxialMagnet):
 
 class BarMagnet(PermanentAxialMagnet):
     def __init__(self, width, depth, height, magnetization_strength, position_vector, rotation_matrix):
+        """
+        Bar magnet.
+
+        Args:
+            width (float): Half the width (x-direction).
+            depth (float): Half the depth (y-direction).
+            height (float): Half the height (z-direction).
+            magnetization_strength (float): Magnetization strength.
+            position_vector (np.ndarray): Position vector.
+            rotation_matrix (np.ndarray): Rotation matrix.
+        """
         super().__init__(type_classifier='Bar',
                          position_vector=position_vector,
                          magnetization_strength=magnetization_strength,
@@ -449,17 +482,34 @@ class BarMagnet(PermanentAxialMagnet):
 
 
 class CylinderSegment(PermanentMagnet):
-    def __init__(self, radius, width, depth, alpha, magnetization_strength, position_vector, rotation_matrix):
+    def __init__(self, radius, width, depth, alpha, magnetization_strength, position_vector, \
+                 rotation_matrix, magnetization_direction="out"):
+        """
+        Radially magnetized CylinderSegment.
+
+        Args:
+            radius (float): The mid radius.
+            width (float): Half the width (thickness).
+            depth (float): Half the depth (in radial direction).
+            alpha (float): Half the opening angle.
+            magnetization_strength (_type_): 
+            position_vector (np.ndarray): Position vector. For the cylinder segment
+                                          the position vector is not set as the gear's
+                                          center of mass. Instead, it is the point at dis-
+                                          tance Rm with a zero angle (in eigen coordinates).
+                                          This can be considered the mid point.
+            magnetization_direction (str, optional): The radial magnetization can be either
+                                                     pointing "in" (negative radial direction)
+                                                     or "out" (positive radial direction).
+                                                     Defaults to "out".
+        """
         super().__init__(type_classifier='CylinderSegment',
                          position_vector=position_vector,
                          magnetization_strength=magnetization_strength,
                          rotation_matrix=rotation_matrix
                          )
-        # For the cylinder segment the position vector is not set as
-        # the gear's center of mass. Instead, it is the point at dis-
-        # tance Rm with a zero angle (in eigen coordinates). This can
-        # be considered the mid point.
-        self._Rm = radius  # the mid radius
+        assert magnetization_direction in ("out", "in")
+        self._Rm = radius
         self._width = width
         self._depth = depth
         # half the angle of the segment
