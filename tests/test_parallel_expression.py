@@ -1,4 +1,3 @@
-import numpy as np
 import dolfin as dlf
 from dolfin import LagrangeInterpolator
 

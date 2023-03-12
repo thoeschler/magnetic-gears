@@ -110,7 +110,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                     Vm = dlf.Function(V)
                     LagrangeInterpolator.interpolate(Vm, Vm_ref)
                     # compute gradient and project
-                    B = compute_current_potential(Vm)
+                    B = compute_current_potential(Vm, project_to_CG=True)
                 else:
                     # interpolate B_ref to second magnet
                     V = dlf.VectorFunctionSpace(mesh_mag_2, "CG", p_deg)
@@ -120,7 +120,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                 if use_Vm:
                     Vm = interpolate_field(mag_1.Vm, mesh_mag_2, "CG", p_deg)
                     # compute gradient and project
-                    B = compute_current_potential(Vm)
+                    B = compute_current_potential(Vm, project_to_CG=True)
                 else:
                     B = interpolate_field(mag_1.B, mesh_mag_2, "CG", p_deg)
 

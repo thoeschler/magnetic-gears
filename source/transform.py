@@ -6,6 +6,10 @@ def sph_to_cart_matrix(x_vec, cs="sph"):
 
     Args:
         x_vec (np.ndarray): Tuple of cartesian or spherical coordinates.
+        cs (str): The coordinate system of x_vec.
+
+    Returns:
+        np.ndarray: Transformation matrix.
     """
     assert len(x_vec) == 3
     if cs=="cart":
@@ -30,10 +34,10 @@ def cart_to_sph(v, x_vec, cs="cart"):
     """Transform tensor components from cartesian to
     spherical basis.
 
-
     Args:
         v (np.ndarray): Tensor of rank 1 (vector) or 2.
         x_vec (np.ndarray): Tuple of cartesian or spherical coordinates.
+        cs (str): cs (str): The coordinate system of x_vec.
 
     Returns:
         np.ndarray: Tensor components w.r.t spherical basis.
@@ -51,14 +55,14 @@ def cart_to_sph(v, x_vec, cs="cart"):
 def sph_to_cart(v, x_vec, cs="sph"): 
     """Transform tensor components from spherical to
     cartesian basis.
-    
 
     Args:
         v (np.ndarray): Tensor of rank 1 (vector) or 2.
         x_vec (np.ndarray): Tuple of cartesian or spherical coordinates.
+        cs (str): The coordinate system of x_vec.
 
     Returns:
-        np.ndarray: Tensor component w.r.t cartesian basis.
+        np.ndarray: Tensor components w.r.t cartesian basis.
     """
     Q = sph_to_cart_matrix(x_vec, cs)
     assert np.allclose(Q.T.dot(Q), np.eye(3))

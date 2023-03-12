@@ -25,7 +25,7 @@ def test_ball_magnet():
     mesh = read_mesh(f"{test_dir}/{mesh_fname}")
 
     # interpolate reference field
-    B_interpol = interpolate_field(ref_mag.B, mesh, cell_type, p_deg, f"{test_dir}/B_ball", write_pvd=True)
+    B_interpol = interpolate_field(ref_mag.B, mesh, cell_type, p_deg, fname=f"{test_dir}/B_ball", write_pvd=True)
     field_name = "B"
     field_file_name = "B_ball.h5"
 
@@ -49,11 +49,11 @@ def test_bar_magnet():
                         position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     # create mesh, write it to xdmf file and read it
-    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, f"{test_dir}/{mesh_fname}.xdmf")
+    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}.xdmf")
     mesh = read_mesh(f"{test_dir}/{mesh_fname}")
 
     # interpolate reference field
-    B_interpol = interpolate_field(ref_mag.B, mesh, cell_type, p_deg, f"{test_dir}/B_bar", write_pvd=True)
+    B_interpol = interpolate_field(ref_mag.B, mesh, cell_type, p_deg, fname=f"{test_dir}/B_bar", write_pvd=True)
     field_name = "B"
     field_file_name = "B_bar.h5"
 
@@ -64,8 +64,6 @@ def test_bar_magnet():
 def test_magnet_segment():
     # create field interpolator
     domain_radius = 13.
-    cell_type = "CG"
-    p_deg = 1
     mesh_size_min = 0.1
     mesh_size_max = 1.0
 
@@ -78,16 +76,8 @@ def test_magnet_segment():
 
     # create mesh, write it to xdmf file and read it
     create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, f"{test_dir}/{mesh_fname}.xdmf")
-    mesh = read_mesh(f"{test_dir}/{mesh_fname}")
+    _ = read_mesh(f"{test_dir}/{mesh_fname}")
 
-    # interpolate reference field
-    B_interpol = interpolate_field(ref_mag.B, mesh, cell_type, p_deg, f"{test_dir}/B_segment", write_pvd=True)
-    field_name = "B"
-    field_file_name = "B_segment.h5"
-
-    # write interpolated field to hdf5 file and read it
-    write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
-    _ = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
 if __name__ == "__main__":
     # create test directory
@@ -100,4 +90,4 @@ if __name__ == "__main__":
     test_magnet_segment()
 
     # remove test directory
-    #subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)

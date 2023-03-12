@@ -27,7 +27,7 @@ class CustomScalarExpression(dlf.UserExpression):
     def value_shape(self):
         return tuple()
 
-def compute_current_potential(Vm: dlf.Function):
+def compute_current_potential(Vm: dlf.Function, project_to_CG=False):
     """Compute free current potential from magnetic potential.
 
     If the magnetization is zero the free current potential
@@ -46,7 +46,11 @@ def compute_current_potential(Vm: dlf.Function):
         p_deg = Vm_p_deg - 1 
     else:
         p_deg = 0
-    V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "DG", p_deg)
+
+    if project_to_CG:
+        V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "DG", Vm_p_deg)
+    else:
+        V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "DG", p_deg)
 
     # compute magnetic field and project to function space
     # use mumps-direct solver. This is due to an UMFPACK error
