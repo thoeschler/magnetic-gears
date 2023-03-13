@@ -7,7 +7,7 @@ import os
 
 def test_ball_gear():
     # create gear
-    n = 5
+    n = 6
     R = 10.
     r = 1.
     x_M = np.random.rand(3)
@@ -30,7 +30,7 @@ def test_ball_gear():
 
 def test_bar_gear():
     # create gear
-    n = 5
+    n = 6
     R = 10.
     h = 1.
     w = 2.
@@ -57,7 +57,7 @@ def test_bar_gear():
 
 def test_segment_gear():
     # create gear
-    n = 5
+    n = 6
     R = 10.
     w = 2.
     d = 3.
@@ -82,7 +82,7 @@ def test_segment_gear():
 
 if __name__ == "__main__":
     # create test directory
-    test_dir = "test_dir"
+    test_dir = "test_magnetic_gear_classes"
     if not os.path.exists(test_dir):
         os.mkdir(test_dir)
     os.chdir(test_dir)

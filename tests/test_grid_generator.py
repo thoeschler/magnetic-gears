@@ -5,7 +5,7 @@ import subprocess
 import os
 
 def test_ball_gear_mesh():
-    n = 5
+    n = 6
     R = 10.
     r = 1.
     x_M = np.random.rand(3)
@@ -16,11 +16,11 @@ def test_ball_gear_mesh():
     ball_gear.create_magnets(M0)
 
     _ = gear_mesh(ball_gear, mesh_size_magnets=0.5, fname="testball", \
-                  write_to_pvd=True, verbose=True)
+                  write_to_pvd=True, verbose=False)
 
 def test_bar_gear_mesh():
     # create gear
-    n = 5
+    n = 6
     R = 10.
     h = 1.5
     w = 1.
@@ -32,7 +32,7 @@ def test_bar_gear_mesh():
     bar_gear.create_magnets(M0)
 
     _ = gear_mesh(bar_gear, mesh_size_magnets=0.5, fname="testbar", \
-                  write_to_pvd=True, verbose=True)
+                  write_to_pvd=True, verbose=False)
 
 def test_segment_mesh():
     # create gear
@@ -47,7 +47,7 @@ def test_segment_mesh():
     segment_gear.create_magnets(M0)
 
     _ = gear_mesh(segment_gear, mesh_size_magnets=0.5, fname="testsegment", \
-                  write_to_pvd=True, verbose=True)
+                  write_to_pvd=True, verbose=False)
 
 if __name__ == "__main__":
     # create test directory
