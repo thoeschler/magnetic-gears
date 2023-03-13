@@ -2,6 +2,7 @@ import dolfin as dlf
 import numpy as np
 from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
+from source.tools.math_tools import get_rot
 
 
 class MagneticGear:
@@ -352,15 +353,11 @@ class MagneticBallGear(MagneticGear):
         for k in range(self.n):
             if k % 2 == 0:
                 # magnetization pointing outward
-                Q = Rotation.from_rotvec(
-                    (- np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
-                    ).as_matrix()
+                Q = get_rot(- np.pi / 2 + 2 * np.pi / self.n * k)
             else:
                 # magnetization pointing inward
-                Q = Rotation.from_rotvec(
-                    (np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
-                    ).as_matrix()
-            x_M = self.x_M + Q.dot(self.R * np.array([0., 1., 0.]))
+                Q = get_rot(np.pi / 2 + 2 * np.pi / self.n * k)
+            x_M = self.x_M + get_rot(2 * np.pi / self.n * k).dot(np.array([0., self.R, 0.]))
             self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
         print("Done.")
 
@@ -433,15 +430,11 @@ class MagneticBarGear(MagneticGear):
         for k in range(self.n):
             if k % 2 == 0:
                 # magnetization pointing outward
-                Q = Rotation.from_rotvec(
-                    (- np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
-                    ).as_matrix()
+                Q = get_rot(- np.pi / 2 + 2 * np.pi / self.n * k)
             else:
                 # magnetization pointing inward
-                Q = Rotation.from_rotvec(
-                    (np.pi / 2 + 2 * np.pi / self.n * k) * np.array([1., 0., 0.])
-                    ).as_matrix()
-            x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
+                Q = get_rot(np.pi / 2 + 2 * np.pi / self.n * k)
+            x_M = self.x_M + get_rot(2 * np.pi / self.n * k).dot(np.array([0., self.R, 0.]))
             self._magnets.append(BarMagnet(width=self.w, depth=self.d, height=self.h, \
                                            magnetization_strength=magnetization_strength, \
                                            position_vector=x_M, rotation_matrix=Q
