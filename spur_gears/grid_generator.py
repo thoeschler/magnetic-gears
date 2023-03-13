@@ -51,12 +51,13 @@ def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, \
     # add/remove magnets
     magnet_entities = []
     D = np.linalg.norm(x_M_ref - gear.x_M)
-    rot =  Rotation.from_rotvec((2 * np.pi / gear.n) * np.array([1., 0., 0.])).as_matrix()
+    # if magnet is not close enough to other gear for rotation by +- pi / n, remove it 
+    rot =  Rotation.from_rotvec((np.pi / gear.n) * np.array([1., 0., 0.])).as_matrix()
     magnets = list(gear.magnets)  # copy magnet list: list is different, magnets are the same
     removed_magnets = list()
     for magnet in magnets:
-        x_M_max = rot.dot(magnet.x_M - gear.x_M) + magnet.x_M
-        x_M_min = rot.T.dot(magnet.x_M - gear.x_M) + magnet.x_M
+        x_M_max = rot.dot(magnet.x_M - gear.x_M) + gear.x_M
+        x_M_min = rot.T.dot(magnet.x_M - gear.x_M) + gear.x_M
         # remove magnet if too far away
         if (np.linalg.norm(x_M_max - x_M_ref) > D) and (np.linalg.norm(x_M_min - x_M_ref) > D):
             removed_magnets.append(magnet)
@@ -71,14 +72,14 @@ def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, \
             else:
                 raise RuntimeError()
             magnet_entities.append(magnet_tag)
-        
+
     model.occ.synchronize()
 
     # get boundary entities
     magnet_boundary_entities = [model.getBoundary([(3, magnet_tag)], oriented=False)[0][1] \
         for magnet_tag in magnet_entities]
 
-    # create namedtuple
+    # add physical groups
     magnet_subdomain_tags, magnet_boundary_subdomain_tags = add_physical_groups(
         model, magnet_entities, magnet_boundary_entities
         )
@@ -92,7 +93,7 @@ def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, \
     # write mesh to msh file
     gmsh.write(fname.rstrip("/") + '.msh')
 
-    # create namedtuple
+    # generate mesh and markers
     mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname, delete_source_files=False)
     if write_to_pvd:
         dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
@@ -138,7 +139,7 @@ def segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, padding, mesh_size, w
     # write mesh to msh file
     gmsh.write(fname.rstrip("/") + '.msh')
 
-    # create namedtuple
+    # generate mesh and markers
     mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname, delete_source_files=False)
     if write_to_pvd:
         dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
