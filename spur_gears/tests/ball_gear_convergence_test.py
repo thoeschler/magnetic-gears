@@ -29,96 +29,40 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             else:
                 gear.set_mesh_function(gear_mesh)
 
-    def assign_gears(self):
-        if self.gear_1.R < self.gear_2.R:
-            self.sg = self.gear_1  # smaller gear
-            self.lg = self.gear_2  # larger gear
+    def mesh_gear(self, gear, mesh_size_magnets, fname, mesh_all_magnets=False, write_to_pvd=True):
+        if gear is self.gear_1:
+            other_gear = self.gear_2
+        elif gear is self.gear_2:
+            other_gear = self.gear_1
         else:
-            self.sg = self.gear_2  # smaller gear
-            self.lg = self.gear_1  # larger gear
+            raise RuntimeError()
 
-    def interpolate_to_segment(self, mesh_size_magnets, p_deg=1, interpolate="once", use_Vm=False):
-        assert interpolate in ("once", "twice")
-
-        ################################################
-        ############# create segment mesh ##############
-        ################################################
-
-        # set geometrical paramters
-        assert isinstance(self.sg, MagneticBallGear)
-        assert isinstance(self.lg, MagneticBallGear)
-        pad = self.sg.r
-        t = 2 * self.sg.r
-
-        # angle to contain smaller gear
-        angle = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
-        angle += 2 * np.pi / self.lg.n  # allow rotation by +- pi / n
-        if angle > 2 * np.pi:  # make sure angle is at most 2 pi
-            angle = 2 * np.pi
-
-        # inner segment radius
-        Ri = self.D - self.sg.outer_radius
-
-        # set angle of segment
-        # "-1" to allow rotation by +- pi / n
-        # => assume one magnet less has been removed
-        if self.sg.n > len(self.sg.magnets):
-            alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets) - 1)
+        if mesh_all_magnets:
+            self.create_gear_mesh(gear, mesh_size_magnets=mesh_size_magnets, fname=fname, \
+                                  write_to_pvd=write_to_pvd)
         else:
-            alpha_r = 0.
-
-        # x_axis of segment (for angle)
-        if self.sg.x_M[1] > self.lg.x_M[1]:
-            x_axis = np.array([0., 1., 0.])
-        else:
-            x_axis = np.array([0., -1., 0.])
-
-        # outer segment radius
-        Ro = np.sqrt((self.D + self.sg.R * np.cos(alpha_r)) ** 2 + (self.sg.R * np.sin(alpha_r)) ** 2)
-
-        ref_path = self._main_dir + "/data/reference"
-        if not os.path.exists(ref_path):
-            os.makedirs(ref_path)
-
-        self.seg_mesh, _, _ = segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
-                                        x_axis=x_axis, fname=ref_path + "/reference_segment", padding=pad, \
-                                        mesh_size=mesh_size_magnets, write_to_pvd=True)
-
-        ################################################
-        ######### interpolate to segment mesh ##########
-        ################################################
-        if interpolate == "twice":
-            use_reference_field = True
-            mesh_size_min = mesh_size_magnets / max(self.gear_1.scale_parameter, self.gear_2.scale_parameter)
-            mesh_size_max = 3 * mesh_size_min
-        else:
-            use_reference_field = False
-        field_name = "Vm" if use_Vm else "B"
-
-        # interpolate fields of other gear on segment
-        self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, field_name, "CG", p_deg=p_deg, \
-                                                  mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
-                                                    use_ref_field=use_reference_field)
+            self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size_magnets=mesh_size_magnets, \
+                                  fname=fname, write_to_pvd=write_to_pvd)
 
     def compute_force_torque_numerically(self, p_deg=1, interpolate="never", use_Vm=False):
         if interpolate in ("once", "twice"):
-            assert hasattr(self, "seg_mesh")
+            assert hasattr(self, "segment_mesh")
             # if interpolation is used, use the field on the segment
             if use_Vm:
-                assert hasattr(self, "Vm_ref")
+                assert hasattr(self, "Vm_segment")
                 # create function on smaller gear
                 V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
                 Vm_lg = dlf.Function(V)
 
-                LagrangeInterpolator.interpolate(Vm_lg, self.Vm_ref)
+                LagrangeInterpolator.interpolate(Vm_lg, self.Vm_segment)
                 B_lg = compute_current_potential(Vm_lg, project_to_CG=True)
             else:
-                assert hasattr(self, "B_ref")
+                assert hasattr(self, "B_segment")
                 # create function on smaller gear
                 V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
                 B_lg = dlf.Function(V)
 
-                LagrangeInterpolator.interpolate(B_lg, self.B_ref)
+                LagrangeInterpolator.interpolate(B_lg, self.B_segment)
         elif interpolate == "never":
             if use_Vm:
                 V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
@@ -147,21 +91,6 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
 
         return F_pad, tau_sg
 
-    def mesh_gear(self, gear, mesh_size_magnets, fname, mesh_all_magnets=False, write_to_pvd=True):
-        if gear is self.gear_1:
-            other_gear = self.gear_2
-        elif gear is self.gear_2:
-            other_gear = self.gear_1
-        else:
-            raise RuntimeError()
-
-        if mesh_all_magnets:
-            self.create_gear_mesh(gear, mesh_size_magnets=mesh_size_magnets, fname=fname, \
-                                  write_to_pvd=write_to_pvd)
-        else:
-            self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size_magnets=mesh_size_magnets, \
-                                  fname=fname, write_to_pvd=write_to_pvd)
-
     def update_gear(self, gear: MagneticGear, d_angle, update_segment=False):
         """Update gear given an angle increment.
 
@@ -172,16 +101,16 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
         """
         gear.update_parameters(d_angle)
         if update_segment:
-            self.seg_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
-            if hasattr(self, "B_ref"):
-                rotate_vector_field(self.B_ref, get_rot(d_angle))
+            self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
+            if hasattr(self, "B_segment"):
+                rotate_vector_field(self.B_segment, get_rot(d_angle))
         while np.abs(gear.angle) > np.pi / gear.n:
             # first rotate segment
             if update_segment:
                 # rotate back: 
-                self.seg_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
-                if hasattr(self, "B_ref"):
-                    rotate_vector_field(self.B_ref, get_rot(- np.sign(gear.angle) * 2 * np.pi / gear.n))
+                self.segment_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
+                if hasattr(self, "B_segment"):
+                    rotate_vector_field(self.B_segment, get_rot(- np.sign(gear.angle) * 2 * np.pi / gear.n))
             # then update parameters
             gear.update_parameters(- np.sign(gear.angle) * 2. * np.pi / gear.n)
 
@@ -246,12 +175,13 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
 
         # mesh the segment if interpolation is used (once or twice)
         if interpolate in ("once", "twice"):
-            cg.interpolate_to_segment(ms, p_deg, interpolate=interpolate, use_Vm=use_Vm)
+            cg.mesh_reference_segment(ms)
+            cg.interpolate_to_reference_segment(ms, p_deg, interpolate=interpolate, use_Vm=use_Vm)
 
         # introduce some randomness: rotate gears and segment by arbitrary angles
         cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
-        # the segment contains the field of the larger gear. So rotate the segment as well
-        # when the larger gear is rotated. Updates B_ref automatically (if used). 
+        # the segment contains the field of the larger gear. Rotate the segment as well
+        # when rotating the larger gear. Updates B_segment automatically (if used). 
         cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item(), \
                        update_segment=(interpolate != "never"))
 
@@ -292,8 +222,8 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
                 tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_2.x_M)
                 tau_12_ana_vec += tau_mag
 
-        for m1 in cg.gear_2.magnets:
-            for m2 in cg.gear_1.magnets:
+        for m1 in cg.all_magnets_2:
+            for m2 in cg.all_magnets_1:
                 f_ana = compute_force_ana(m1, m2)
                 f_21_ana_vec += f_ana
                 tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_1.x_M)
@@ -336,15 +266,15 @@ if __name__ == "__main__":
     if not os.path.exists(conv_dir):
         os.mkdir(conv_dir)
     os.chdir(conv_dir)
-    mesh_sizes = np.geomspace(1.5e-2, 1.0, num=5)
+    mesh_sizes = np.geomspace(1e-1, 1.0, num=6)
     for p_deg in (1, 2):
         ma = False
         # 1. interpolate never, use Vm
         #main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
         #     dir=f"Vm_interpol_never_pdeg_{p_deg}")
         # 2. interpolate once, use Vm
-        #main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, mesh_all_magnets=ma, \
-        #     dir=f"Vm_interpol_once_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, mesh_all_magnets=ma, \
+             dir=f"Vm_interpol_once_pdeg_{p_deg}")
         # 3. interpolate twice, use Vm
         main(mesh_sizes, p_deg, interpolate="twice", use_Vm=True, mesh_all_magnets=ma, \
              dir=f"Vm_interpol_twice_pdeg_{p_deg}")

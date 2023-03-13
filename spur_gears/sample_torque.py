@@ -4,8 +4,7 @@ import json
 import os
 from dolfin import LagrangeInterpolator
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear, MagneticGear
-from source.tools.tools import interpolate_field
-from source.tools.fenics_tools import compute_magnetic_field
+from source.tools.fenics_tools import compute_current_potential
 from spur_gears.spur_gears_problem import SpurGearsProblem
 from spur_gears.grid_generator import gear_mesh, segment_mesh
 
@@ -14,15 +13,9 @@ class SpurGearsSampling(SpurGearsProblem):
     def __init__(self, first_gear, second_gear, D, main_dir=None):
         super().__init__(first_gear, second_gear, D, main_dir)
         self.align_gears()
+        assert self.gear_1.angle == 0.
+        assert self.gear_2.angle == 0.
         self.set_mesh_functions()
-
-    def assign_gears(self):
-        if self.gear_1.R < self.gear_2.R:
-            self.sg = self.gear_1  # smaller gear
-            self.lg = self.gear_2  # larger gear
-        else:
-            self.sg = self.gear_2  # smaller gear
-            self.lg = self.gear_1  # larger gear
 
     def set_mesh_functions(self):
         """Set mesh function for both gears."""
@@ -39,66 +32,21 @@ class SpurGearsSampling(SpurGearsProblem):
         self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, \
             mesh_size_magnets=mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd)
 
-    def interpolate_to_segment(self, mesh_size_magnets, p_deg=1, interpolate="once"):
-        ################################################
-        ############# create segment mesh ##############
-        ################################################
-
-        # set geometrical paramters
-        assert isinstance(self.sg, MagneticBallGear)
-        assert isinstance(self.lg, MagneticBallGear)
-        pad = self.sg.r
-        t = 2 * self.sg.r
-
-        # angle to contain smaller gear
-        angle = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
-        angle += 2 * np.pi / self.lg.n  # allow rotation by +- pi / n
-        if angle > 2 * np.pi:  # make sure angle is at most 2 pi
-            angle = 2 * np.pi
-
-        # inner segment radius
-        Ri = self.D - self.sg.outer_radius
-
-        # set angle of segment
-        # "-1" to allow rotation by +- pi / n
-        # => assume one magnet less has been removed
-        if self.sg.n > len(self.sg.magnets):
-            alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets) - 1)
-        else:
-            alpha_r = 0.
-
-        # x_axis of segment
-        if self.sg.x_M[1] > self.lg.x_M[1]:
-            x_axis = np.array([0., 1., 0.])
-        else:
-            x_axis = np.array([0., -1., 0.])
-        
-        # outer segment radius
-        Ro = np.sqrt((self.D + self.sg.R * np.cos(alpha_r)) ** 2 + (self.sg.R * np.sin(alpha_r)) ** 2)
-
-        ref_path = self._main_dir + "/data/reference"
-        if not os.path.exists(ref_path):
-            os.makedirs(ref_path)
-
-        self.seg_mesh, _, _ = segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
-                                        x_axis=x_axis, fname=ref_path + "/reference_segment", padding=pad, \
-                                        mesh_size=mesh_size_magnets, write_to_pvd=True)
-
+    def interpolate_to_segment(self, mesh_size_magnets, p_deg=1, interpolate="once", use_Vm=False):
         ################################################
         ######### interpolate to segment mesh ##########
         ################################################
-        if interpolate == "once":
-            V = dlf.FunctionSpace(self.seg_mesh, "CG", p_deg)
-            Vm_ref_vec = 0.
-            for mag in self.lg.magnets:
-                Vm_mag = interpolate_field(mag.Vm_as_expression(), self.seg_mesh, "CG", p_deg)
-                Vm_ref_vec += Vm_mag.vector()
-            self.Vm_ref = dlf.Function(V, Vm_ref_vec)
-        elif interpolate == "twice":
+        if interpolate == "twice":
+            mesh_size_min = mesh_size_magnets / max(self.gear_1.scale_parameter, self.gear_2.scale_parameter)
+            mesh_size_max = 3 * mesh_size_min
             # interpolate fields of other gear on segment
-            self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "DG", p_deg, \
-                                                    mesh_size_magnets / max(self.gear_1.scale_parameter, \
-                                                                            self.gear_2.scale_parameter), 3 * mesh_size_magnets)
+            self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "CG", p_deg=p_deg, \
+                                                    mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
+                                                    use_ref_field=True)
+        else:
+            # interpolate fields of other gear on segment
+            self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "CG", p_deg=p_deg, \
+                                                        use_ref_field=False)
 
     def compute_force_torque_numerically(self, p_deg=1):
         assert hasattr(self, "seg_mesh")
@@ -108,7 +56,7 @@ class SpurGearsSampling(SpurGearsProblem):
         Vm_lg = dlf.Function(V)
 
         LagrangeInterpolator.interpolate(Vm_lg, self.Vm_ref)
-        B_lg = compute_magnetic_field(Vm_lg, p_deg)
+        B_lg = compute_current_potential(Vm_lg, p_deg)
         dlf.File("Vm_ref.pvd") << self.Vm_ref
         dlf.File("Vm_lg.pvd") << Vm_lg
         dlf.File("B_lg.pvd") << B_lg
@@ -185,8 +133,8 @@ def sample_torque_ball(n_iterations, mesh_size, p_deg=1, interpolate="once", dir
         os.mkdir(dir)
 
     # create two ball gears
-    gear_1_ball = MagneticBallGear(n=15, r=1.5, R=10, x_M=np.zeros(3))
-    gear_2_ball = MagneticBallGear(n=17, r=2.0, R=15, x_M=np.array([0., 1., 0.]))
+    gear_1_ball = MagneticBallGear(n=6, r=1.5, R=10, x_M=np.zeros(3))
+    gear_2_ball = MagneticBallGear(n=8, r=2.0, R=15, x_M=np.array([0., 1., 0.]))
     gear_1_ball.create_magnets(magnetization_strength=1.0)
     gear_2_ball.create_magnets(magnetization_strength=1.0)
 
@@ -216,7 +164,7 @@ def sample_torque_bar(n_iterations, mesh_size, p_deg=1, interpolate="once"):
         os.mkdir(sample_dir)
 
     gear_1_bar = MagneticBarGear(n=12, h=2.0, w=0.75, d=0.5, R=12, x_M=np.zeros(3))
-    gear_2_bar = MagneticBarGear(n=15, h=2.0, w=0.75, d=0.5, R=18, x_M=np.array([0., 1., 0.]))
+    gear_2_bar = MagneticBarGear(n=14, h=2.0, w=0.75, d=0.5, R=18, x_M=np.array([0., 1., 0.]))
     gear_1_bar.create_magnets(magnetization_strength=1.0)
     gear_2_bar.create_magnets(magnetization_strength=1.0)
 

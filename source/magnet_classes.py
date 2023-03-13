@@ -2,6 +2,7 @@ import numpy as np
 from source.magnetic_field import free_current_potential_bar_magnet, magnetic_potential_bar_magnet
 from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpression
 
+
 class PermanentMagnet:
     def __init__(self, type_classifier, magnetization_strength, position_vector, rotation_matrix):
         """Permanent magnet.

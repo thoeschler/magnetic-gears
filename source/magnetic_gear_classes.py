@@ -1,6 +1,5 @@
 import dolfin as dlf
 import numpy as np
-from scipy.spatial.transform import Rotation
 from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
 from source.tools.math_tools import get_rot
 
@@ -41,7 +40,7 @@ class MagneticGear:
         d_x_M = x_M - self.x_M
         # update mesh coordinates
         if hasattr(self, "_mesh"):
-            self.translate_mesh(x_M - self.x_M)
+            self.translate_mesh(d_x_M)
         self._x_M = x_M
         # update magnet coordinates
         if hasattr(self, "_magnets"):
@@ -50,6 +49,10 @@ class MagneticGear:
     @property
     def angle(self):
         return self._angle
+
+    @property
+    def width(self):
+        """The gear's width."""
 
     def reset_angle(self, angle):
         self._angle = angle
@@ -239,7 +242,7 @@ class MagneticGear:
             d_x_M (np.ndarray): Center of mass increment.
         """
         assert hasattr(self, "magnets")
-        rot = Rotation.from_rotvec(d_angle * np.array([1., 0., 0.])).as_matrix()
+        rot = get_rot(d_angle)
         for mag in self.magnets:
             # new position vector
             x_M = mag.x_M + d_x_M  # shift by d_x_M
@@ -328,6 +331,10 @@ class MagneticBallGear(MagneticGear):
         return self._r
 
     @property
+    def width(self):
+        return 2 * self.r
+
+    @property
     def outer_radius(self):
         return self.R + self.r
 
@@ -375,23 +382,27 @@ class MagneticBarGear(MagneticGear):
             x_M (np.ndarray): Position vector.
         """
         super().__init__(n, R, x_M)
-        self._d = d  # the magnet depth (here: x-direction!)
-        self._w = w  # the magnet width (here: y-direction!)
-        self._h = h  # the magnet height (here: z-direction!)
+        self._w = w  # the magnet width (here: x-direction!)
+        self._d = d  # the magnet depth (here: tangential direction!)
+        self._h = h  # the magnet height (here: radial direction!)
         self._scale_parameter = w  # use width for scaling
         self._magnet_type = "Bar"
-
-    @property
-    def d(self):
-        return self._d
 
     @property
     def w(self):
         return self._w
 
     @property
+    def d(self):
+        return self._d
+
+    @property
     def h(self):
         return self._h
+
+    @property
+    def width(self):
+        return 2 * self.w
 
     @property
     def outer_radius(self):
@@ -406,7 +417,7 @@ class MagneticBarGear(MagneticGear):
             "h": self.h
         })
         return par
-    
+
     def reference_magnet(self):
         """Get reference bar magnet.
 
@@ -454,8 +465,8 @@ class SegmentGear(MagneticGear):
             x_M (np.ndarray): Position vector.
         """
         super().__init__(n, R, x_M)
-        self._d = d  # the magnet depth (here: x-direction!)
-        self._w = w  # the magnet width (here: y-direction!)
+        self._w = w  # the magnet width (here: x-direction!)
+        self._d = d  # the magnet depth (here: radial direction!)
         self._alpha = np.pi / n  # half the angle per magnet
         self._scale_parameter = self.w  # use magnet with for scaling
         self._magnet_type = "CylinderSegment"
@@ -471,6 +482,11 @@ class SegmentGear(MagneticGear):
     @property
     def alpha(self):
         return self._alpha
+
+    @property
+    def width(self):
+        return self._w
+
 
     @property
     def outer_radius(self):
@@ -513,7 +529,7 @@ class SegmentGear(MagneticGear):
             else:
                 # magnetization pointing inward
                 magnetization_direction = "in"
-            Q = Rotation.from_rotvec(2 * np.pi / self.n * k * np.array([1., 0., 0.])).as_matrix()
+            Q = get_rot(2 * np.pi / self.n * k)
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
             self._magnets.append(CylinderSegment(radius=self.R, width=self.w, depth=self.d, \
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \

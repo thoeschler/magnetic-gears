@@ -38,8 +38,7 @@ def add_segment(model, Ri, Ro, t, angle, x_M, x_axis):
 
     return segment
 
-def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, \
-    verbose=False):
+def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, verbose=False):
     assert x_M_ref is not None
     assert len(x_M_ref) == 3
     print("Meshing gear... ", end="")

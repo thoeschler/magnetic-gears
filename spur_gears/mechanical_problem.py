@@ -1,5 +1,5 @@
-from coaxial.time_step import get_integrator
-from source.tools.math_tools import get_interpolater, interpolate
+from spur_gears.time_step import get_integrator
+from source.tools.math_tools import get_interpolater, periodic_interpolation
 import pandas as pd
 import numpy as np
 import os
@@ -63,8 +63,8 @@ def main():
     tau_out = 0.
 
     # torque functions
-    tau1 = lambda phi1, phi2, phip1, phip2: interpolate(torque_1_interp, (phi1, phi2)) + tau_in
-    tau2 = lambda phi1, phi2, phip1, phip2: interpolate(torque_2_interp, (phi1, phi2)) + tau_out
+    tau1 = lambda phi1, phi2, phip1, phip2: periodic_interpolation(torque_1_interp, (phi1, phi2)) + tau_in
+    tau2 = lambda phi1, phi2, phip1, phip2: periodic_interpolation(torque_2_interp, (phi1, phi2)) + tau_out
 
     # initial values
     phi_1 = 0.

@@ -7,6 +7,7 @@ from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
 from source.tools.fenics_tools import rotate_vector_field
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
+from spur_gears.grid_generator import segment_mesh
 
 
 class SpurGearsProblem:
@@ -103,6 +104,14 @@ class SpurGearsProblem:
         # make sure north and south pole of the magnets are facing each other
         self.gear_2.update_parameters(2 * np.pi / self.gear_2.n)
         self.gear_2.reset_angle(0.)
+
+    def assign_gears(self):
+        if self.gear_1.R < self.gear_2.R:
+            self.sg = self.gear_1  # smaller gear
+            self.lg = self.gear_2  # larger gear
+        else:
+            self.sg = self.gear_2  # smaller gear
+            self.lg = self.gear_1  # larger gear
 
     def align_gear(self, gear, other_gear):
         """Align gear with another gear.
@@ -285,6 +294,88 @@ class SpurGearsProblem:
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
+    def mesh_reference_segment(self, mesh_size):
+        """
+        Interpolate magnetic field of larger gear on cylinder segment containing
+        the smaller gear.
+
+        Args:
+            mesh_size (_type_): _description_
+            p_deg (int, optional): _description_. Defaults to 1.
+            interpolate (str, optional): _description_. Defaults to "once".
+        """
+        # set geometrical paramters
+        t = self.sg.width  # segment width (thickness)
+
+        # angle to contain smaller gear
+        angle = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
+        angle += 2 * np.pi / self.lg.n  # allow rotation by +- pi / n
+        if angle > 2 * np.pi:  # make sure angle is at most 2 pi
+            angle = 2 * np.pi
+
+        # inner segment radius
+        Ri = self.D - self.sg.outer_radius
+
+        # set outer segment radius
+        # alpha_r is the angle that is "removed" from the smaller gear if magnets
+        # are removed
+        # "-1" to allow rotation by +- pi / n
+        # => assume one magnet less has been removed
+        if self.sg.n > len(self.sg.magnets):
+            alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets) - 1)
+        else:
+            alpha_r = 0.
+        # outer segment radius
+        Ro = np.sqrt((self.D + self.sg.R * np.cos(alpha_r)) ** 2 + (self.sg.R * np.sin(alpha_r)) ** 2)
+
+        # x_axis of segment (for angle)
+        if self.sg.x_M[1] > self.lg.x_M[1]:
+            x_axis = np.array([0., 1., 0.])
+        else:
+            x_axis = np.array([0., -1., 0.])
+
+        ref_path = self._main_dir + "/data/reference"
+        if not os.path.exists(ref_path):
+            os.makedirs(ref_path)
+
+        self.segment_mesh, _, _ = segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
+                                               x_axis=x_axis, fname=ref_path + "/reference_segment", padding=1e-2, \
+                                               mesh_size=mesh_size, write_to_pvd=True)
+
+    def interpolate_to_reference_segment(self, mesh_size=None, p_deg=2, interpolate="once", use_Vm=True):
+        """
+        Interpolate field of larger gear on smaller gear.
+
+        Args:
+            mesh_size (_type_): _description_
+            p_deg (int, optional): _description_. Defaults to 2.
+            interpolate (str, optional): _description_. Defaults to "once".
+            use_Vm (bool, optional): _description_. Defaults to True.
+        """
+        assert hasattr(self, "segment_mesh")
+
+        if interpolate == "twice":
+            assert isinstance(mesh_size, float)
+            mesh_size_min = mesh_size / max(self.gear_1.scale_parameter, self.gear_2.scale_parameter)
+            mesh_size_max = 3 * mesh_size_min
+            # interpolate fields of other gear on segment
+            if use_Vm:
+                self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
+                                                      mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
+                                                        use_ref_field=True)
+            else:
+                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
+                                                         mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
+                                                            use_ref_field=True)
+        else:
+            if use_Vm:
+                # interpolate fields of other gear on segment
+                self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
+                                                          use_ref_field=False)
+            else:
+                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
+                                                         use_ref_field=False)
+
     def interpolate_field_gear(self, gear: MagneticGear, mesh, field_name, cell_type, p_deg, \
                                mesh_size_min=1.0, mesh_size_max=1.0, use_ref_field=True):
         """Interpolate a field of a gear on a given mesh.
@@ -335,18 +426,17 @@ class SpurGearsProblem:
 
         print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
-        if use_ref_field:
-            for mag in gear.magnets:
+        for mag in gear.magnets:
+            if use_ref_field:
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
                     mesh, cell_type, p_deg, scale=gear.scale_parameter)
-                field_sum += interpol_field.vector()
-        else:
-            for mag in gear.magnets:
+            else:
                 if field_name == "B":
                     interpol_field = interpolate_field(mag.B, mesh, cell_type, p_deg)
                 elif field_name == "Vm":
                     interpol_field = interpolate_field(mag.Vm, mesh, cell_type, p_deg)
-                field_sum += interpol_field.vector()
+
+            field_sum += interpol_field.vector()
 
         print("Done.")
         return dlf.Function(V, field_sum)
