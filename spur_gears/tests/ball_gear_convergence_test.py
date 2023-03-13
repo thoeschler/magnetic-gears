@@ -18,6 +18,8 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
         self.align_gears()
         assert self.gear_1.angle == 0.
         assert self.gear_2.angle == 0.
+        self.all_magnets_1 = list(self.gear_1.magnets)
+        self.all_magnets_2 = list(self.gear_2.magnets)
 
     def set_mesh_functions(self, mesh_all_magnets=False):
         """Set mesh function for both gears."""
@@ -88,7 +90,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
         if interpolate == "twice":
             use_reference_field = True
             mesh_size_min = mesh_size_magnets / max(self.gear_1.scale_parameter, self.gear_2.scale_parameter)
-            mesh_size_max = mesh_size_min
+            mesh_size_max = 3 * mesh_size_min
         else:
             use_reference_field = False
         field_name = "Vm" if use_Vm else "B"
@@ -97,32 +99,6 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
         self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, field_name, "CG", p_deg=p_deg, \
                                                   mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
                                                     use_ref_field=use_reference_field)
-
-        """if interpolate == "once":
-            if use_Vm:
-                V = dlf.FunctionSpace(self.seg_mesh, "CG", p_deg)
-                Vm_ref_vec = 0.
-                for mag in self.lg.magnets:
-                    Vm_mag = interpolate_field(mag.Vm, self.seg_mesh, "CG", p_deg)
-                    Vm_ref_vec += Vm_mag.vector()
-                self.Vm_ref = dlf.Function(V, Vm_ref_vec)
-            else:
-                V = dlf.VectorFunctionSpace(self.seg_mesh, "CG", p_deg)
-                B_ref_vec = 0.
-                for mag in self.lg.magnets:
-                    B_mag = interpolate_field(mag.B, self.seg_mesh, "CG", p_deg)
-                    B_ref_vec += B_mag.vector()
-                self.B_ref = dlf.Function(V, B_ref_vec)"""
-        """elif interpolate == "twice":
-            if use_Vm:
-                # interpolate fields of other gear on segment
-                self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "CG", p_deg, \
-                                                        mesh_size_magnets / max(self.gear_1.scale_parameter, \
-                                                                                self.gear_2.scale_parameter), 3 * mesh_size_magnets)
-            else:
-                self.B_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "B", "CG", p_deg, \
-                                                    mesh_size_magnets / max(self.gear_1.scale_parameter, \
-                                                                            self.gear_2.scale_parameter), 3 * mesh_size_magnets)"""
 
     def compute_force_torque_numerically(self, p_deg=1, interpolate="never", use_Vm=False):
         if interpolate in ("once", "twice"):
@@ -307,8 +283,10 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         f_21_ana_vec = np.zeros(3)
         tau_12_ana_vec = np.zeros(3)
         tau_21_ana_vec = np.zeros(3)
-        for m1 in cg.gear_1.magnets:
-            for m2 in cg.gear_2.magnets:
+        assert len(cg.all_magnets_1) == cg.gear_1.n
+        assert len(cg.all_magnets_2) == cg.gear_2.n
+        for m1 in cg.all_magnets_1:
+            for m2 in cg.all_magnets_2:
                 f_ana = compute_force_ana(m1, m2)
                 f_12_ana_vec += f_ana
                 tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_2.x_M)
