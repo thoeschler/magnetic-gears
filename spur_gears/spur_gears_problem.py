@@ -100,6 +100,9 @@ class SpurGearsProblem:
         assert hasattr(self.gear_1, "_magnets")
         self.align_gear(self.gear_1, self.gear_2)
         self.align_gear(self.gear_2, self.gear_1)
+        # make sure north and south pole of the magnets are facing each other
+        self.gear_2.update_parameters(2 * np.pi / self.gear_2.n)
+        self.gear_2.reset_angle(0.)
 
     def align_gear(self, gear, other_gear):
         """Align gear with another gear.
@@ -254,7 +257,7 @@ class SpurGearsProblem:
                     write_pvd=True)
             elif field_name == "Vm":
                 field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, \
-                                                   scale=gear.scale_parameter, fname=f"{ref_dir}/{field_name}",write_pvd=True)
+                                                   fname=f"{ref_dir}/{field_name}",write_pvd=True)
             else:
                 raise RuntimeError()
 
@@ -282,24 +285,25 @@ class SpurGearsProblem:
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
-    def interpolate_field_gear(self, gear, mesh, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max):
+    def interpolate_field_gear(self, gear: MagneticGear, mesh, field_name, cell_type, p_deg, \
+                               mesh_size_min=1.0, mesh_size_max=1.0, use_ref_field=True):
         """Interpolate a field of a gear on a given mesh.
 
         Args:
-            gear (MagneticGear): The magnetic gear that owns the field.
+            gear (MagneticGear): Magnetic gear.
             mesh (dlf.Mesh): The finite element mesh.
             field_name (str): Name of the field, e.g. "B".
             cell_type (str): Finite element cell type.
             p_deg (int): Polynomial degree of finite element.
-            mesh_size_min (float): Minimum mesh size of reference field. This value
+            mesh_size_min (float, optional): Minimum mesh size of reference field. This value
                                    will be used as the starting mesh size at the center
-                                   of the reference mesh.
-            mesh_size_max (float): Maximum mesh size of reference mesh. The reference
+                                   of the reference mesh. Defaults to 1.0.
+            mesh_size_max (float, optional): Maximum mesh size of reference mesh. The reference
                                    mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh.
-            domain_size (float): The maximum distance between two points of the two
-                                 gear meshes. This value will be used as the radius of
-                                 the reference mesh.
+                                   distance from the center of the reference mesh. Defaults
+                                   to 1.0.
+            use_ref_field (bool, optional): Whether or not to use a reference field or to evaluate
+                                  the field of each magnet directly. Defaults to True.
 
         Returns:
             dlf.Function: The interpolated field.
@@ -307,18 +311,19 @@ class SpurGearsProblem:
         assert field_name in ("B", "Vm")
         assert hasattr(self, "_domain_size")
 
-        # load reference field if not done yet
-        if not hasattr(gear, f"_{field_name}_ref"):
-            self._load_reference_field(gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
+        if use_ref_field:
+            # load reference field if not done yet
+            if not hasattr(gear, f"_{field_name}_ref"):
+                self._load_reference_field(gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
 
-        # create reference field handler
-        ref_field = gear.reference_field(field_name)
-        ref_mesh = gear.reference_mesh(field_name)
+            # create reference field handler
+            ref_field = gear.reference_field(field_name)
+            ref_mesh = gear.reference_mesh(field_name)
+
+        # create function space on target mesh
         if field_name == "B":
-            # new function space
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
         elif field_name == "Vm":
-            # new function space
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
@@ -330,29 +335,38 @@ class SpurGearsProblem:
 
         print(f"Interpolating magnetic field... ", end="")
         # interpolate field for every magnet and add it to the sum
-        for mag in gear.magnets:
-            interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name,ref_mesh, \
-                mesh, cell_type, p_deg)
-            field_sum += interpol_field.vector()
+        if use_ref_field:
+            for mag in gear.magnets:
+                interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
+                    mesh, cell_type, p_deg, scale=gear.scale_parameter)
+                field_sum += interpol_field.vector()
+        else:
+            for mag in gear.magnets:
+                if field_name == "B":
+                    interpol_field = interpolate_field(mag.B, mesh, cell_type, p_deg)
+                elif field_name == "Vm":
+                    interpol_field = interpolate_field(mag.Vm, mesh, cell_type, p_deg)
+                field_sum += interpol_field.vector()
 
         print("Done.")
         return dlf.Function(V, field_sum)
 
-    def _interpolate_field_magnet(self, magnet, ref_field, field_name, reference_mesh, mesh, cell_type, p_deg):
+    def _interpolate_field_magnet(self, magnet, ref_field, field_name, reference_mesh, mesh, cell_type, p_deg, scale=1.0):
         """Interpolate a magnet's magnetic field on a mesh. 
 
         Args:
-            magnet (PermanentAxialMagnet): The Magnet.
+            magnet (PermanentMagnet): The Magnet.
             ref_field (dlf.Function): The reference field that contains the
-                                magnetic field for a reference magnet.
+                                field for a reference magnet.
             field_name (str): Name of the field.
             reference_mesh (dlf.mesh): The reference mesh.
             mesh (dlf.Mesh): The target mesh.
             cell_type (str): Finite element type.
             p_deg (int): Polynomial degree.
+            scale (float): Scaling factor.
 
         Returns:
-            dlf.Function: The magnetic field interpolated on the mesh.
+            dlf.Function: The field interpolated on the mesh.
         """
         # copy everything
         reference_mesh_copy = dlf.Mesh(reference_mesh)
@@ -362,16 +376,17 @@ class SpurGearsProblem:
             reference_field_copy = dlf.Function(V_ref, ref_field.vector())
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
             # rotate reference field
-            if field_name == "B":
-                rotate_vector_field(reference_field_copy, magnet.Q)
+            rotate_vector_field(reference_field_copy, magnet.Q)
         elif field_name == "Vm":
             V_ref = dlf.FunctionSpace(reference_mesh_copy, cell_type, p_deg)
-            reference_field_copy = dlf.Function(V_ref, ref_field.vector())
+            # scale magnetic potential
+            reference_field_copy = dlf.Function(V_ref, scale * ref_field.vector())
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
 
         # scale, rotate and shift reference mesh according to magnet placement
+        reference_mesh_copy.scale(scale)
         # rotate first, then shift!
         reference_mesh_copy.coordinates()[:] = magnet.Q.dot(reference_mesh_copy.coordinates().T).T
         reference_mesh_copy.translate(dlf.Point(*magnet.x_M))
