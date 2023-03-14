@@ -152,12 +152,12 @@ def cylinder_segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, mesh_size, p
         tuple: Mesh, cell marker and facet marker.
     """
     if pad:
-        padding = Ro / 40.
+        padding = Ro / 20.
         Ri -= padding
         Ro += padding
         t += 2 * padding
-        angle += padding
-    
+        angle += angle / 20.
+
     # make sure angle is at most 2 pi
     if angle > 2 * np.pi:
         angle = 2 * np.pi
