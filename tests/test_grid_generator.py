@@ -15,7 +15,7 @@ def test_ball_gear_mesh():
     M0 = 10.  # magnetization strength
     ball_gear.create_magnets(M0)
 
-    _ = gear_mesh(ball_gear, mesh_size_magnets=0.5, fname="testball", \
+    _ = gear_mesh(ball_gear, mesh_size=0.5, fname="testball", \
                   write_to_pvd=True, verbose=False)
 
 def test_bar_gear_mesh():
@@ -31,7 +31,7 @@ def test_bar_gear_mesh():
     M0 = 10.  # magnetization strength
     bar_gear.create_magnets(M0)
 
-    _ = gear_mesh(bar_gear, mesh_size_magnets=0.5, fname="testbar", \
+    _ = gear_mesh(bar_gear, mesh_size=0.5, fname="testbar", \
                   write_to_pvd=True, verbose=False)
 
 def test_segment_mesh():
@@ -46,7 +46,7 @@ def test_segment_mesh():
     M0 = 10.  # magnetization strength
     segment_gear.create_magnets(M0)
 
-    _ = gear_mesh(segment_gear, mesh_size_magnets=0.5, fname="testsegment", \
+    _ = gear_mesh(segment_gear, mesh_size=0.5, fname="testsegment", \
                   write_to_pvd=True, verbose=False)
 
 if __name__ == "__main__":

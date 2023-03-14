@@ -4,7 +4,7 @@ import numpy as np
 import source.magnet_classes as mc
 from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpression
 from source.tools.mesh_tools import generate_xdmf_mesh
-from source.grid_generator import add_ball_magnet, add_bar_magnet, add_magnet_segment
+from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_segment_magnet
 
 
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
@@ -32,7 +32,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     elif isinstance(reference_magnet, mc.BarMagnet):
         magnet = add_bar_magnet(model, magnet=reference_magnet)
     elif isinstance(reference_magnet, mc.CylinderSegment):
-        magnet = add_magnet_segment(model, magnet=reference_magnet)
+        magnet = add_cylinder_segment_magnet(model, magnet=reference_magnet)
     else:
         raise RuntimeError()
 

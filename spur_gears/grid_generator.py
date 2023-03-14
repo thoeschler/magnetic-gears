@@ -3,7 +3,7 @@ import dolfin as dlf
 import numpy as np
 from source.tools.math_tools import get_rot
 import source.magnetic_gear_classes as mgc
-from source.grid_generator import add_ball_magnet, add_bar_magnet, add_magnet_segment, \
+from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_segment_magnet, \
     add_physical_groups, set_mesh_size_fields_gmsh
 from source.tools.mesh_tools import generate_mesh_with_markers
 
@@ -95,7 +95,7 @@ def gear_mesh(gear, x_M_ref, mesh_size, fname, write_to_pvd=False, verbose=False
             elif isinstance(gear, mgc.MagneticBarGear):
                 magnet_tag = add_bar_magnet(model, magnet)
             elif isinstance(gear, mgc.SegmentGear):
-                magnet_tag = add_magnet_segment(model, magnet)
+                magnet_tag = add_cylinder_segment_magnet(model, magnet)
             else:
                 raise RuntimeError()
             magnet_entities.append(magnet_tag)

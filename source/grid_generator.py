@@ -3,12 +3,22 @@ import numpy as np
 import dolfin as dlf
 from source.tools.mesh_tools import generate_mesh_with_markers
 import source.magnetic_gear_classes as mgc
+import source.magnet_classes as mc 
 
 
 def add_physical_groups(model, magnet_entities, magnet_boundary_entities):
-    """Add magnets as physical groups to gmsh model.
+    """
+    Add magnets as physical groups to gmsh model.
 
     The respective tags will later be used by the facet/cell markers.
+
+    Args:
+        model (gmsh.model): A gmsh model.
+        magnet_entities (list): Magnet tags in gmsh.occ.
+        magnet_boundary_entities (list): Magnet boundary tags in gmsh.occ.
+
+    Returns:
+        tuple: magnet_subdomain_tags, magnet_boundary_subdomain_tags
     """
     # store the physical group tags, they will later be used to reference subdomains
     magnet_subdomain_tags = []
@@ -26,10 +36,18 @@ def add_physical_groups(model, magnet_entities, magnet_boundary_entities):
 
     return magnet_subdomain_tags, magnet_boundary_subdomain_tags
 
-def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_magnets):        
+def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size):  
+    """
+    Set mesh size fields in gmsh model.
+
+    Args:
+        model (gmsh.model): Gmsh model.
+        magnet_entities (list): List of magnet tags in gmsh.occ.
+        mesh_size (float): Mesh size.
+    """          
     # mesh size field for magnets
     mag_field_tag = model.mesh.field.add("Constant")
-    model.mesh.field.setNumber(mag_field_tag, "VIn", mesh_size_magnets)
+    model.mesh.field.setNumber(mag_field_tag, "VIn", mesh_size)
     model.mesh.field.setNumbers(mag_field_tag, "VolumesList", magnet_entities)
 
     # use the minimum of all the fields as the mesh size field
@@ -38,11 +56,34 @@ def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_magnets):
     model.mesh.field.setAsBackgroundMesh(min_tag)
 
 def add_ball_magnet(model, magnet):
+    """
+    Add ball magnet to gmsh model.
+
+    Args:
+        model (gmsh.model): Gmsh model.
+        magnet (BallMagnet): Ball magnet.
+
+    Returns:
+        int: Magnet tag.
+    """
+    assert isinstance(magnet, mc.BallMagnet)
     magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
     return magnet_tag
 
 
 def add_bar_magnet(model, magnet):
+    """
+    Add bar magnet to gmsh model.
+
+    Args:
+        model (gmsh.model): Gmsh model.
+        magnet (BarMagnet): Bar magnet.
+
+    Returns:
+        int: Magnet tag.
+    """
+    assert isinstance(magnet, mc.BarMagnet)
+
     # add magnet corner points
     p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, magnet.h]))))
     p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, magnet.h]))))
@@ -72,7 +113,18 @@ def add_bar_magnet(model, magnet):
     return magnet_tag
 
 
-def add_magnet_segment(model, magnet):
+def add_cylinder_segment_magnet(model, magnet):
+    """
+    Add cylinder segment magnet to gmsh model.
+
+    Args:
+        model (gmsh.model): Gmsh model.
+        magnet (CylinderSegment): Cylinder segment magnet.
+
+    Returns:
+        int: Magnet tag.
+    """
+    assert isinstance(magnet, mc.CylinderSegment)
     # add first surface
     # add points
     p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([magnet.d, magnet.w, 0.]))))
@@ -105,7 +157,20 @@ def add_magnet_segment(model, magnet):
 ################ the mesh function ####################
 #######################################################
 
-def gear_mesh(gear, mesh_size_magnets, fname, write_to_pvd=False, verbose=False):
+def gear_mesh(gear, mesh_size, fname, write_to_pvd=False, verbose=False):
+    """
+    Create mesh of magnetic gear.
+
+    Args:
+        gear (MagneticGear): Magnetic gear.
+        mesh_size (float): Mesh size.
+        fname (str): File name.
+        write_to_pvd (bool, optional): If True write mesh to pvd file. Defaults to False.
+        verbose (bool, optional): If True output gmsh info. Defaults to False.
+
+    Returns:
+        tuple: Mesh, cell marker, facet marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags
+    """
     print("Meshing gear... ", end="")
     gmsh.initialize()
     if not verbose:
@@ -120,7 +185,7 @@ def gear_mesh(gear, mesh_size_magnets, fname, write_to_pvd=False, verbose=False)
         elif isinstance(gear, mgc.MagneticBarGear):
             magnet_tag = add_bar_magnet(model, magnet)
         elif isinstance(gear, mgc.SegmentGear):
-            magnet_tag = add_magnet_segment(model, magnet)
+            magnet_tag = add_cylinder_segment_magnet(model, magnet)
         else:
             raise RuntimeError()
 
@@ -137,7 +202,7 @@ def gear_mesh(gear, mesh_size_magnets, fname, write_to_pvd=False, verbose=False)
         )
 
     # set mesh size fields
-    set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_magnets)
+    set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size)
 
     # generate mesh
     model.mesh.generate(dim=3)
