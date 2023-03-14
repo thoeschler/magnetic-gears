@@ -1,16 +1,29 @@
 import gmsh
 import dolfin as dlf
 import numpy as np
-from scipy.spatial.transform import Rotation
+from source.tools.math_tools import get_rot
 import source.magnetic_gear_classes as mgc
 from source.grid_generator import add_ball_magnet, add_bar_magnet, add_magnet_segment, \
     add_physical_groups, set_mesh_size_fields_gmsh
 from source.tools.mesh_tools import generate_mesh_with_markers
 
 
-def add_segment(model, Ri, Ro, t, angle, x_M, x_axis):
-    t += 1e-3
-    Ro += 1e-3
+def add_cylinder_segment(model, Ri, Ro, t, angle, x_M, x_axis):
+    """
+    Add cylinder segment to gmsh model.
+
+    Args:
+        model (gmsh.model): A gmsh model.
+        Ri (float): Inner radius.
+        Ro (float): Outer radius.
+        t (float): Segment thickness.
+        angle (float): Opening angle.
+        x_M (np.ndarray): Reference/mid point. 
+        x_axis (np.ndarray): Starting axis for angle.
+
+    Returns:
+        int: Segment tag.
+    """
     if np.isclose(Ri, 0.):
         Ri = Ro / 30.  # cannot be zero, otherwise gmsh cannot create any elements
     # add first surface
@@ -25,7 +38,7 @@ def add_segment(model, Ri, Ro, t, angle, x_M, x_axis):
     l2 = model.occ.addLine(p2, p3)
     l3 = model.occ.addLine(p3, p4)
     l4 = model.occ.addLine(p4, p1)
-    
+
     # add front surface
     loop = model.occ.addCurveLoop([l1, l2, l3, l4])
     surf = model.occ.addPlaneSurface([loop])
@@ -38,7 +51,22 @@ def add_segment(model, Ri, Ro, t, angle, x_M, x_axis):
 
     return segment
 
-def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, verbose=False):
+def gear_mesh(gear, x_M_ref, mesh_size, fname, write_to_pvd=False, verbose=False):
+    """
+    Create gear mesh.
+
+    Args:
+        gear (MagneticGear): Magnetic gear
+        x_M_ref (np.ndarray): Reference point for magnet deletion.
+        mesh_size (float): Mesh size.
+        fname (str): File name.
+        write_to_pvd (bool, optional): If True write mesh and markers to pvd file.
+                                       Defaults to False.
+        verbose (bool, optional): If True output gmsh info. Defaults to False.
+
+    Returns:
+        tuple: Mesh, cell marker and facet marker.
+    """
     assert x_M_ref is not None
     assert len(x_M_ref) == 3
     print("Meshing gear... ", end="")
@@ -51,7 +79,7 @@ def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, verbo
     magnet_entities = []
     D = np.linalg.norm(x_M_ref - gear.x_M)
     # if magnet is not close enough to other gear for rotation by +- pi / n, remove it 
-    rot =  Rotation.from_rotvec((np.pi / gear.n) * np.array([1., 0., 0.])).as_matrix()
+    rot =  get_rot(np.pi / gear.n)
     magnets = list(gear.magnets)  # copy magnet list: list is different, magnets are the same
     removed_magnets = list()
     for magnet in magnets:
@@ -84,7 +112,7 @@ def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, verbo
         )
 
     # set mesh size fields
-    set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size_magnets)
+    set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size)
 
     # generate mesh
     model.mesh.generate(dim=3)
@@ -103,16 +131,39 @@ def gear_mesh(gear, x_M_ref, mesh_size_magnets, fname, write_to_pvd=False, verbo
     print("Done.")
     return mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags
 
-def segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, padding, mesh_size, write_to_pvd=False, \
+def cylinder_segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, mesh_size, pad=True, write_to_pvd=False, \
     verbose=False):
-    Ri -= padding
-    Ro += 3 * padding  # make sure rotating the gear inside the segment is possible
-    t += 2 * padding
-    angle += 2 * padding / Ri
+    """
+    Create a mesh of a cylinder segment
+
+    Args:
+        Ri (float): Inner radius.
+        Ro (float): Outer radius
+        t (float): Thickness.
+        angle (float): Opening angle.
+        x_M_ref (np.ndarray): Reference/mid point.
+        x_axis (np.ndarray): Starting axis for angle.
+        fname (str): File name.
+        mesh_size (float): Mesh size.
+        pad (bool, optional): If True add some padding. Defaults to True.
+        write_to_pvd (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        tuple: Mesh, cell marker and facet marker.
+    """
+    if pad:
+        padding = Ro / 40.
+        Ri -= padding
+        Ro += padding
+        t += 2 * padding
+        angle += padding
+    
+    # make sure angle is at most 2 pi
     if angle > 2 * np.pi:
         angle = 2 * np.pi
-    assert x_M_ref is not None
+
     assert len(x_M_ref) == 3
+    # make sure x_axis is normalized
     x_axis /= np.linalg.norm(x_axis)
     print("Meshing segment... ", end="")
     gmsh.initialize()
@@ -120,7 +171,7 @@ def segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, padding, mesh_size, w
         gmsh.option.setNumber("General.Terminal", 0)
 
     model = gmsh.model()
-    segment = add_segment(model, Ri, Ro, t, angle=angle, x_M=x_M_ref, x_axis=x_axis)
+    segment = add_cylinder_segment(model, Ri, Ro, t, angle=angle, x_M=x_M_ref, x_axis=x_axis)
     model.occ.synchronize()
 
     segment_boundary = model.getBoundary([(3, segment)], oriented=False)[0][1]
