@@ -73,7 +73,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     gmsh.finalize()
     print("Done.")
 
-def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False):
+def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False, scale=1.0):
     """Interpolate a field on a mesh.
 
     Args:
@@ -84,6 +84,7 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
         fname (str or None, optional): Output file name. Defaults to None.
         write_pvd (bool, optional): If true write mesh and markers to paraview (pvd)
                                     file. Defaults to False.
+        scale (float, optional): Scaling parameter. Defaults to 1.0.
 
     Returns:
         dlf.Function: The interpolated field.
@@ -107,6 +108,8 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
     if write_pvd:
         assert fname is not None
         dlf.File(f"{fname}.pvd") << field_interpolated
+
+    field_interpolated.vector()[:] *= scale
 
     print("Done.")
     return field_interpolated
