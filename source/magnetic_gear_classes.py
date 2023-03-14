@@ -385,7 +385,7 @@ class MagneticBarGear(MagneticGear):
         self._w = w  # the magnet width (here: x-direction!)
         self._d = d  # the magnet depth (here: tangential direction!)
         self._h = h  # the magnet height (here: radial direction!)
-        self._scale_parameter = w  # use width for scaling
+        self._scale_parameter = d  # use depth for scaling
         self._magnet_type = "Bar"
 
     @property
@@ -468,7 +468,7 @@ class SegmentGear(MagneticGear):
         self._w = w  # the magnet width (here: x-direction!)
         self._d = d  # the magnet depth (here: radial direction!)
         self._alpha = np.pi / n  # half the angle per magnet
-        self._scale_parameter = self.w  # use magnet with for scaling
+        self._scale_parameter = self.d  # use depth for scaling
         self._magnet_type = "CylinderSegment"
 
     @property
