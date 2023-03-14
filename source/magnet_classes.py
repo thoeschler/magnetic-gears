@@ -268,7 +268,7 @@ class BallMagnet(PermanentAxialMagnet):
         r_tilde = r / self.R
 
         if inside or (on_boundary and limit_direction == -1):
-            return self.R / 3. * x_eigen[2]
+            return 1. / 3. * x_eigen[2]
         else:
             cos_theta = x_eigen[2] / r
             return self.R / 3. / r_tilde ** 2 * cos_theta
