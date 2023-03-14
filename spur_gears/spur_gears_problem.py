@@ -349,9 +349,9 @@ class SpurGearsProblem:
                                                         x_axis=x_axis, fname=ref_path + "/reference_segment", \
                                                             mesh_size=mesh_size, write_to_pvd=True)
 
-    def interpolate_to_reference_segment(self, mesh_size=None, p_deg=2, interpolate="once", use_Vm=True):
+    def interpolate_to_reference_segment(self, mesh_size=None, p_deg=2, interpolate="twice", use_Vm=True):
         """
-        Interpolate field of larger gear on smaller gear.
+        Interpolate field of larger gear on reference segment.
 
         Args:
             mesh_size (_type_): _description_
@@ -371,7 +371,7 @@ class SpurGearsProblem:
                                                       mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
                                                         use_ref_field=True)
             else:
-                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "DG", p_deg=p_deg, \
+                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
                                                          mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
                                                             use_ref_field=True)
         else:
