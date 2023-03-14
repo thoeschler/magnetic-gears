@@ -7,7 +7,7 @@ from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
 from source.tools.fenics_tools import rotate_vector_field
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
-from spur_gears.grid_generator import segment_mesh
+from spur_gears.grid_generator import cylinder_segment_mesh
 
 
 class SpurGearsProblem:
@@ -326,7 +326,7 @@ class SpurGearsProblem:
         else:
             alpha_r = 0.
         # outer segment radius
-        Ro = np.sqrt((self.D + self.sg.R * np.cos(alpha_r)) ** 2 + (self.sg.R * np.sin(alpha_r)) ** 2)
+        Ro = np.sqrt((self.D + self.sg.outer_radius * np.cos(alpha_r)) ** 2 + (self.sg.outer_radius * np.sin(alpha_r)) ** 2)
 
         # x_axis of segment (for angle)
         if self.sg.x_M[1] > self.lg.x_M[1]:
@@ -338,9 +338,9 @@ class SpurGearsProblem:
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
 
-        self.segment_mesh, _, _ = segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
-                                               x_axis=x_axis, fname=ref_path + "/reference_segment", padding=1e-2, \
-                                               mesh_size=mesh_size, write_to_pvd=True)
+        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
+                                                        x_axis=x_axis, fname=ref_path + "/reference_segment", \
+                                                            mesh_size=mesh_size, write_to_pvd=True)
 
     def interpolate_to_reference_segment(self, mesh_size=None, p_deg=2, interpolate="once", use_Vm=True):
         """
@@ -356,7 +356,7 @@ class SpurGearsProblem:
 
         if interpolate == "twice":
             assert isinstance(mesh_size, float)
-            mesh_size_min = mesh_size / max(self.gear_1.scale_parameter, self.gear_2.scale_parameter)
+            mesh_size_min = mesh_size / self.lg.scale_parameter
             mesh_size_max = 3 * mesh_size_min
             # interpolate fields of other gear on segment
             if use_Vm:
@@ -364,7 +364,7 @@ class SpurGearsProblem:
                                                       mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
                                                         use_ref_field=True)
             else:
-                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
+                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "DG", p_deg=p_deg, \
                                                          mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
                                                             use_ref_field=True)
         else:
@@ -438,6 +438,8 @@ class SpurGearsProblem:
 
             field_sum += interpol_field.vector()
 
+            del interpol_field  # explicitly delete to free memory
+
         print("Done.")
         return dlf.Function(V, field_sum)
 
@@ -470,7 +472,8 @@ class SpurGearsProblem:
         elif field_name == "Vm":
             V_ref = dlf.FunctionSpace(reference_mesh_copy, cell_type, p_deg)
             # scale magnetic potential
-            reference_field_copy = dlf.Function(V_ref, scale * ref_field.vector())
+            reference_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
+            reference_field_copy.vector()[:] *= scale
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
@@ -478,7 +481,8 @@ class SpurGearsProblem:
         # scale, rotate and shift reference mesh according to magnet placement
         reference_mesh_copy.scale(scale)
         # rotate first, then shift!
-        reference_mesh_copy.coordinates()[:] = magnet.Q.dot(reference_mesh_copy.coordinates().T).T
+        coords = np.array(reference_mesh_copy.coordinates())
+        reference_mesh_copy.coordinates()[:] = magnet.Q.dot(coords.T).T
         reference_mesh_copy.translate(dlf.Point(*magnet.x_M))
 
         # interpolate field to new function space and add the result
