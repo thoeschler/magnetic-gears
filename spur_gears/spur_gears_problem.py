@@ -135,7 +135,7 @@ class SpurGearsProblem:
         assert np.allclose(x_M_magnet, gear.magnets[0].x_M)
         gear.reset_angle(0.)
 
-    def _find_reference_files(self, gear, field_name, mesh_size_min, mesh_size_max, rtol=1.0):
+    def _find_reference_files(self, gear, field_name, mesh_size_min, mesh_size_max, p_deg, rtol=1.0):
         """Find reference reference mesh and reference field files.
 
         Args:
@@ -143,6 +143,7 @@ class SpurGearsProblem:
             field_name (str): Name of the reference field.
             mesh_size_min (float): Minimum mesh size in reference field.
             mesh_size_max (float): Maximum mesh size in reference field.
+            p_deg (int): Polynomial degree of finite element space.
             rtol (float, optional): Relative tolerance. If the domain size 
                                     of the reference file exceeds the problem's
                                     domain size by rtol the reference file will
@@ -170,13 +171,13 @@ class SpurGearsProblem:
                     par = json.loads(f.read())
                     # check if all paramters match
                     if par["domain_radius"] < domain_radius_file and \
-                        self._match_reference_parameters(par, gear, field_name, mesh_size_min, mesh_size_max):
+                        self._match_reference_parameters(par, gear, field_name, mesh_size_min, mesh_size_max, p_deg):
                         found_dir = True
                         domain_radius_file = par["domain_radius"]
                         dir_name = subdir
         return dir_name, found_dir
 
-    def _match_reference_parameters(self, par_file, gear, field_name, mesh_size_min, mesh_size_max):
+    def _match_reference_parameters(self, par_file, gear, field_name, mesh_size_min, mesh_size_max, p_deg):
         """Check whether reference files are appropriate for the problem.
 
         Args:
@@ -186,6 +187,7 @@ class SpurGearsProblem:
             field_name (str): Name of the reference field.
             mesh_size_min (float): Minimum mesh size.
             mesh_size_max (float): Maximum mesh size.
+            p_deg (int): Polynomial degree of finite element space.
 
         Returns:
             bool: True if parameters match (reference file can be used).
@@ -197,6 +199,10 @@ class SpurGearsProblem:
         # check if field name is the same
         if not par_file["name"] == field_name:
             return False
+        
+        # check if polynomial degree is the same
+        if not par_file["p_deg"] == p_deg:
+            return False
 
         # check if mesh size is correct
         if not np.isclose(par_file["mesh_size_min"], mesh_size_min):
@@ -207,7 +213,7 @@ class SpurGearsProblem:
         # check if domain size and geometry matches
         if not par_file["domain_radius"] * gear.scale_parameter >= self._domain_size:
             return False
-      
+
         if isinstance(gear, MagneticBarGear):
             if not np.allclose((gear.w, gear.d), \
                                (par_file["w"] * gear.scale_parameter, \
@@ -239,7 +245,7 @@ class SpurGearsProblem:
         vector_valued = (field_name == "B")  # check if field is vector valued
 
         # find directory with matching files
-        ref_dir, found_dir = self._find_reference_files(gear, field_name, mesh_size_min, mesh_size_max, rtol=1.0)
+        ref_dir, found_dir = self._find_reference_files(gear, field_name, mesh_size_min, mesh_size_max, p_deg, rtol=1.0)
 
         # check if both mesh file and hdf5 file exist; if not, create both
         if not found_dir:
@@ -279,7 +285,8 @@ class SpurGearsProblem:
                 ref_par.update({
                     "name": field_name,
                     "mesh_size_min": mesh_size_min, 
-                    "mesh_size_max": mesh_size_max
+                    "mesh_size_max": mesh_size_max,
+                    "p_deg": p_deg
                     })
                 f.write(json.dumps(ref_par))
         else:
