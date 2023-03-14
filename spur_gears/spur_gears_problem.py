@@ -33,6 +33,8 @@ class SpurGearsProblem:
         assert hasattr(second_gear, "outer_radius")
         assert D > first_gear.outer_radius + second_gear.outer_radius
         self._D = D
+        assert np.isclose(first_gear.outer_radius / second_gear.outer_radius, \
+                          first_gear.n / second_gear.n)
 
         # set gears
         self._gear_1 = first_gear
@@ -297,7 +299,6 @@ class SpurGearsProblem:
         reference_field = read_hd5f_file(f"{ref_dir}/{field_name}.h5", field_name, reference_mesh, cell_type, p_deg, vector_valued=vector_valued)
 
         # set reference field and mesh for gear
-        gear.scale_mesh(reference_mesh)
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
@@ -354,7 +355,7 @@ class SpurGearsProblem:
         Interpolate field of larger gear on reference segment.
 
         Args:
-            mesh_size (_type_): _description_
+            mesh_size (float): _description_
             p_deg (int, optional): _description_. Defaults to 2.
             interpolate (str, optional): _description_. Defaults to "once".
             use_Vm (bool, optional): _description_. Defaults to True.
@@ -472,7 +473,7 @@ class SpurGearsProblem:
 
         if field_name == "B":
             V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type, p_deg)
-            reference_field_copy = dlf.Function(V_ref, ref_field.vector())
+            reference_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
             # rotate reference field
             rotate_vector_field(reference_field_copy, magnet.Q)
