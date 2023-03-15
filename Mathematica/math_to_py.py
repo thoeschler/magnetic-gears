@@ -42,6 +42,11 @@ def to_python(expr):
 
 def bar_magnet_python():
     dir_name = os.path.dirname(os.path.realpath(__file__))
+    # potential
+    with open(dir_name + "/bar/V_bar.txt", "r") as f:
+        expr = f.read()
+        with open(dir_name + "/bar/V_bar_magnet.py.raw", "a+") as f_py:
+            f_py.write(to_python(expr) + "\n")
     # x-component
     for fname in ("x_t1.1.txt", "x_t1.2.txt", "x_t2.txt", "x_t3.txt", "x_t4.txt"):
         with open(dir_name + f"/bar/{fname}", "r") as f:
@@ -87,4 +92,5 @@ def magnet_segment_python():
 
 
 if __name__ == "__main__":
-    magnet_segment_python()
+    bar_magnet_python()
+    #magnet_segment_python()
