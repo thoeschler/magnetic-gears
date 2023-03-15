@@ -27,7 +27,7 @@ class CustomScalarExpression(dlf.UserExpression):
     def value_shape(self):
         return tuple()
 
-def compute_current_potential(Vm: dlf.Function, project_to_CG=False):
+def compute_current_potential(Vm: dlf.Function, project=False):
     """Compute free current potential from magnetic potential.
 
     If the magnetization is zero the free current potential
@@ -35,30 +35,30 @@ def compute_current_potential(Vm: dlf.Function, project_to_CG=False):
 
     Args:
         Vm (dlf.Function): Magnetic potential.
-    
+        project (bool, optional): Whether to project to a CG space.
+                                  Defaults to False.
+
     Returns:
         dlf.Function: Free current potential.
     """
     
-    # create function space
-    Vm_p_deg = Vm.ufl_element().degree()
-    if Vm_p_deg > 0:
-        p_deg = Vm_p_deg - 1 
-    else:
-        p_deg = 0
+    # compute gradient
+    H = - dlf.grad(Vm)
 
-    if project_to_CG:
-        V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "DG", Vm_p_deg)
-    else:
-        V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "DG", p_deg)
+    # return gradient if no projection is needed
+    if not project:
+        return H
+
+    Vm_p_deg = Vm.ufl_element().degree()
+    V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "CG", Vm_p_deg)
 
     # compute magnetic field and project to function space
     # use mumps-direct solver. This is due to an UMFPACK error
     # that limits the memory usage to 4GB
     # https://fenicsproject.org/qa/4177/reason-petsc-error-code-is-76/
-    H = dlf.project(- dlf.grad(Vm), V, solver_type="mumps")
+    H_func = dlf.project(H, V, solver_type="mumps")
 
-    return H
+    return H_func
 
 def rotate_vector_field(f: dlf.Function, Q):
     """Rotate components of vector field.

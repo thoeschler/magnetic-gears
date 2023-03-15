@@ -96,18 +96,23 @@ def compute_torque_ana(magnet_1, magnet_2, coordinate_system="laboratory"):
 ############## Numerical computation ###############
 ####################################################
 
-def compute_force_num(magnet, B):
+def compute_force_num(magnet, B, mesh=None):
     """Compute force on magnet caused by magnetic field.
 
     Args:
         magnet (BallMagnet): The magnet.
         B (dlf.Function): The magnetic field.
+        mesh (dlf.Mesh): Finite element mesh. Only needs to be specified
+                         if B is not a dlf.Function.
 
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
-    assert isinstance(B, dlf.Function)
-    mesh = B.function_space().mesh()
+    if isinstance(B, dlf.Function):
+        mesh = B.function_space().mesh()
+    else:
+        assert mesh is not None 
+
     dA = dlf.Measure('ds', domain=mesh)
 
     # compute force
@@ -120,18 +125,23 @@ def compute_force_num(magnet, B):
         F[i] = a
     return F
 
-def compute_torque_num(magnet, B):
+def compute_torque_num(magnet, B, mesh):
     """Compute torque on magnet caused by magnetic field.
 
     Args:
         magnet (BallMagnet): The magnet the torque acts on.
         B (dlf.Function): The interpolated magnetic field on the respective mesh.
+        mesh (dlf.Mesh): Finite element mesh. Only needs to be specified
+                         if B is not a dlf.Function.
 
     Returns:
         np.ndarray: Force in specified coordinate system.
     """
-    assert isinstance(B, dlf.Function)
-    mesh = B.function_space().mesh()
+    if isinstance(B, dlf.Function):
+        mesh = B.function_space().mesh()
+    else:
+        assert mesh is not None 
+
     dA = dlf.Measure('ds', domain=mesh)
     n = dlf.FacetNormal(mesh)
 

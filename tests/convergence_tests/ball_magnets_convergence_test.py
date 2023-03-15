@@ -110,7 +110,7 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                     Vm = dlf.Function(V)
                     LagrangeInterpolator.interpolate(Vm, Vm_ref)
                     # compute gradient and project
-                    B = compute_current_potential(Vm, project_to_CG=True)
+                    B = compute_current_potential(Vm, project=False)
                 else:
                     # interpolate B_ref to second magnet
                     V = dlf.VectorFunctionSpace(mesh_mag_2, "CG", p_deg)
@@ -120,13 +120,13 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                 if use_Vm:
                     Vm = interpolate_field(mag_1.Vm, mesh_mag_2, "CG", p_deg)
                     # compute gradient and project
-                    B = compute_current_potential(Vm, project_to_CG=True)
+                    B = compute_current_potential(Vm, project=False)
                 else:
                     B = interpolate_field(mag_1.B, mesh_mag_2, "CG", p_deg)
 
             # perform numerical computation
-            F_num = compute_force_num(mag_2, B)
-            tau_num = compute_torque_num(mag_2, B)
+            F_num = compute_force_num(mag_2, B, mesh_mag_2)
+            tau_num = compute_torque_num(mag_2, B, mesh_mag_2)
 
             ########################################
             ######## Analytical computation ########
@@ -147,7 +147,6 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
                 force error = {e_F:.6f} \n
                 torque error = {e_tau:.6f} \n
             """)
-            
 
         with open("force_error.csv", "a+") as f:
             f.write(f"{ms} ")
@@ -173,16 +172,16 @@ if __name__ == "__main__":
     distance_values = np.array([0.1])
     mesh_size_values = np.geomspace(5e-2, 1.0, num=6)
 
-    for p_deg in (1, 2, 3):
+    for p_deg in (2,):
         # 1. no interpolation, use B directly
-        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
-                        interpolation=False, use_Vm=False, directory=f"B_no_interpol_pdeg_{p_deg}")
+        #convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+        #                interpolation=False, use_Vm=False, directory=f"B_no_interpol_pdeg_{p_deg}")
         # 2. no interpolation, use Vm
-        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
-                         interpolation=False, use_Vm=True, directory=f"Vm_no_interpol_pdeg_{p_deg}")
+        #convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+        #                 interpolation=False, use_Vm=True, directory=f"Vm_no_interpol_pdeg_{p_deg}")
         # 3. with interpolation, use B directly
-        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
-                        interpolation=True, use_Vm=False, directory=f"B_interpol_pdeg_{p_deg}")
+        #convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+        #                interpolation=True, use_Vm=False, directory=f"B_interpol_pdeg_{p_deg}")
         # 4. with interpolation, use Vm
-        convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
+        convergence_test(distance_values, mesh_size_values[1:], p_deg=p_deg, \
                         interpolation=True, use_Vm=True, directory=f"Vm_interpol_pdeg_{p_deg}")

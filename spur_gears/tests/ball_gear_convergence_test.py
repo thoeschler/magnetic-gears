@@ -7,7 +7,7 @@ from source.tools.tools import interpolate_field
 from source.tools.math_tools import get_rot
 from source.tools.fenics_tools import compute_current_potential, rotate_vector_field
 from spur_gears.spur_gears_problem import SpurGearsProblem
-from spur_gears.grid_generator import segment_mesh, gear_mesh
+from spur_gears.grid_generator import gear_mesh
 from source.grid_generator import gear_mesh as gear_mesh_all
 from tests.convergence_tests.ball_magnets_force_torque import compute_force_ana
 
@@ -29,7 +29,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             else:
                 gear.set_mesh_function(gear_mesh)
 
-    def mesh_gear(self, gear, mesh_size_magnets, fname, mesh_all_magnets=False, write_to_pvd=True):
+    def mesh_gear(self, gear, mesh_size, fname, mesh_all_magnets=False, write_to_pvd=True):
         if gear is self.gear_1:
             other_gear = self.gear_2
         elif gear is self.gear_2:
@@ -38,10 +38,10 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             raise RuntimeError()
 
         if mesh_all_magnets:
-            self.create_gear_mesh(gear, mesh_size_magnets=mesh_size_magnets, fname=fname, \
+            self.create_gear_mesh(gear, mesh_size=mesh_size, fname=fname, \
                                   write_to_pvd=write_to_pvd)
         else:
-            self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size_magnets=mesh_size_magnets, \
+            self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size=mesh_size, \
                                   fname=fname, write_to_pvd=write_to_pvd)
 
     def compute_force_torque_numerically(self, p_deg=1, interpolate="never", use_Vm=False):
@@ -55,7 +55,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                 Vm_lg = dlf.Function(V)
 
                 LagrangeInterpolator.interpolate(Vm_lg, self.Vm_segment)
-                B_lg = compute_current_potential(Vm_lg, project_to_CG=True)
+                B_lg = compute_current_potential(Vm_lg, project=False)
             else:
                 assert hasattr(self, "B_segment")
                 # create function on smaller gear
@@ -71,7 +71,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                     Vm_mag = interpolate_field(mag.Vm, self.sg.mesh, "CG", p_deg)
                     Vm_lg_vec += Vm_mag.vector()
                 Vm_lg = dlf.Function(V, Vm_lg_vec)
-                B_lg = compute_current_potential(Vm_lg, project_to_CG=True)
+                B_lg = compute_current_potential(Vm_lg, project=False)
             else:
                 V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
                 B_lg_vec = 0.
@@ -79,8 +79,6 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                     B_mag = interpolate_field(mag.B, self.sg.mesh, "CG", p_deg)
                     B_lg_vec += B_mag.vector()
                 B_lg = dlf.Function(V, B_lg_vec)
-
-        dlf.File("B_lg.pvd") << B_lg
 
         # compute force
         F = self.compute_force_on_gear(self.sg, B_lg)
@@ -104,7 +102,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
             if hasattr(self, "B_segment"):
                 rotate_vector_field(self.B_segment, get_rot(d_angle))
-        while np.abs(gear.angle) > np.pi / gear.n:
+        if np.abs(gear.angle) > np.pi / gear.n or np.isclose(np.abs(gear.angle), np.pi / gear.n):
             # first rotate segment
             if update_segment:
                 # rotate back: 
@@ -156,19 +154,19 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
 
     for ms in mesh_sizes[::-1]:
         # create two ball gears
-        gear_1 = MagneticBallGear(6, 6, 1., np.zeros(3))
+        gear_1 = MagneticBallGear(6, 6., 2., np.zeros(3))
         gear_1.create_magnets(magnetization_strength=1.0)
-        gear_2 = MagneticBallGear(6, 5, 1., np.array([0., 1., 0.]))
+        gear_2 = MagneticBallGear(4, 4., 4. / 3., np.array([0., 1., 0.]))
         gear_2.create_magnets(magnetization_strength=1.0)
 
         # create coaxial gears problem
-        D = gear_1.R + gear_2.R + gear_1.r + gear_2.r + 1.0
+        D = gear_1.outer_radius + gear_2.outer_radius + 1.0
         cg = SpurGearsConvergenceTest(gear_1, gear_2, D)
         cg.set_mesh_functions(mesh_all_magnets)
 
         # mesh both gears
-        cg.mesh_gear(cg.gear_1, mesh_size_magnets=ms, fname="gear_1", mesh_all_magnets=mesh_all_magnets)
-        cg.mesh_gear(cg.gear_2, mesh_size_magnets=ms, fname="gear_2", mesh_all_magnets=mesh_all_magnets)
+        cg.mesh_gear(cg.gear_1, mesh_size=ms, fname="gear_1", mesh_all_magnets=mesh_all_magnets)
+        cg.mesh_gear(cg.gear_2, mesh_size=ms, fname="gear_2", mesh_all_magnets=mesh_all_magnets)
 
         # choose smaller gear ("sg")
         cg.assign_gears()
@@ -182,7 +180,7 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
         # the segment contains the field of the larger gear. Rotate the segment as well
         # when rotating the larger gear. Updates B_segment automatically (if used). 
-        cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item(), \
+        cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item(), \
                        update_segment=(interpolate != "never"))
 
         ###############################################
@@ -258,7 +256,7 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         for error, name in zip(errors, names):
             with open(f"{name}_error.csv", "a+") as f:
                 f.write(f"{ms} {error} \n")
-
+        del cg
     os.chdir("..")
 
 if __name__ == "__main__":
@@ -270,13 +268,13 @@ if __name__ == "__main__":
     for p_deg in (1, 2):
         ma = False
         # 1. interpolate never, use Vm
-        #main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
-        #     dir=f"Vm_interpol_never_pdeg_{p_deg}")
+        main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
+             dir=f"Vm_interpol_never_pdeg_{p_deg}")
         # 2. interpolate once, use Vm
         main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, mesh_all_magnets=ma, \
              dir=f"Vm_interpol_once_pdeg_{p_deg}")
         # 3. interpolate twice, use Vm
-        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=True, mesh_all_magnets=ma, \
+        main(mesh_sizes[1:], p_deg, interpolate="twice", use_Vm=True, mesh_all_magnets=ma, \
              dir=f"Vm_interpol_twice_pdeg_{p_deg}")
         # 4. inteyrpolate never, use B directly
         main(mesh_sizes, p_deg, interpolate="never", use_Vm=False, mesh_all_magnets=ma, \
@@ -285,5 +283,5 @@ if __name__ == "__main__":
         main(mesh_sizes, p_deg, interpolate="once", use_Vm=False, mesh_all_magnets=ma, \
              dir=f"B_interpol_once_pdeg_{p_deg}")
         # 6. interpolate twice, use B directly
-        main(mesh_sizes, p_deg, interpolate="twice", use_Vm=False, mesh_all_magnets=ma, \
+        main(mesh_sizes[1:], p_deg, interpolate="twice", use_Vm=False, mesh_all_magnets=ma, \
              dir=f"B_interpol_twice_pdeg_{p_deg}")
