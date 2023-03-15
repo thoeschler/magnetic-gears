@@ -478,7 +478,7 @@ class BarMagnet(PermanentAxialMagnet):
         # function of tuple of eigen cordinates (x, y, z), e.g.:
         #   Vm_test = self.Vm_eigen((1, 2, 3))
         self.Vm_eigen = magnetic_potential_bar_magnet(
-            self._width, self._depth, self._height, lambdify=True
+            self._width, self._depth, self._height
             )
 
 
