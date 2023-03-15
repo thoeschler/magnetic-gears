@@ -1,12 +1,11 @@
-import numpy as np
 import dolfin as dlf
+import numpy as np
+import pandas as pd
 import json
 import os
-from dolfin import LagrangeInterpolator
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear, MagneticGear
-from source.tools.fenics_tools import compute_current_potential
 from spur_gears.spur_gears_problem import SpurGearsProblem
-from spur_gears.grid_generator import gear_mesh, segment_mesh
+from source.grid_generator import gear_mesh
 
 
 class SpurGearsSampling(SpurGearsProblem):
@@ -22,53 +21,9 @@ class SpurGearsSampling(SpurGearsProblem):
         for gear in self.gears:
             gear.set_mesh_function(gear_mesh)
 
-    def mesh_gear(self, gear, mesh_size_magnets, fname, write_to_pvd=True):
-        if gear is self.gear_1:
-            other_gear = self.gear_2
-        elif gear is self.gear_2:
-            other_gear = self.gear_1
-        else:
-            raise RuntimeError()
-        self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, \
-            mesh_size_magnets=mesh_size_magnets, fname=fname, write_to_pvd=write_to_pvd)
-
-    def interpolate_to_segment(self, mesh_size_magnets, p_deg=1, interpolate="once", use_Vm=False):
-        ################################################
-        ######### interpolate to segment mesh ##########
-        ################################################
-        if interpolate == "twice":
-            mesh_size_min = mesh_size_magnets / max(self.gear_1.scale_parameter, self.gear_2.scale_parameter)
-            mesh_size_max = 3 * mesh_size_min
-            # interpolate fields of other gear on segment
-            self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                    mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
-                                                    use_ref_field=True)
-        else:
-            # interpolate fields of other gear on segment
-            self.Vm_ref = self.interpolate_field_gear(self.lg, self.seg_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                        use_ref_field=False)
-
-    def compute_force_torque_numerically(self, p_deg=1):
-        assert hasattr(self, "seg_mesh")
-        assert hasattr(self, "Vm_ref")
-        # create function on smaller gear
-        V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
-        Vm_lg = dlf.Function(V)
-
-        LagrangeInterpolator.interpolate(Vm_lg, self.Vm_ref)
-        B_lg = compute_current_potential(Vm_lg, p_deg)
-        dlf.File("Vm_ref.pvd") << self.Vm_ref
-        dlf.File("Vm_lg.pvd") << Vm_lg
-        dlf.File("B_lg.pvd") << B_lg
-
-        # compute force
-        F = self.compute_force_on_gear(self.sg, B_lg)
-
-        # compute torque
-        tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
-        F_pad = np.array([0., F[0], F[1]])  # pad force (insert x-component)
-
-        return F_pad, tau_sg
+    def mesh_gear(self, gear, mesh_size, fname, write_to_pvd=True):
+        self.create_gear_mesh(gear, mesh_size=mesh_size, fname=fname, \
+                              write_to_pvd=write_to_pvd)
 
     def update_gear(self, gear: MagneticGear, d_angle, update_segment=False):
         """Update gear given an angle increment.
@@ -80,35 +35,53 @@ class SpurGearsSampling(SpurGearsProblem):
         """
         gear.update_parameters(d_angle)
         if update_segment:
-            self.seg_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
+            self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
 
-        while np.abs(gear.angle) > np.pi / gear.n:
+        if np.abs(gear.angle) > np.pi / gear.n or np.isclose(np.abs(gear.angle), np.pi / gear.n):
             # first rotate segment
             if update_segment:
-                # rotate back: 
-                self.seg_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
+                # rotate back:
+                self.segment_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
 
             # then update parameters
             gear.update_parameters(- np.sign(gear.angle) * 2. * np.pi / gear.n)
 
-    def sample(self, n_iterations, p_deg, data_fname, interpolate="once"):
+    def sample(self, n_iterations, p_deg=2):
+        """
+        Sample torque values.
+
+        Args:
+            n_iterations (int): Number of torque samples (per angle).
+            p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
+            interpolate (str, optional): Number of interpolation steps. Defaults to "twice".
+        """
+        angles_1 = np.linspace(0., 2. * np.pi / self.gear_1.n, num=n_iterations + 1)[:-1]
+        angles_2 = np.linspace(0., 2. * np.pi / self.gear_2.n, num=n_iterations + 1)[:-1]
+        d_angle_1 = angles_1[1]- angles_1[0]
+        d_angle_2 = angles_2[1]- angles_2[0]
+
+        # assign angle increments
         if self.gear_1 is self.sg:
-            d_angle_sg = 2. * np.pi / self.gear_1.n / n_iterations
-            d_angle_lg = 2. * np.pi / self.gear_2.n / n_iterations
+            angles_sg = angles_1
+            angles_lg = angles_2
+            d_angle_sg = d_angle_1
+            d_angle_lg = d_angle_2
+        elif self.gear_2 is self.sg:
+            angles_sg = angles_2
+            angles_lg = angles_1
+            d_angle_sg = d_angle_2
+            d_angle_lg = d_angle_1
         else:
-            d_angle_sg = 2. * np.pi / self.gear_2.n / n_iterations
-            d_angle_lg = 2. * np.pi / self.gear_1.n / n_iterations
+            raise RuntimeError()
+
+        tau_12_values = np.zeros((n_iterations, n_iterations))
+        tau_21_values = np.zeros((n_iterations, n_iterations))
         for i in range(n_iterations):
             for j in range(n_iterations):
-                if i == 1 and j == 1:
-                    dlf.File("Vm_ref.pvd") << self.Vm_ref
-                    dlf.File("segm_mesh.pvd") << self.seg_mesh
-                    dlf.File("gear_1_mesh.pvd") << self.gear_1._cell_marker
-                    dlf.File("gear_2_mesh.pvd") << self.gear_2._cell_marker
-                F_pad, tau_sg = self.compute_force_torque_numerically(p_deg)
-                if i == 1 and j == 1:
-                    exit()
-                tau_lg = (np.cross(self.lg.x_M - self.sg.x_M, F_pad) - tau_sg)[0]
+                assert np.any(np.isclose(self.sg.angle, np.array([-2 * np.pi, 0., 2 * np.pi]) / self.sg.n + angles_sg[j]))
+                assert np.any(np.isclose(self.lg.angle, np.array([-2 * np.pi, 0., 2 * np.pi]) / self.lg.n + angles_lg[i]))
+                F_sg, tau_sg = self.compute_force_torque(p_deg, use_Vm=True)
+                tau_lg = (np.cross(self.lg.x_M - self.sg.x_M, F_sg) - tau_sg)[0]
 
                 if self.gear_1 is self.sg:
                     tau_21 = tau_sg
@@ -119,104 +92,107 @@ class SpurGearsSampling(SpurGearsProblem):
                 else:
                     raise RuntimeError()
 
-                with open(self._main_dir + f"/{data_fname}.csv", "a+") as f:
-                    f.write(f"{self.gear_1.angle} {self.gear_2.angle} {tau_21} {tau_12} \n")
+                tau_12_values[i, j] = tau_12
+                tau_21_values[i, j] = tau_21
+
                 # rotate smaller gear
-                self.update_gear(self.sg, d_angle=d_angle_sg)
+                self.update_gear(self.sg, d_angle=d_angle_sg, update_segment=False)
+
+            # update csv files
+            pd.DataFrame(tau_12_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/data/tau_12.csv")
+            pd.DataFrame(tau_21_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/data/tau_21.csv")
 
             # rotate larger gear
             self.update_gear(self.lg, d_angle=d_angle_lg, update_segment=True)
 
-def sample_torque_ball(n_iterations, mesh_size, p_deg=1, interpolate="once", dir="sample_ball_gear"):
+def sample_torque_ball(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_ball_gear"):
     # create directory
-    if not os.path.exists(dir):
-        os.mkdir(dir)
+    if not os.path.exists(sample_dir):
+        os.mkdir(sample_dir)
 
     # create two ball gears
-    gear_1_ball = MagneticBallGear(n=6, r=1.5, R=10, x_M=np.zeros(3))
-    gear_2_ball = MagneticBallGear(n=8, r=2.0, R=15, x_M=np.array([0., 1., 0.]))
+    gear_1_ball = MagneticBallGear(n=12, r=1., R=6, x_M=np.zeros(3))
+    gear_2_ball = MagneticBallGear(n=18, r=1.5, R=9., x_M=np.array([0., 1., 0.]))
     gear_1_ball.create_magnets(magnetization_strength=1.0)
     gear_2_ball.create_magnets(magnetization_strength=1.0)
 
     # create coaxial gears problem
-    D = gear_1_ball.R + gear_2_ball.R + gear_1_ball.r + gear_2_ball.r + 1.0
-    bg = SpurGearsSampling(gear_1_ball, gear_2_ball, D, main_dir=dir)
+    D = gear_1_ball.outer_radius + gear_2_ball.outer_radius + 1.0
+    bg = SpurGearsSampling(gear_1_ball, gear_2_ball, D, main_dir=sample_dir)
 
-    # mesh both gears
-    bg.mesh_gear(bg.gear_1, mesh_size_magnets=mesh_size, fname="gear_1")
-    bg.mesh_gear(bg.gear_2, mesh_size_magnets=mesh_size, fname="gear_2")
-
-    # choose smaller gear ("sg")
-    bg.assign_gears()
+    # mesh smaller gear
+    bg.mesh_gear(bg.sg, mesh_size=mesh_size, fname=f"gear_{1 if bg.sg is bg.gear_1 else 2}")
 
     # mesh the segment
-    bg.interpolate_to_segment(mesh_size, p_deg, interpolate=interpolate)
+    bg.mesh_reference_segment(mesh_size)
+    bg.interpolate_to_reference_segment(mesh_size, p_deg=p_deg, interpolate=interpolate)
 
-    write_paramter_file(bg, dir)
+    write_paramter_file(bg, sample_dir)
 
-    bg.sample(n_iterations, p_deg, data_fname="torque_ball_gears", interpolate="once")
+    bg.sample(n_iterations, p_deg=p_deg)
 
 
-def sample_torque_bar(n_iterations, mesh_size, p_deg=1, interpolate="once"):
-    sample_dir = "sample_bar_gear"
+def sample_torque_bar(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_bar_gear"):
     # create test directory
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
-    gear_1_bar = MagneticBarGear(n=12, h=2.0, w=0.75, d=0.5, R=12, x_M=np.zeros(3))
-    gear_2_bar = MagneticBarGear(n=14, h=2.0, w=0.75, d=0.5, R=18, x_M=np.array([0., 1., 0.]))
+    gear_1_bar = MagneticBarGear(n=2, h=2.0, w=0.75, d=0.5, R=12, x_M=np.zeros(3))
+    gear_2_bar = MagneticBarGear(n=4, h=2.0, w=0.75, d=0.5, R=18, x_M=np.array([0., 1., 0.]))
     gear_1_bar.create_magnets(magnetization_strength=1.0)
     gear_2_bar.create_magnets(magnetization_strength=1.0)
 
     # create coaxial gears problem
-    D = gear_1_bar.R + gear_2_bar.R + gear_1_bar.r + gear_2_bar.r + 1.0
-    bg = SpurGearsSampling(gear_1_bar, gear_2_bar, D)
+    D = gear_1_bar.outer_radius + gear_2_bar.outer_radius + 1.0
+    bg = SpurGearsSampling(gear_1_bar, gear_2_bar, D, main_dir=sample_dir)
 
-    # mesh both gears
-    bg.mesh_gear(bg.gear_1, mesh_size_magnets=mesh_size, fname="gear_1")
-    bg.mesh_gear(bg.gear_2, mesh_size_magnets=mesh_size, fname="gear_2")
-
-    # choose smaller gear ("sg")
-    bg.assign_gears()
+    # mesh smaller gear
+    bg.mesh_gear(bg.sg, mesh_size=mesh_size, fname=f"gear_{1 if bg.sg is bg.gear_1 else 2}")
 
     # mesh the segment
-    bg.interpolate_to_segment(mesh_size, p_deg, interpolate=interpolate)
+    bg.mesh_reference_segment(mesh_size)
+    bg.interpolate_to_reference_segment(mesh_size, p_deg=p_deg, interpolate=interpolate)
 
     write_paramter_file(bg, sample_dir)
 
-    bg.sample(n_iterations, p_deg, data_fname="torque_bar_gears", interpolate="once")
+    bg.sample(n_iterations, p_deg=p_deg)
 
-"""def sample_torque_segment(n_iterations):
+def sample_torque_segment(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_segment_gear"):
     sample_dir = "sample_segment_gear"
     # create test directory
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
-    gear_1_bar = SegmentGear(n=12, R=10.0, w=0.75, d=0.5, x_M=np.zeros(3))
-    gear_2_bar = SegmentGear(n=15, R=12.0, w=0.75, d=0.5, x_M=np.array([0., 1., 0.]))
-    gear_1_bar.create_magnets(magnetization_strength=1.0)
-    gear_2_bar.create_magnets(magnetization_strength=1.0)
+    gear_1_segment = SegmentGear(n=12, R=10.0, w=0.75, d=0.5, x_M=np.zeros(3))
+    gear_2_segment = SegmentGear(n=4, R=12.0, w=0.75, d=0.5, x_M=np.array([0., 1., 0.]))
+    gear_1_segment.create_magnets(magnetization_strength=1.0)
+    gear_2_segment.create_magnets(magnetization_strength=1.0)
 
-    mesh_size_magnets = 0.1
-    sg = SpurGearsSampling(gear_1_bar, gear_2_bar, D=30, main_dir=sample_dir)
-    sg.mesh_gear(gear_1_bar, mesh_size_space=2.0, mesh_size_magnets=mesh_size_magnets, \
-        fname="gear_1", padding=gear_1_bar.w / 2)
-    sg.mesh_gear(gear_2_bar, mesh_size_space=2.0, mesh_size_magnets=mesh_size_magnets, \
-        fname="gear_2", padding=gear_2_bar.w / 2)
+    # create coaxial gears problem
+    D = gear_1_segment.outer_radius + gear_1_segment.outer_radius + 1.0
+    sg = SpurGearsSampling(gear_1_segment, gear_2_segment, D, main_dir=sample_dir)
+
+    # mesh smaller gear
+    sg.mesh_gear(sg.sg, mesh_size=mesh_size, fname=f"gear_{1 if sg.sg is sg.gear_1 else 2}")
+
+    # mesh the segment
+    sg.mesh_reference_segment(mesh_size)
+    sg.interpolate_to_reference_segment(mesh_size, p_deg=p_deg, interpolate=interpolate)
 
     write_paramter_file(sg, sample_dir)
 
-    sg.interpolate_to_segment()
-    sg.sample(n_iterations, data_fname="torque_bar_gears")"""
+    sg.sample(n_iterations, p_deg=p_deg)
 
 def write_paramter_file(problem, dir_):
     with open(dir_ + "/par.json", "w") as f:
-        f.write(json.dumps(problem.gear_1.parameters))
-        f.write(json.dumps(problem.gear_2.parameters))
-        f.write(json.dumps(problem.D))
-
+        par = {
+            "gear_1": problem.gear_1.parameters,
+            "gear_2": problem.gear_2.parameters,
+            "D": problem.D
+        }
+        f.write(json.dumps(par))
 
 if __name__ == "__main__":
-    sample_torque_ball(n_iterations=3, mesh_size=0.6, p_deg=1, interpolate="once")
-    #sample_torque_bar(n_iterations=2)
-    #sample_torque_segment(n_iterations=2)
+    sample_torque_ball(n_iterations=20, mesh_size=0.1, p_deg=2, interpolate="twice")
+    #sample_torque_bar(n_iterations=20, mesh_size=0.1, p_deg=2, interpolate="twice")
+    #sample_torque_segment(n_iterations=5, mesh_size=0.1, p_deg=2, interpolate="twice")
