@@ -41,10 +41,10 @@ class SpurGearsSampling(SpurGearsProblem):
             # first rotate segment
             if update_segment:
                 # rotate back:
-                self.segment_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
+                self.segment_mesh.rotate(- 2 * np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
 
             # then update parameters
-            gear.update_parameters(- np.sign(gear.angle) * 2. * np.pi / gear.n)
+            gear.update_parameters(- 2 * np.sign(gear.angle) * 2. * np.pi / gear.n)
 
     def sample(self, n_iterations, p_deg=2):
         """
@@ -53,7 +53,6 @@ class SpurGearsSampling(SpurGearsProblem):
         Args:
             n_iterations (int): Number of torque samples (per angle).
             p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
-            interpolate (str, optional): Number of interpolation steps. Defaults to "twice".
         """
         angles_1 = np.linspace(0., 2. * np.pi / self.gear_1.n, num=n_iterations + 1)[:-1]
         angles_2 = np.linspace(0., 2. * np.pi / self.gear_2.n, num=n_iterations + 1)[:-1]
@@ -193,6 +192,6 @@ def write_paramter_file(problem, dir_):
         f.write(json.dumps(par))
 
 if __name__ == "__main__":
-    sample_torque_ball(n_iterations=20, mesh_size=0.1, p_deg=2, interpolate="twice")
+    sample_torque_ball(n_iterations=20, mesh_size=0.2, p_deg=2, interpolate="twice")
     #sample_torque_bar(n_iterations=20, mesh_size=0.1, p_deg=2, interpolate="twice")
     #sample_torque_segment(n_iterations=5, mesh_size=0.1, p_deg=2, interpolate="twice")
