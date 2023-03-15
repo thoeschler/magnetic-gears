@@ -4,6 +4,7 @@ import numpy as np
 import os
 import json
 from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
+from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
 from source.tools.fenics_tools import rotate_vector_field, compute_current_potential
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
@@ -37,6 +38,7 @@ class SpurGearsProblem:
         # set gears
         self._gear_1 = first_gear
         self._gear_2 = second_gear
+        self.assign_gear_roles()
 
         # set the domain size
         self.set_domain_size()
@@ -105,7 +107,7 @@ class SpurGearsProblem:
         self.gear_2.update_parameters(2 * np.pi / self.gear_2.n)
         self.gear_2.reset_angle(0.)
 
-    def assign_gears(self):
+    def assign_gear_roles(self):
         if self.gear_1.R < self.gear_2.R:
             self.sg = self.gear_1  # smaller gear
             self.lg = self.gear_2  # larger gear
@@ -445,6 +447,14 @@ class SpurGearsProblem:
             field_sum += interpol_field.vector()
 
             del interpol_field  # explicitly delete to free memory
+        
+        # delete reference field to free memory
+        if field_name == "Vm":
+            del gear._Vm_ref
+            del gear._Vm_reference_mesh
+        elif field_name == "B":
+            del gear._B_ref
+            del gear._B_reference_mesh
 
         print("Done.")
         return dlf.Function(V, field_sum)
@@ -497,7 +507,7 @@ class SpurGearsProblem:
 
         return interpol_field
 
-    def compute_force_on_gear(self, gear: MagneticGear, B):
+    def compute_force_on_gear(self, gear: MagneticGear, B: dlf.Function):
         """Compute the force on a gear caused by a magnetic field B.
 
         Only computes the y- and z-components of the force as only
@@ -517,7 +527,11 @@ class SpurGearsProblem:
         F = np.zeros(2)
 
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
-            M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
+            assert isinstance(mag, PermanentMagnet)
+            if isinstance(mag, PermanentAxialMagnet):
+                M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
+            else:
+                M_jump = - mag.M_as_expression(degree=B.ufl_element().degree())
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             # select y and z components
             for i, c in enumerate((t[1], t[2])):
