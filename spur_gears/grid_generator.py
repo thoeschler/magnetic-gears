@@ -152,11 +152,11 @@ def cylinder_segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, mesh_size, p
         tuple: Mesh, cell marker and facet marker.
     """
     if pad:
-        padding = Ro / 20.
+        padding = Ro / 60.
         Ri -= padding
         Ro += padding
         t += 2 * padding
-        angle += angle / 20.
+        angle += angle / 60.
 
     # make sure angle is at most 2 pi
     if angle > 2 * np.pi:
@@ -184,6 +184,8 @@ def cylinder_segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, mesh_size, p
     model.mesh.setSize(model.occ.getEntities(0), mesh_size)
 
     # generate mesh
+    # use parallel "HXT" algorithm
+    gmsh.option.setNumber("Mesh.Algorithm3D", 10)
     model.mesh.generate(dim=3)
 
     # write mesh to msh file
