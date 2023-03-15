@@ -44,25 +44,11 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             self.create_gear_mesh(gear, x_M_ref=other_gear.x_M, mesh_size=mesh_size, \
                                   fname=fname, write_to_pvd=write_to_pvd)
 
-    def compute_force_torque_numerically(self, p_deg=1, interpolate="never", use_Vm=False):
+    def compute_force_torque_num(self, p_deg=1, interpolate="never", use_Vm=False):
         if interpolate in ("once", "twice"):
-            assert hasattr(self, "segment_mesh")
-            # if interpolation is used, use the field on the segment
-            if use_Vm:
-                assert hasattr(self, "Vm_segment")
-                # create function on smaller gear
-                V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
-                Vm_lg = dlf.Function(V)
-
-                LagrangeInterpolator.interpolate(Vm_lg, self.Vm_segment)
-                B_lg = compute_current_potential(Vm_lg, project=False)
-            else:
-                assert hasattr(self, "B_segment")
-                # create function on smaller gear
-                V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
-                B_lg = dlf.Function(V)
-
-                LagrangeInterpolator.interpolate(B_lg, self.B_segment)
+            F_sg, tau_sg = self.compute_force_torque(
+                p_deg=p_deg, use_Vm=use_Vm
+                )
         elif interpolate == "never":
             if use_Vm:
                 V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
@@ -80,14 +66,16 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                     B_lg_vec += B_mag.vector()
                 B_lg = dlf.Function(V, B_lg_vec)
 
-        # compute force
-        F = self.compute_force_on_gear(self.sg, B_lg)
+            # compute force
+            F = self.compute_force_on_gear(self.sg, B_lg)
 
-        # compute torque
-        tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
-        F_pad = np.array([0., F[0], F[1]])  # pad force (insert x-component)
+            # compute torque
+            tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
+            F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
+        else:
+            raise ValueError()
 
-        return F_pad, tau_sg
+        return F_sg, tau_sg
 
     def update_gear(self, gear: MagneticGear, d_angle, update_segment=False):
         """Update gear given an angle increment.
@@ -113,7 +101,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             gear.update_parameters(- np.sign(gear.angle) * 2. * np.pi / gear.n)
 
 
-def compute_torque_analytically(magnet_1, magnet_2, force, x_M_gear):
+def compute_torque_ana(magnet_1, magnet_2, force, x_M_gear):
     """Compute torque on magnet_2 caused by magnetic field of magnet_1.
 
     Args:
@@ -186,7 +174,7 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         ###############################################
         ##### 1. compute force/torque numerically #####
         ###############################################
-        F_pad, tau_sg = cg.compute_force_torque_numerically(p_deg, interpolate=interpolate, use_Vm=use_Vm)
+        F_pad, tau_sg = cg.compute_force_torque_num(p_deg, interpolate=interpolate, use_Vm=use_Vm)
         tau_lg = (np.cross(cg.lg.x_M - cg.sg.x_M, F_pad) - tau_sg)[0]
 
         if cg.gear_1 is cg.sg:
@@ -217,14 +205,14 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
             for m2 in cg.all_magnets_2:
                 f_ana = compute_force_ana(m1, m2)
                 f_12_ana_vec += f_ana
-                tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_2.x_M)
+                tau_mag = compute_torque_ana(m1, m2, f_ana, cg.gear_2.x_M)
                 tau_12_ana_vec += tau_mag
 
         for m1 in cg.all_magnets_2:
             for m2 in cg.all_magnets_1:
                 f_ana = compute_force_ana(m1, m2)
                 f_21_ana_vec += f_ana
-                tau_mag = compute_torque_analytically(m1, m2, f_ana, cg.gear_1.x_M)
+                tau_mag = compute_torque_ana(m1, m2, f_ana, cg.gear_1.x_M)
                 tau_21_ana_vec += tau_mag
         tau_12_ana = tau_12_ana_vec[0]
         tau_21_ana = tau_21_ana_vec[0]
@@ -266,7 +254,7 @@ if __name__ == "__main__":
     os.chdir(conv_dir)
     mesh_sizes = np.geomspace(1e-1, 1.0, num=6)
     for p_deg in (1, 2):
-        ma = False
+        ma = True
         # 1. interpolate never, use Vm
         main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
              dir=f"Vm_interpol_never_pdeg_{p_deg}")

@@ -4,7 +4,7 @@ import numpy as np
 import os
 import json
 from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
-from source.tools.fenics_tools import rotate_vector_field
+from source.tools.fenics_tools import rotate_vector_field, compute_current_potential
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
 from spur_gears.grid_generator import cylinder_segment_mesh
@@ -554,6 +554,57 @@ class SpurGearsProblem:
 
         print("Done.")
         return tau
+
+    def compute_force_torque(self, p_deg=2, use_Vm=True):
+        """
+        Compute force and torque on smaller gear.
+
+        Args:
+            p_deg (int, optional): Polynomial degree. Defaults to 2.
+            use_Vm (bool, optional): Whether to use the magnetic potential.
+                                     Defaults to True.
+
+        Returns:
+            tuple: Force and torque on smaller gear.
+        """
+        assert hasattr(self, "segment_mesh")
+        # Copy everything
+        # This is necessary because fenics returns zeros if the mesh
+        # is rotated and used for interpolation multiple times. To avoid
+        # this copy the entire reference function for interpolation
+        seg_mesh = dlf.Mesh(self.segment_mesh)
+        if use_Vm:
+            V_seg = dlf.FunctionSpace(seg_mesh, "CG", p_deg)
+            Vm_seg = dlf.Function(V_seg, self.Vm_segment.vector().copy())
+        else:
+            V_seg = dlf.VectorFunctionSpace(seg_mesh, "CG", p_deg)
+            B_seg = dlf.Function(V_seg, self.B_segment.vector().copy())
+
+        # if interpolation is used, use the field on the segment
+        if use_Vm:
+            assert hasattr(self, "Vm_segment")
+            # create function on smaller gear
+            V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
+            Vm_lg = dlf.Function(V)
+
+            LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
+            B_lg = compute_current_potential(Vm_lg, project=False)
+        else:
+            assert hasattr(self, "B_segment")
+            # create function on smaller gear
+            V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
+            B_lg = dlf.Function(V)
+
+            LagrangeInterpolator.interpolate(B_lg, B_seg)
+
+        # compute force
+        F = self.compute_force_on_gear(self.sg, B_lg)
+
+        # compute torque
+        tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
+        F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
+
+        return F_sg, tau_sg
  
     def create_gear_mesh(self, gear: MagneticGear, **kwargs):
         """Mesh a gear.
