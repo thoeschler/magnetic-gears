@@ -33,8 +33,6 @@ class SpurGearsProblem:
         assert hasattr(second_gear, "outer_radius")
         assert D > first_gear.outer_radius + second_gear.outer_radius
         self._D = D
-        assert np.isclose(first_gear.outer_radius / second_gear.outer_radius, \
-                          first_gear.n / second_gear.n)
 
         # set gears
         self._gear_1 = first_gear
