@@ -370,22 +370,23 @@ class MagneticBallGear(MagneticGear):
 
 
 class MagneticBarGear(MagneticGear):
-    def __init__(self, n, R, d, w, h, x_M):
+    def __init__(self, n, R, w, t, d, x_M):
         """Magnetic gear with bar magnets.
 
         Args:
             n (int): Even number of magnets.
             R (float): Gear's radius.
-            d (float): The magnet depth (x-direction).
-            w (float): The magnet width (y-direction).
-            h (float): The magnet height (z-direction).
+            w (float): Gear width (x-direction), corresponds to magnet width w.
+            t (float): Gear thickness (radial direction), corresponds to magnet
+                       height h.
+            d (float): Magnet depth (tangential direction), same in BarMagnet.
             x_M (np.ndarray): Position vector.
         """
         super().__init__(n, R, x_M)
-        self._w = w  # the magnet width (here: x-direction!)
-        self._d = d  # the magnet depth (here: tangential direction!)
-        self._h = h  # the magnet height (here: radial direction!)
-        self._scale_parameter = d  # use depth for scaling
+        self._w = w
+        self._t = t
+        self._d = d
+        self._scale_parameter = t  # use thickness for scaling
         self._magnet_type = "Bar"
 
     @property
@@ -393,28 +394,28 @@ class MagneticBarGear(MagneticGear):
         return self._w
 
     @property
+    def t(self):
+        return self._t
+
+    @property
     def d(self):
         return self._d
 
     @property
-    def h(self):
-        return self._h
-
-    @property
     def width(self):
-        return 2 * self.w
+        return self.w
 
     @property
     def outer_radius(self):
-        return self.R + self.w
+        return np.sqrt((self.R + self.t / 2) ** 2 + self.d ** 2 / 4)
 
     @property
     def parameters(self):
         par = super().parameters
         par.update({
-            "d": self.d,
             "w": self.w,
-            "h": self.h
+            "t": self.t,
+            "d": self.d
         })
         return par
 
@@ -425,7 +426,7 @@ class MagneticBarGear(MagneticGear):
             BarMagnet: The reference magnet.
         """
         return BarMagnet(width=self.w / self.scale_parameter, depth=self.d / self.scale_parameter, \
-                         height=self.h / self.scale_parameter, magnetization_strength=1.0, \
+                         height=self.t / self.scale_parameter, magnetization_strength=1.0, \
                             position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     def create_magnets(self, magnetization_strength):
@@ -446,7 +447,7 @@ class MagneticBarGear(MagneticGear):
                 # magnetization pointing inward
                 Q = get_rot(np.pi / 2 + 2 * np.pi / self.n * k)
             x_M = self.x_M + get_rot(2 * np.pi / self.n * k).dot(np.array([0., self.R, 0.]))
-            self._magnets.append(BarMagnet(width=self.w, depth=self.d, height=self.h, \
+            self._magnets.append(BarMagnet(width=self.w, depth=self.d, height=self.t, \
                                            magnetization_strength=magnetization_strength, \
                                            position_vector=x_M, rotation_matrix=Q
                                            ))
@@ -454,21 +455,23 @@ class MagneticBarGear(MagneticGear):
 
 
 class SegmentGear(MagneticGear):
-    def __init__(self, n, R, d, w, x_M):
+    def __init__(self, n, R, w, t, x_M):
         """Magnetic gear with cylinder segment magnets.
 
         Args:
             n (int): Even number of magnets.
-            R (float): Gear's radius.
-            d (float): The magnet depth (radial direction).
+            R (float): Radius.
             w (float): The magnet width (thickness).
+            t (float): Thickness (radial direction), corresponds to magnet
+                       height h.
             x_M (np.ndarray): Position vector.
         """
         super().__init__(n, R, x_M)
-        self._w = w  # the magnet width (here: x-direction!)
-        self._d = d  # the magnet depth (here: radial direction!)
-        self._alpha = np.pi / n  # half the angle per magnet
-        self._scale_parameter = self.d  # use depth for scaling
+        
+        self._w = w
+        self._t = t
+        self._alpha = 2 * np.pi / n  # angle per magnet
+        self._scale_parameter = self.t  # use thickness for scaling
         self._magnet_type = "CylinderSegment"
 
     @property
@@ -476,8 +479,8 @@ class SegmentGear(MagneticGear):
         return self._w
 
     @property
-    def d(self):
-        return self._d
+    def t(self):
+        return self._t
 
     @property
     def alpha(self):
@@ -487,10 +490,9 @@ class SegmentGear(MagneticGear):
     def width(self):
         return self._w
 
-
     @property
     def outer_radius(self):
-        return self.R + self.w
+        return self.R + self.t / 2
 
     @property
     def parameters(self):
@@ -498,7 +500,7 @@ class SegmentGear(MagneticGear):
         par.update({
             "alpha": self.alpha,
             "w": self.w,
-            "d": self.d
+            "t": self.t
         })
         return par
 
@@ -509,7 +511,7 @@ class SegmentGear(MagneticGear):
             CylinderSegment: The reference magnet.
         """
         return CylinderSegment(radius=self.R / self.scale_parameter, width=self.w / self.scale_parameter, \
-                             depth=self.d / self.scale_parameter, magnetization_strength=1.0, \
+                             thickness=self.t / self.scale_parameter, magnetization_strength=1.0, \
                                 position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     def create_magnets(self, magnetization_strength):
@@ -531,7 +533,7 @@ class SegmentGear(MagneticGear):
                 magnetization_direction = "in"
             Q = get_rot(2 * np.pi / self.n * k)
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
-            self._magnets.append(CylinderSegment(radius=self.R, width=self.w, depth=self.d, \
+            self._magnets.append(CylinderSegment(radius=self.R, width=self.w, thickness=self.t, \
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \
                                                     position_vector=x_M, rotation_matrix=Q, \
                                                         magnetization_direction=magnetization_direction))
