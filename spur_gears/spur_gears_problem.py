@@ -2,6 +2,7 @@ import dolfin as dlf
 from dolfin import LagrangeInterpolator
 import numpy as np
 import os
+import subprocess
 import json
 from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
 from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
@@ -432,9 +433,10 @@ class SpurGearsProblem:
         # initialize the sum over all fields
         field_sum = 0.
 
-        print(f"Interpolating magnetic field... ", end="")
+        print(f"Interpolating field of gear... ", end="")
         # interpolate field for every magnet and add it to the sum
         for mag in gear.magnets:
+            print("Interpolating field of magnet...", end="")
             if use_ref_field:
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
                     mesh, cell_type, p_deg, scale=gear.scale_parameter)
@@ -444,10 +446,9 @@ class SpurGearsProblem:
                 elif field_name == "Vm":
                     interpol_field = interpolate_field(mag.Vm, mesh, cell_type, p_deg)
 
-            field_sum += interpol_field.vector()
+            field_sum += interpol_field
+            print("Done.")
 
-            del interpol_field  # explicitly delete to free memory
-        
         # delete reference field to free memory
         if field_name == "Vm":
             del gear._Vm_ref
@@ -476,36 +477,52 @@ class SpurGearsProblem:
         Returns:
             dlf.Function: The field interpolated on the mesh.
         """
-        # copy everything
-        reference_mesh_copy = dlf.Mesh(reference_mesh)
+        # save originial coordinates
+        coords_original = np.array(reference_mesh.coordinates())
 
+        # A copy of the reference mesh needs to be set as a class
+        # variable because fenics does not delete the mesh when
+        # the function terminates. Therefore, overwrite the mesh
+        # each time the function is called.
         if field_name == "B":
-            V_ref = dlf.VectorFunctionSpace(reference_mesh_copy, cell_type, p_deg)
-            reference_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
+            if not hasattr(self, "_B_reference_mesh_copy"):
+                self._B_reference_mesh_copy = dlf.Mesh(reference_mesh)
+            ref_mesh_copy = self._B_reference_mesh_copy
+            assert ref_mesh_copy is self._B_reference_mesh_copy  # same object
+            V_ref = dlf.VectorFunctionSpace(self._B_reference_mesh_copy, cell_type, p_deg)
+            ref_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
             # rotate reference field
-            rotate_vector_field(reference_field_copy, magnet.Q)
+            rotate_vector_field(ref_field_copy, magnet.Q)
         elif field_name == "Vm":
-            V_ref = dlf.FunctionSpace(reference_mesh_copy, cell_type, p_deg)
+            if not hasattr(self, "_Vm_reference_mesh_copy"):
+                self._Vm_reference_mesh_copy = dlf.Mesh(reference_mesh)
+            ref_mesh_copy = self._Vm_reference_mesh_copy
+            assert ref_mesh_copy is self._Vm_reference_mesh_copy  # same object
+            V_ref = dlf.FunctionSpace(self._Vm_reference_mesh_copy, cell_type, p_deg)
             # scale magnetic potential
-            reference_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
-            reference_field_copy.vector()[:] *= scale
+            ref_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
+            if not np.isclose(scale, 1.0):
+                ref_field_copy.vector()[:] *= scale
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
 
         # scale, rotate and shift reference mesh according to magnet placement
-        reference_mesh_copy.scale(scale)
+        ref_mesh_copy.scale(scale)
         # rotate first, then shift!
-        coords = np.array(reference_mesh_copy.coordinates())
-        reference_mesh_copy.coordinates()[:] = magnet.Q.dot(coords.T).T
-        reference_mesh_copy.translate(dlf.Point(*magnet.x_M))
+        coords = np.array(ref_mesh_copy.coordinates())
+        ref_mesh_copy.coordinates()[:] = magnet.Q.dot(coords.T).T
+        ref_mesh_copy.translate(dlf.Point(*magnet.x_M))
 
         # interpolate field to new function space and add the result
         interpol_field = dlf.Function(V)
-        LagrangeInterpolator.interpolate(interpol_field, reference_field_copy)
+        LagrangeInterpolator.interpolate(interpol_field, ref_field_copy)
 
-        return interpol_field
+        # reset coordinates
+        ref_mesh_copy.coordinates()[:] = coords_original
+
+        return interpol_field.vector().copy()
 
     def compute_force_on_gear(self, gear: MagneticGear, B: dlf.Function):
         """Compute the force on a gear caused by a magnetic field B.
@@ -596,7 +613,6 @@ class SpurGearsProblem:
 
         # if interpolation is used, use the field on the segment
         if use_Vm:
-            assert hasattr(self, "Vm_segment")
             # create function on smaller gear
             V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
             Vm_lg = dlf.Function(V)
@@ -604,7 +620,6 @@ class SpurGearsProblem:
             LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
             B_lg = compute_current_potential(Vm_lg, project=False)
         else:
-            assert hasattr(self, "B_segment")
             # create function on smaller gear
             V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
             B_lg = dlf.Function(V)
