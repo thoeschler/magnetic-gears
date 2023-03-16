@@ -54,8 +54,8 @@ class SpurGearsSampling(SpurGearsProblem):
             n_iterations (int): Number of torque samples (per angle).
             p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
         """
-        angles_1 = np.linspace(0., 2. * np.pi / self.gear_1.n, num=n_iterations + 1)[:-1]
-        angles_2 = np.linspace(0., 2. * np.pi / self.gear_2.n, num=n_iterations + 1)[:-1]
+        angles_1 = np.linspace(0., 2. * np.pi / self.gear_1.n, num=n_iterations, endpoint=False)
+        angles_2 = np.linspace(0., 2. * np.pi / self.gear_2.n, num=n_iterations, endpoint=False)
         d_angle_1 = angles_1[1]- angles_1[0]
         d_angle_2 = angles_2[1]- angles_2[0]
 
@@ -77,8 +77,10 @@ class SpurGearsSampling(SpurGearsProblem):
         tau_21_values = np.zeros((n_iterations, n_iterations))
         for i in range(n_iterations):
             for j in range(n_iterations):
-                assert np.any(np.isclose(self.sg.angle, np.array([-2 * np.pi, 0., 2 * np.pi]) / self.sg.n + angles_sg[j]))
-                assert np.any(np.isclose(self.lg.angle, np.array([-2 * np.pi, 0., 2 * np.pi]) / self.lg.n + angles_lg[i]))
+                print(self.sg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.sg.n + angles_sg[j])
+                print(self.lg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.lg.n + angles_lg[i])
+                assert np.any(np.isclose(self.sg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.sg.n + angles_sg[j]))
+                assert np.any(np.isclose(self.lg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.lg.n + angles_lg[i]))
                 F_sg, tau_sg = self.compute_force_torque(p_deg, use_Vm=True)
                 tau_lg = (np.cross(self.lg.x_M - self.sg.x_M, F_sg) - tau_sg)[0]
 
@@ -96,6 +98,10 @@ class SpurGearsSampling(SpurGearsProblem):
 
                 # rotate smaller gear
                 self.update_gear(self.sg, d_angle=d_angle_sg, update_segment=False)
+
+            # rotate back to zero angle
+            self.update_gear(self.sg, d_angle=float(-self.sg.angle), update_segment=False)
+            assert np.isclose(self.sg.angle, 0.)
 
             # update csv files
             pd.DataFrame(tau_12_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/data/tau_12.csv")
@@ -192,6 +198,6 @@ def write_paramter_file(problem, dir_):
         f.write(json.dumps(par))
 
 if __name__ == "__main__":
-    sample_torque_ball(n_iterations=20, mesh_size=0.2, p_deg=2, interpolate="twice")
+    sample_torque_ball(n_iterations=20, mesh_size=0.8, p_deg=2, interpolate="twice")
     #sample_torque_bar(n_iterations=20, mesh_size=0.1, p_deg=2, interpolate="twice")
     #sample_torque_segment(n_iterations=5, mesh_size=0.1, p_deg=2, interpolate="twice")
