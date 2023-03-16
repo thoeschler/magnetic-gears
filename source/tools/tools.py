@@ -8,14 +8,19 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 
 
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
-    fname="reference_mesh", verbose=False):
-    """Create a reference mesh.
+    shape="sphere", thickness=None, fname="reference_mesh", verbose=False):
+    """
+    Create a mesh of a reference sphere.
 
     Args:
-        fname (str, optional): Output file name. Defaults to "reference_mesh".
-        type_classifier (str, optional): Classifies magnet type. Defaults to "Ball".
-        verbose (bool, optional): If true the gmsh meshing information will be
-                                    displayed. Defaults to False.
+        reference_magnet (PermanentMagnet): Reference magnet.
+        domain_radius (float): Radius of domain.
+        mesh_size_min (float): Minimum mesh size.
+        mesh_size_max (float): Maximum mesh size.
+        shape (str): Shape of reference mesh.
+        thickness (float): Thickness of cylinder reference mesh. Only specify for
+                           shape="cylinder".
+        verbose (bool, optional): Whether to display gmsh info. Defaults to False.
     """
     fname = fname.split(".")[0]
     print("Creating reference mesh... ", end="")
@@ -24,17 +29,29 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         gmsh.option.setNumber("General.Terminal", 0)
     model = gmsh.model()
 
-    # create surrounding box sphere
-    x_M = np.zeros(3)
-    box = model.occ.addSphere(*x_M, domain_radius)
+    # add magnet
     if isinstance(reference_magnet, mc.BallMagnet):
         magnet = add_ball_magnet(model, magnet=reference_magnet)
+        t_min = 2 * reference_magnet.R
     elif isinstance(reference_magnet, mc.BarMagnet):
         magnet = add_bar_magnet(model, magnet=reference_magnet)
+        t_min = 2 * reference_magnet.w
     elif isinstance(reference_magnet, mc.CylinderSegment):
         magnet = add_cylinder_segment_magnet(model, magnet=reference_magnet)
+        t_min = 2 * reference_magnet.w
     else:
         raise RuntimeError()
+
+    # create surrounding box sphere
+    x_M = reference_magnet.x_M
+    if shape.lower() == "sphere":
+        box = model.occ.addSphere(*x_M, domain_radius)
+    elif shape.lower() == "cylinder":
+        if thickness is None:
+            t = t_min + 1e-3  # some padding
+        else:
+            t = max(t_min, thickness) + 1e-3 
+        box = model.occ.addCylinder(-t / 2, 0., 0., t, 0., 0., r=domain_radius)
 
     # cut magnet from surrounding box
     model.occ.cut([(3, box)], [(3, magnet)], removeObject=True, removeTool=False)
@@ -47,7 +64,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     model.addPhysicalGroup(3, [magnet])
 
     # add distance field
-    mid_point = model.occ.addPoint(0., 0., 0.)
+    mid_point = model.occ.addPoint(*reference_magnet.x_M)
     model.occ.synchronize()
     distance_tag = model.mesh.field.add("Distance")
     model.mesh.field.setNumbers(distance_tag, "PointsList", [mid_point])

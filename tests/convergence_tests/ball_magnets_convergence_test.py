@@ -58,7 +58,8 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             ref_magnet = BallMagnet(1., 1., np.zeros(3), np.eye(3))
             D_max = distance_values.max() + mag_1.R + mag_2.R
             create_reference_mesh(ref_magnet, domain_radius=(D_max + mag_2.R + 1e-1) / mag_1.R, \
-                                  mesh_size_min=ms / mag_1.R, mesh_size_max=ms / mag_1.R, fname="reference_mesh")
+                                  mesh_size_min=ms / mag_1.R, mesh_size_max=ms / mag_1.R, \
+                                    shape="sphere", fname="reference_mesh")
             reference_mesh = read_mesh("reference_mesh.xdmf")
             if use_Vm:
                 # scale Vm of reference magnet by radius of mag_1

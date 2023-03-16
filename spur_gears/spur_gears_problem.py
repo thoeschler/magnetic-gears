@@ -2,7 +2,6 @@ import dolfin as dlf
 from dolfin import LagrangeInterpolator
 import numpy as np
 import os
-import subprocess
 import json
 from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
 from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
@@ -195,16 +194,20 @@ class SpurGearsProblem:
         Returns:
             bool: True if parameters match (reference file can be used).
         """
+        # check if reference mesh shape is the same
+        if par_file["shape"] != "cylinder":
+            return False
+
         # check if magnet type is the same
-        if not par_file["magnet_type"] == gear.magnet_type:
+        if par_file["magnet_type"] != gear.magnet_type:
             return False
 
         # check if field name is the same
-        if not par_file["name"] == field_name:
+        if par_file["name"] != field_name:
             return False
         
         # check if polynomial degree is the same
-        if not par_file["p_deg"] == p_deg:
+        if par_file["p_deg"] != p_deg:
             return False
 
         # check if mesh size is correct
@@ -214,7 +217,7 @@ class SpurGearsProblem:
             return False
 
         # check if domain size and geometry matches
-        if not par_file["domain_radius"] * gear.scale_parameter >= self._domain_size:
+        if par_file["domain_radius"] * gear.scale_parameter < self._domain_size:
             return False
 
         if isinstance(gear, MagneticBarGear):
@@ -261,7 +264,15 @@ class SpurGearsProblem:
 
             # create reference mesh
             ref_mag = gear.reference_magnet()
-            create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, fname=f"{ref_dir}/reference_mesh")
+
+            if gear is self.gear_1:
+                thickness = self.gear_2.width
+            elif gear is self.gear_2:
+                thickness = self.gear_1.width
+            else:
+                raise RuntimeError()
+            create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
+                                  shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
 
             # read reference mesh
             reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
@@ -286,6 +297,7 @@ class SpurGearsProblem:
             with open(f"{ref_dir}/par.json", "w") as f:
                 ref_par = self._reference_parameters_dict(gear, domain_size)
                 ref_par.update({
+                    "shape": "cylinder",
                     "name": field_name,
                     "mesh_size_min": mesh_size_min, 
                     "mesh_size_max": mesh_size_max,
@@ -448,14 +460,6 @@ class SpurGearsProblem:
 
             field_sum += interpol_field
             print("Done.")
-
-        # delete reference field to free memory
-        if field_name == "Vm":
-            del gear._Vm_ref
-            del gear._Vm_reference_mesh
-        elif field_name == "B":
-            del gear._B_ref
-            del gear._B_reference_mesh
 
         print("Done.")
         return dlf.Function(V, field_sum)
