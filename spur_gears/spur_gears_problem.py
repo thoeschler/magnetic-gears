@@ -3,7 +3,7 @@ from dolfin import LagrangeInterpolator
 import numpy as np
 import os
 import json
-from source.magnetic_gear_classes import MagneticBarGear, MagneticGear
+from source.magnetic_gear_classes import MagneticGear, MagneticBarGear, SegmentGear
 from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
 from source.tools.fenics_tools import rotate_vector_field, compute_current_potential
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
@@ -95,19 +95,29 @@ class SpurGearsProblem:
                 "w": gear.w / gear.scale_parameter,
                 "d": gear.d / gear.scale_parameter
                 })
+        elif isinstance(gear, SegmentGear):
+            par.update({
+                "w": gear.w / gear.scale_parameter,
+                "t": gear.t / gear.scale_parameter,
+                "alpha": gear.alpha,
+                })
         return par
 
     def align_gears(self):
         """Rotate both gears such that magnets align."""
         assert hasattr(self.gear_1, "_magnets")
         assert hasattr(self.gear_1, "_magnets")
+
+        # align both gears
         self.align_gear(self.gear_1, self.gear_2)
         self.align_gear(self.gear_2, self.gear_1)
+
         # make sure north and south pole of the magnets are facing each other
         self.gear_2.update_parameters(2 * np.pi / self.gear_2.n)
         self.gear_2.reset_angle(0.)
 
     def assign_gear_roles(self):
+        """Assign smaller and larger gear."""
         if self.gear_1.R < self.gear_2.R:
             self.sg = self.gear_1  # smaller gear
             self.lg = self.gear_2  # larger gear
@@ -121,20 +131,25 @@ class SpurGearsProblem:
         The gear's angle is reset to zero in the aligned position.
 
         Args:
-            gear (MagneticGear): Gear that should be moved such that it is aligned.
-            other_gear (MagneticGear): Gear that the other should be aligned with.
+            gear (MagneticGear): Gear that shall be rotated such that it is aligned.
+            other_gear (MagneticGear): Other gear that the first one shall be aligned with.
         """
         assert hasattr(gear, "_magnets")
+
+        # goal position for magnet
         vec = (other_gear.x_M - gear.x_M)
         vec /= np.linalg.norm(vec)
-        x_M_magnet = gear.x_M + gear.R * vec  # goal position for magnet
+        x_M_magnet = gear.x_M + gear.R * vec
+
         # rotate gear such that first magnet is aligned
         angle = np.abs(np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2))
         sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(np.array([1., 0., 0.])))
-        if np.isclose(angle, np.pi):  # angle = pi leads to sign = 0, so set it manually
+        if np.isclose(angle, np.pi):  # angle = pi leads to sign = 0, so set the sign manually
             sign = 1
         gear.update_parameters(sign * angle)
         assert np.allclose(x_M_magnet, gear.magnets[0].x_M)
+
+        # reset angle to zero
         gear.reset_angle(0.)
 
     def _find_reference_files(self, gear, field_name, mesh_size_min, mesh_size_max, p_deg, rtol=1.0):
@@ -205,7 +220,7 @@ class SpurGearsProblem:
         # check if field name is the same
         if par_file["name"] != field_name:
             return False
-        
+
         # check if polynomial degree is the same
         if par_file["p_deg"] != p_deg:
             return False
@@ -225,14 +240,21 @@ class SpurGearsProblem:
                                (par_file["w"] * gear.scale_parameter, \
                                 par_file["d"] * gear.scale_parameter)):
                 return False
+        elif isinstance(gear, SegmentGear):
+            if not np.allclose((gear.w, gear.t, gear.alpha), \
+                               (par_file["w"] * gear.scale_parameter, \
+                                par_file["t"] * gear.scale_parameter),
+                                par_file["alpha"]):
+                return False
 
         return True
 
-    def _load_reference_field(self, gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
+    def _load_reference_field(self, gear: MagneticGear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
         """Load reference field from hdf5 file. If no appropriate file is
            found the file will be written first.
 
         Args:
+            gear (MagneticGear): Magnetic gear.
             field_name (str): Name of the field, e.g. "B".
             cell_type (str): Finite element cell type.
             p_deg (int): Polynomial degree of finite element.
@@ -246,7 +268,6 @@ class SpurGearsProblem:
                                  gear meshes. This value will be used as the radius of
                                  the reference mesh.
         """
-        assert isinstance(gear, MagneticGear)
         assert field_name in ("Vm", "B"), "What field is this?"
         vector_valued = (field_name == "B")  # check if field is vector valued
 
@@ -316,14 +337,10 @@ class SpurGearsProblem:
         gear.set_reference_field(reference_field, field_name)
 
     def mesh_reference_segment(self, mesh_size):
-        """
-        Interpolate magnetic field of larger gear on cylinder segment containing
-        the smaller gear.
+        """Create mesh of reference cylinder segment.
 
         Args:
-            mesh_size (_type_): _description_
-            p_deg (int, optional): _description_. Defaults to 1.
-            interpolate (str, optional): _description_. Defaults to "once".
+            mesh_size (float): Mesh size.
         """
         # set geometrical paramters
         t = self.sg.width  # segment width (thickness)
@@ -368,10 +385,11 @@ class SpurGearsProblem:
         Interpolate field of larger gear on reference segment.
 
         Args:
-            mesh_size (float): _description_
-            p_deg (int, optional): _description_. Defaults to 2.
-            interpolate (str, optional): _description_. Defaults to "once".
-            use_Vm (bool, optional): _description_. Defaults to True.
+            mesh_size (float): Mesh size of used reference field. Set only for
+                               interpolate="twice". Defaults to None.
+            p_deg (int, optional): Polynomial degree. Defaults to 2.
+            interpolate (str, optional): Number of interpolation steps. Defaults to "once".
+            use_Vm (bool, optional): Whether to use magnetic potential Vm. Defaults to True.
         """
         assert hasattr(self, "segment_mesh")
 
@@ -458,7 +476,7 @@ class SpurGearsProblem:
                 elif field_name == "Vm":
                     interpol_field = interpolate_field(mag.Vm, mesh, cell_type, p_deg)
 
-            field_sum += interpol_field
+            field_sum += interpol_field.vector().copy()
             print("Done.")
 
         print("Done.")
@@ -523,10 +541,10 @@ class SpurGearsProblem:
         interpol_field = dlf.Function(V)
         LagrangeInterpolator.interpolate(interpol_field, ref_field_copy)
 
-        # reset coordinates
+        # Reset coordinates. Degrees of freedom remain the same.
         ref_mesh_copy.coordinates()[:] = coords_original
 
-        return interpol_field.vector().copy()
+        return interpol_field
 
     def compute_force_on_gear(self, gear: MagneticGear, B: dlf.Function):
         """Compute the force on a gear caused by a magnetic field B.
@@ -568,7 +586,6 @@ class SpurGearsProblem:
         Args:
             gear (MagneticGear): The magnetic gear.
             B (dlf.Function): The magnetic field.
-            p_deg (int): Polynomial degree.
 
         Returns:
             float: The torque.
@@ -643,12 +660,9 @@ class SpurGearsProblem:
         """Mesh a gear.
 
         Args:
-            gear (MagneticGear): The gear. 
+            gear (MagneticGear): Magnetic gear. 
             kwargs (any): Input to gear's mesh function.
         """
-        assert hasattr(self, "_gear_1")
-        assert hasattr(self, "_gear_2")
-
         # create directory if it does not exist
         if not os.path.exists(self._main_dir + "/data/gears/"):
             os.makedirs(self._main_dir + "/data/gears/")
