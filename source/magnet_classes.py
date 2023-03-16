@@ -347,9 +347,9 @@ class BarMagnet(PermanentAxialMagnet):
         Bar magnet.
 
         Args:
-            width (float): Half the width (x-direction).
-            depth (float): Half the depth (y-direction).
-            height (float): Half the height (z-direction).
+            width (float): Width (x-direction).
+            depth (float): Depth (y-direction).
+            height (float): Height (z-direction).
             magnetization_strength (float): Magnetization strength.
             position_vector (np.ndarray): Position vector.
             rotation_matrix (np.ndarray): Rotation matrix.
@@ -388,7 +388,7 @@ class BarMagnet(PermanentAxialMagnet):
             bool: True if x0 is inside the domain.
         """
         x_eigen = self.Q.T.dot(x0 - self.x_M)
-        return np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
+        return np.all(np.absolute(x_eigen) < np.array([self.w / 2, self.d / 2, self.h / 2]))
 
     def on_boundary(self, x0):
         """Check if point x0 is on the magnet's boundary.
@@ -400,7 +400,7 @@ class BarMagnet(PermanentAxialMagnet):
             bool: True if x0 is on the boundary.
         """
         x_eigen = self.Q.T.dot(x0 - self.x_M)
-        return np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
+        return np.any(np.isclose(np.absolute(x_eigen), np.array([self.w / 2, self.d / 2, self.h / 2])))
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.
@@ -443,8 +443,8 @@ class BarMagnet(PermanentAxialMagnet):
         Returns:
             np.ndarray: The magnetic field's value at x_eigen.
         """
-        inside = np.all(np.absolute(x_eigen) < np.array([self.w, self.d, self.h]))
-        on_boundary = np.any(np.isclose(np.absolute(x_eigen), np.array([self.w, self.d, self.h])))
+        inside = np.all(np.absolute(x_eigen) < np.array([self.w / 2, self.d / 2, self.h / 2]))
+        on_boundary = np.any(np.isclose(np.absolute(x_eigen), np.array([self.w / 2, self.d / 2, self.h / 2])))
 
         if inside or (on_boundary and (limit_direction == -1)):
             return self.H_eigen(x_eigen) + np.array([0., 0., 1.])
@@ -492,19 +492,19 @@ class BarMagnet(PermanentAxialMagnet):
 
 
 class CylinderSegment(PermanentMagnet):
-    def __init__(self, radius, width, depth, alpha, magnetization_strength, position_vector, \
+    def __init__(self, radius, width, thickness, alpha, magnetization_strength, position_vector, \
                  rotation_matrix, magnetization_direction="out"):
         """
         Radially magnetized CylinderSegment.
 
         Args:
             radius (float): The mid radius.
-            width (float): Half the width (thickness).
-            depth (float): Half the depth (in radial direction).
-            alpha (float): Half the opening angle.
-            magnetization_strength (_type_): 
+            width (float): Width (x-direction).
+            thickness (float): Thickness (radial direction).
+            alpha (float): Opening angle.
+            magnetization_strength (float): Magnetization strength.
             position_vector (np.ndarray): Position vector. For the cylinder segment
-                                          the position vector is not set as the gear's
+                                          the position vector is not set as the magnet's
                                           center of mass. Instead, it is the point at dis-
                                           tance Rm with a zero angle (in eigen coordinates).
                                           This can be considered the mid point.
@@ -521,8 +521,7 @@ class CylinderSegment(PermanentMagnet):
         assert magnetization_direction in ("out", "in")
         self._Rm = radius
         self._width = width
-        self._depth = depth
-        # half the angle of the segment
+        self._thickness = thickness
         self._alpha = alpha
 
     @property
@@ -534,8 +533,8 @@ class CylinderSegment(PermanentMagnet):
         return self._width
 
     @property
-    def d(self):
-        return self._depth
+    def t(self):
+        return self._thickness
 
     @property
     def alpha(self):
@@ -565,11 +564,11 @@ class CylinderSegment(PermanentMagnet):
         x, y, z = x_eigen
         rho = np.sqrt(y ** 2 + z ** 2)
         phi = np.arctan2(z, y)
-        if np.abs(phi) >= self.alpha:
+        if np.abs(phi) >= self.alpha / 2:
             return False
-        if rho <= (self.Rm - self.d) or rho >= (self.Rm + self.d):
+        if rho <= (self.Rm - self.t / 2) or rho >= (self.Rm + self.t / 2):
             return False
-        if np.abs(x) >= self.w:
+        if np.abs(x) >= self.w / 2:
             return False
         return True
 
@@ -594,16 +593,16 @@ class CylinderSegment(PermanentMagnet):
         if np.abs(phi) > self.alpha and not(np.isclose(np.abs(phi), self.alpha)):
             return False
         # check if rho is too small or too large
-        if (rho < (self.Rm - self.d) or rho > (self.Rm + self.d)) and \
-            not(np.isclose(rho, self.Rm - self.d) or np.isclose(rho, self.Rm + self.d)):
+        if (rho < (self.Rm - self.t / 2) or rho > (self.Rm + self.t / 2)) and \
+            not(np.isclose(rho, self.Rm - self.t / 2) or np.isclose(rho, self.Rm + self.t / 2)):
             return False
         # check if z is too small or too large
-        if (np.abs(z) > self.w) and not(np.isclose(np.abs(z), self.w)):
+        if (np.abs(z) > self.w / 2) and not(np.isclose(np.abs(z), self.w / 2)):
             return False
         # now, if a single value corresponds to the boundary value, the point
         # is indeed on the boundary 
-        if np.isclose(np.abs(phi), self.alpha) or np.isclose(rho, self.Rm - self.d) or \
-            np.isclose(rho, self.Rm + self.d) or np.isclose(np.abs(z), self.w):
+        if np.isclose(np.abs(phi), self.alpha / 2) or np.isclose(rho, self.Rm - self.t / 2) or \
+            np.isclose(rho, self.Rm + self.t / 2) or np.isclose(np.abs(z), self.w / 2):
             return True
         return False
 

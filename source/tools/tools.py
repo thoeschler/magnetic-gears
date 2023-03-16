@@ -52,6 +52,8 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         else:
             t = max(t_min, thickness) + 1e-3 
         box = model.occ.addCylinder(-t / 2, 0., 0., t, 0., 0., r=domain_radius)
+    else:
+        raise RuntimeError()
 
     # cut magnet from surrounding box
     model.occ.cut([(3, box)], [(3, magnet)], removeObject=True, removeTool=False)

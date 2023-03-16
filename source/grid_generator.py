@@ -127,10 +127,10 @@ def add_cylinder_segment_magnet(model, magnet):
     assert isinstance(magnet, mc.CylinderSegment)
     # add first surface
     # add points
-    p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([magnet.d, magnet.w, 0.]))))
-    p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([magnet.d, - magnet.w, 0.]))))
-    p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([-magnet.d, - magnet.w, 0.]))))
-    p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([-magnet.d, magnet.w, 0.]))))
+    p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([magnet.w / 2, magnet.t / 2, 0.]))))
+    p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([magnet.w / 2, - magnet.t / 2, 0.]))))
+    p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([-magnet.w / 2, - magnet.t / 2, 0.]))))
+    p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([-magnet.w / 2, magnet.t / 2, 0.]))))
 
     # combine points with lines
     l1 = model.occ.addLine(p1, p2)
@@ -145,7 +145,7 @@ def add_cylinder_segment_magnet(model, magnet):
     # add wire
     # center point
     x_M = magnet.x_M - magnet.Q.dot(np.array([0., magnet.Rm, 0.]))
-    curve = model.occ.addCircle(*x_M, r=magnet.Rm, angle1=-magnet.alpha, angle2=magnet.alpha, \
+    curve = model.occ.addCircle(*x_M, r=magnet.Rm, angle1=-magnet.alpha / 2, angle2=magnet.alpha / 2, \
                                 zAxis=np.array([1., 0., 0.]), xAxis=magnet.Q.dot(np.array([0., 1., 0.])))
     wire = model.occ.addWire([curve])
     magnet_tag = model.occ.addPipe([(2, surf)], wire)[0][1]

@@ -21,7 +21,7 @@ def test_ball_magnet():
     ref_mag = BallMagnet(1., 1., np.zeros(3), np.eye(3))
 
     # create mesh, write it to xdmf file and read it
-    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, f"{test_dir}/{mesh_fname}")
+    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}")
     mesh = read_mesh(f"{test_dir}/{mesh_fname}")
 
     # interpolate reference field
@@ -89,11 +89,11 @@ def test_magnet_segment():
     mesh_fname = "reference_mesh_segment.xdmf"
 
     # reference magnet
-    ref_mag = CylinderSegment(radius=5., width=1., depth=1., alpha=np.pi / 4, magnetization_strength=1.0, \
+    ref_mag = CylinderSegment(radius=5., width=1., thickness=1., alpha=np.pi / 4, magnetization_strength=1.0, \
                             position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     # create mesh, write it to xdmf file and read it
-    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, f"{test_dir}/{mesh_fname}.xdmf")
+    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}.xdmf")
     _ = read_mesh(f"{test_dir}/{mesh_fname}")
 
 

@@ -32,18 +32,18 @@ def test_bar_gear():
     # create gear
     n = 6
     R = 10.
-    h = 1.
+    t = 1.
     w = 2.
     d = 3.
     x_M = np.random.rand(3)
 
-    bar_gear = MagneticBarGear(n, R, d, w, h, x_M)
+    bar_gear = MagneticBarGear(n, R, w, t, d, x_M)
 
     assert bar_gear.n == n
     assert bar_gear.R == R
     assert bar_gear.d == d
     assert bar_gear.w == w
-    assert bar_gear.h == h
+    assert bar_gear.t == t
     assert np.all(bar_gear.x_M == x_M)
     assert bar_gear.angle == 0.  # initial angle is always zero
 
@@ -60,14 +60,14 @@ def test_segment_gear():
     n = 6
     R = 10.
     w = 2.
-    d = 3.
+    t = 3.
     x_M = np.random.rand(3)
 
-    segment_gear = SegmentGear(n, R, d, w, x_M)
+    segment_gear = SegmentGear(n, R, w, t, x_M)
 
     assert segment_gear.n == n
     assert segment_gear.R == R
-    assert segment_gear.d == d
+    assert segment_gear.t == t
     assert segment_gear.w == w
     assert np.all(segment_gear.x_M == x_M)
     assert segment_gear.angle == 0.  # initial angle is always zero

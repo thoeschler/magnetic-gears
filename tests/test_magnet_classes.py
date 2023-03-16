@@ -125,17 +125,17 @@ def test_bar_magnet():
 def test_magnet_segment():
     # create segment
     w = 2.0
-    d = 3.0
+    t = 3.0
     Rm = 10.0
     M0 = 20.
     Q = np.eye(3)
     x_M = np.random.rand(3)
-    magnet_segment = CylinderSegment(radius=Rm, width=w, depth=d, alpha=np.pi / 4, magnetization_strength=M0, \
+    magnet_segment = CylinderSegment(radius=Rm, width=w, thickness=t, alpha=np.pi / 4, magnetization_strength=M0, \
         position_vector=x_M, rotation_matrix=Q)
 
     assert magnet_segment.type == "CylinderSegment"
     assert magnet_segment.w == w
-    assert magnet_segment.d == d
+    assert magnet_segment.t == t
     assert magnet_segment.Rm == Rm
     assert np.all(magnet_segment.x_M == x_M)
     assert magnet_segment.M0 == M0
