@@ -63,6 +63,8 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     model.mesh.field.setAsBackgroundMesh(min_tag)
 
     # generate mesh
+    # use parallel "HXT" algorithm
+    gmsh.option.setNumber("Mesh.Algorithm3D", 10)
     model.mesh.generate(3)
 
     gmsh.write(f"{fname}.msh")
