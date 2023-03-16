@@ -156,8 +156,6 @@ class PermanentMagnet:
             Q (np.ndarray): New rotation matrix.
         """
         self._Q = Q
-        # automatically update magnetization vector
-        self._M = self._Q.dot(np.array([0., 0., 1.]))
         self._xM = x_M
 
 
@@ -197,6 +195,17 @@ class PermanentAxialMagnet(PermanentMagnet):
             else:
                 return np.zeros(3)
         return CustomVectorExpression(M, degree=degree)
+
+    def update_parameters(self, x_M, Q):
+        """Update magnet parameters by specifying new x_M and Q.
+
+        Args:
+            x_M (np.ndarray): New position vector.
+            Q (np.ndarray): New rotation matrix.
+        """
+        super().update_parameters(x_M, Q)
+        # automatically update magnetization vector
+        self._M = self._Q.dot(np.array([0., 0., 1.]))
 
 
 class BallMagnet(PermanentAxialMagnet):
