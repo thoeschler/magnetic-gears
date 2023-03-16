@@ -1,5 +1,4 @@
 import dolfin as dlf
-from dolfin import LagrangeInterpolator
 import numpy as np
 import os
 from source.magnetic_gear_classes import MagneticBallGear, MagneticGear
@@ -155,9 +154,6 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         # mesh both gears
         cg.mesh_gear(cg.gear_1, mesh_size=ms, fname="gear_1", mesh_all_magnets=mesh_all_magnets)
         cg.mesh_gear(cg.gear_2, mesh_size=ms, fname="gear_2", mesh_all_magnets=mesh_all_magnets)
-
-        # choose smaller gear ("sg")
-        cg.assign_gears()
 
         # mesh the segment if interpolation is used (once or twice)
         if interpolate in ("once", "twice"):
