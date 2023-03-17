@@ -86,17 +86,30 @@ class PermanentMagnet:
 
         Args:
             x0 (np.ndarray): A point in space.
-            dynamic (bool, optional): True if a dynamic problem is considered. Defaults to False.
 
         Returns:
             np.ndarray: The magnetic field at point x0 in laboratory cartesian coordinates.
         """
-
         assert hasattr(self, 'B_eigen')
 
         x_eigen = np.dot(self.Q.T, x0 - self.x_M)
         B_eigen = self.B_eigen(x_eigen)
         return np.dot(self.Q, B_eigen)
+    
+    def H(self, x0):
+        """Free current potential at point x0 in laboratory cartesian coordinate system and reference frame.
+
+        Args:
+            x0 (np.ndarray): A point in space.
+
+        Returns:
+            np.ndarray: The magnetic field at point x0 in laboratory cartesian coordinates.
+        """
+        assert hasattr(self, 'H_eigen')
+
+        x_eigen = np.dot(self.Q.T, x0 - self.x_M)
+        H_eigen = self.H_eigen(x_eigen)
+        return np.dot(self.Q, H_eigen)
 
     def Vm(self, x0):
         """The magnetic potential at point x0 in laboratory cartesian coordinate system and reference frame.
@@ -111,6 +124,16 @@ class PermanentMagnet:
 
         x_eigen = np.dot(self.Q.T, x0 - self.x_M)
         return self.Vm_eigen(x_eigen)
+
+    def H_as_expression(self, degree=1):
+        """
+        Free current potential as dolfin expression.
+
+        Args:
+            degree (int, optional): Polynomial degree. Defaults to 1.
+        """
+        H = lambda x: self.H(x)
+        return CustomVectorExpression(H, degree=degree)
 
     def B_as_expression(self, degree=1):
         """Magnetic field as dolfin expression.
@@ -281,6 +304,64 @@ class BallMagnet(PermanentAxialMagnet):
         else:
             cos_theta = x_eigen[2] / r
             return self.R / 3. / r_tilde ** 2 * cos_theta
+
+    def H_eigen_plus(self, x_eigen):
+        """External magnetic field in eigen coordinates.
+
+        A factor of M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
+        """
+        r = np.linalg.norm(x_eigen)
+        x, y, z = x_eigen
+        return 2. / 3. * self.R ** 3 / r ** 5 * np.array([3. / 2. * x * z,
+                                                          3. / 2. * y * z,
+                                                          - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
+                                                          ])
+
+    def H_eigen_minus(self, x_eigen):
+        """Internal free current potential in eigen coordinates.
+
+        A factor of M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
+        """
+        return np.array([0., 0., - 1. / 3.])
+    
+    def H_eigen(self, x_eigen, limit_direction=-1):
+        """Free current potential in eigen coordinates.
+
+        A factor of M0 is excluded.
+
+        Args:
+            x_eigen (np.ndarray): A point in eigen coordinates.
+            limit_direction (int, optional): Limit_direction in {-1, +1} where -1
+                                             corresponds to limit from the inside
+                                             and +1 limit from the outside.
+                                             Defaults to -1.
+
+        Returns:
+            np.ndarray: The magnetic field's value at x_eigen.
+        """
+        inside = (x_eigen.dot(x_eigen) < self.R ** 2)
+        on_boundary = np.isclose(x_eigen.dot(x_eigen), self.R ** 2)
+        if inside or (on_boundary and limit_direction == -1):
+            return np.array([0., 0., - 1. / 3.])
+        else:
+            r = np.linalg.norm(x_eigen)
+            x, y, z = x_eigen
+            return 2. / 3. * self.R ** 3 / r ** 5 * np.array([3. / 2. * x * z,
+                                                              3. / 2. * y * z,
+                                                              - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
+                                                              ])
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.
