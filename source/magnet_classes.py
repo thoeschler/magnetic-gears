@@ -34,6 +34,10 @@ class PermanentMagnet:
         return self._type
 
     @property
+    def size(self):
+        pass
+
+    @property
     def x_M(self):
         return self._xM
 
@@ -251,6 +255,10 @@ class BallMagnet(PermanentAxialMagnet):
         self._radius = radius
 
     @property
+    def size(self):
+        return self.R
+
+    @property
     def R(self):
         return self._radius
 
@@ -448,6 +456,10 @@ class BarMagnet(PermanentAxialMagnet):
         self._set_H_eigen()
 
     @property
+    def size(self):
+        return max(self.w, self.d, self.h)
+
+    @property
     def w(self):
         return self._width
 
@@ -604,6 +616,10 @@ class CylinderSegment(PermanentMagnet):
         self._width = width
         self._thickness = thickness
         self._alpha = alpha
+
+    @property
+    def size(self):
+        return self.Rm
 
     @property
     def Rm(self):
