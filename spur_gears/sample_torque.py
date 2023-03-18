@@ -25,7 +25,7 @@ class SpurGearsSampling(SpurGearsProblem):
         self.create_gear_mesh(gear, mesh_size=mesh_size, fname=fname, \
                               write_to_pvd=write_to_pvd)
 
-    def update_gear(self, gear: MagneticGear, d_angle, update_segment=False):
+    def update_gear(self, gear: MagneticGear, d_angle):
         """Update gear given an angle increment.
 
         Args:
@@ -34,17 +34,9 @@ class SpurGearsSampling(SpurGearsProblem):
             update_segment (bool, optional): If true update the segment as well. Defaults to False.
         """
         gear.update_parameters(d_angle)
-        if update_segment:
+        if gear is self.lg:
+            # update segment
             self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
-
-        if np.abs(gear.angle) > np.pi / gear.n or np.isclose(np.abs(gear.angle), np.pi / gear.n):
-            # first rotate segment
-            if update_segment:
-                # rotate back:
-                self.segment_mesh.rotate(- 2 * np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
-
-            # then update parameters
-            gear.update_parameters(- 2 * np.sign(gear.angle) * 2. * np.pi / gear.n)
 
     def sample(self, n_iterations, p_deg=2):
         """
@@ -77,10 +69,9 @@ class SpurGearsSampling(SpurGearsProblem):
         tau_21_values = np.zeros((n_iterations, n_iterations))
         for i in range(n_iterations):
             for j in range(n_iterations):
-                print(self.sg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.sg.n + angles_sg[j])
-                print(self.lg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.lg.n + angles_lg[i])
-                assert np.any(np.isclose(self.sg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.sg.n + angles_sg[j]))
-                assert np.any(np.isclose(self.lg.angle, np.array([-4 * np.pi, 0., 4 * np.pi]) / self.lg.n + angles_lg[i]))
+                # check angles
+                assert np.isclose(self.sg.angle, angles_sg[j])
+                assert np.isclose(self.lg.angle, angles_lg[i])
                 F_sg, tau_sg = self.compute_force_torque(p_deg, use_Vm=True)
                 tau_lg = (np.cross(self.lg.x_M - self.sg.x_M, F_sg) - tau_sg)[0]
 
@@ -97,10 +88,10 @@ class SpurGearsSampling(SpurGearsProblem):
                 tau_21_values[i, j] = tau_21
 
                 # rotate smaller gear
-                self.update_gear(self.sg, d_angle=d_angle_sg, update_segment=False)
+                self.update_gear(self.sg, d_angle=d_angle_sg)
 
             # rotate back to zero angle
-            self.update_gear(self.sg, d_angle=float(-self.sg.angle), update_segment=False)
+            self.update_gear(self.sg, d_angle=float(-self.sg.angle))
             assert np.isclose(self.sg.angle, 0.)
 
             # update csv files
@@ -108,7 +99,7 @@ class SpurGearsSampling(SpurGearsProblem):
             pd.DataFrame(tau_21_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/data/tau_21.csv")
 
             # rotate larger gear
-            self.update_gear(self.lg, d_angle=d_angle_lg, update_segment=True)
+            self.update_gear(self.lg, d_angle=d_angle_lg)
 
 def sample_torque_ball(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_ball_gear"):
     # create directory
@@ -168,13 +159,13 @@ def sample_torque_segment(n_iterations, mesh_size, p_deg=2, interpolate="twice",
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
-    gear_1_segment = SegmentGear(n=12, R=10.0, w=0.75, d=0.5, x_M=np.zeros(3))
-    gear_2_segment = SegmentGear(n=4, R=12.0, w=0.75, d=0.5, x_M=np.array([0., 1., 0.]))
+    gear_1_segment = SegmentGear(n=12, R=6.0, w=0.75, t=1., x_M=np.zeros(3))
+    gear_2_segment = SegmentGear(n=4, R=6.0, w=0.75, t=1., x_M=np.array([0., 1., 0.]))
     gear_1_segment.create_magnets(magnetization_strength=1.0)
     gear_2_segment.create_magnets(magnetization_strength=1.0)
 
     # create coaxial gears problem
-    D = gear_1_segment.outer_radius + gear_1_segment.outer_radius + 1.0
+    D = gear_1_segment.outer_radius + gear_2_segment.outer_radius + 1.0
     sg = SpurGearsSampling(gear_1_segment, gear_2_segment, D, main_dir=sample_dir)
 
     # mesh smaller gear
@@ -198,6 +189,6 @@ def write_paramter_file(problem, dir_):
         f.write(json.dumps(par))
 
 if __name__ == "__main__":
-    sample_torque_ball(n_iterations=20, mesh_size=0.8, p_deg=2, interpolate="twice")
+    #sample_torque_ball(n_iterations=7, mesh_size=0.4, p_deg=2, interpolate="twice")
     #sample_torque_bar(n_iterations=20, mesh_size=0.1, p_deg=2, interpolate="twice")
-    #sample_torque_segment(n_iterations=5, mesh_size=0.1, p_deg=2, interpolate="twice")
+    sample_torque_segment(n_iterations=5, mesh_size=0.2, p_deg=2, interpolate="twice")
