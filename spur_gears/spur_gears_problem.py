@@ -1,13 +1,13 @@
 import dolfin as dlf
-from dolfin import LagrangeInterpolator
 import numpy as np
 import os
 import json
-from source.magnetic_gear_classes import MagneticGear, MagneticBarGear, SegmentGear
+from source.magnetic_gear_classes import MagneticGear, MagneticBarGear, SegmentGear, MagneticBallGear
 from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
 from source.tools.fenics_tools import rotate_vector_field, compute_current_potential
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
+from source.fe import compute_magnetic_potential
 from spur_gears.grid_generator import cylinder_segment_mesh
 
 
@@ -177,7 +177,7 @@ class SpurGearsProblem:
         found_dir = False
         dir_name = None
         # start with some domain radius that is too large
-        domain_radius_file = (1 + rtol + 1e-2) * self._domain_size / gear.scale_parameter
+        domain_radius_file = float(np.inf)
 
         # search existing gear mesh directories for matching parameter file
         subdirs = [r[0] for r in os.walk(self._main_dir + "/data/reference/")]
@@ -243,8 +243,8 @@ class SpurGearsProblem:
         elif isinstance(gear, SegmentGear):
             if not np.allclose((gear.w, gear.t, gear.alpha), \
                                (par_file["w"] * gear.scale_parameter, \
-                                par_file["t"] * gear.scale_parameter),
-                                par_file["alpha"]):
+                                par_file["t"] * gear.scale_parameter, \
+                                par_file["alpha"])):
                 return False
 
         return True
@@ -301,15 +301,30 @@ class SpurGearsProblem:
             # create reference magnet and check if the field is implemented
             assert hasattr(ref_mag, field_name), f"{field_name} is not implemented for this magnet class"
 
-            # interpolate reference field
-            if field_name == "B":
-                field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, fname=f"{ref_dir}/{field_name}", \
-                    write_pvd=True)
-            elif field_name == "Vm":
-                field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, \
-                                                   fname=f"{ref_dir}/{field_name}",write_pvd=True)
+            # for the segment gear no analytical solution is available: compute potential numerically
+            if isinstance(gear, SegmentGear):
+                # radius of sphere has to be larger such that it contains the cylinder
+                ref_radius = np.sqrt(domain_size ** 2 + thickness ** 2 / 4) + 1e-3
+                field_num = compute_magnetic_potential(ref_mag, ref_radius, mesh_size_magnet=mesh_size_min, \
+                                                            mesh_size_mid_layer_min=mesh_size_min, \
+                                                                mesh_size_mid_layer_max=mesh_size_max, p_deg=p_deg,
+                                                                fname="test", write_to_pvd=True)
+                if field_name == "B":
+                    field_num = compute_current_potential(field_num, project=True)
+
+                # interpolate reference field
+                field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
+                                                    fname=f"{ref_dir}/{field_name}", write_pvd=True)
             else:
-                raise RuntimeError()
+                # interpolate reference field
+                if field_name == "B":
+                    field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, fname=f"{ref_dir}/{field_name}", \
+                        write_pvd=True)
+                elif field_name == "Vm":
+                    field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, \
+                                                       fname=f"{ref_dir}/{field_name}", write_pvd=True)
+                else:
+                    raise RuntimeError()
 
             # write the field to hdf5 file
             write_hdf5_file(field_interpol, reference_mesh, fname=f"{ref_dir}/{field_name}.h5", field_name=field_name)
@@ -539,14 +554,14 @@ class SpurGearsProblem:
 
         # interpolate field to new function space and add the result
         interpol_field = dlf.Function(V)
-        LagrangeInterpolator.interpolate(interpol_field, ref_field_copy)
+        dlf.LagrangeInterpolator.interpolate(interpol_field, ref_field_copy)
 
         # Reset coordinates. Degrees of freedom remain the same.
         ref_mesh_copy.coordinates()[:] = coords_original
 
         return interpol_field
 
-    def compute_force_on_gear(self, gear: MagneticGear, B: dlf.Function):
+    def compute_force_on_gear(self, gear: MagneticGear, B, p_deg=2):
         """Compute the force on a gear caused by a magnetic field B.
 
         Only computes the y- and z-components of the force as only
@@ -554,7 +569,8 @@ class SpurGearsProblem:
 
         Args:
             gear (MagneticGear): The magnetic gear.
-            B (dlf.Function): The magnetic field.
+            B (dlf.Function, dlf.ComponentTensor): The magnetic field.
+            p_deg (int, optional): Polynomial degree. Defaults to 2.
 
         Returns:
             np.ndarray: The force.
@@ -570,7 +586,7 @@ class SpurGearsProblem:
             if isinstance(mag, PermanentAxialMagnet):
                 M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
             else:
-                M_jump = - mag.M_as_expression(degree=B.ufl_element().degree())
+                M_jump = - mag.M_as_expression(degree=p_deg)
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             # select y and z components
             for i, c in enumerate((t[1], t[2])):
@@ -580,12 +596,13 @@ class SpurGearsProblem:
         print("Done.")
         return F
 
-    def compute_torque_on_gear(self, gear: MagneticGear, B):
+    def compute_torque_on_gear(self, gear: MagneticGear, B, p_deg=2):
         """Compute the torque on a gear caused by a magnetic field B.
 
         Args:
             gear (MagneticGear): The magnetic gear.
-            B (dlf.Function): The magnetic field.
+            B (dlf.Function, dlf.ComponentTensor): The magnetic field.
+            p_deg (int, optional): Polynomial degree. Defaults to 2.
 
         Returns:
             float: The torque.
@@ -598,7 +615,10 @@ class SpurGearsProblem:
         x_M = dlf.as_vector(gear.x_M)
 
         for mag, tag in zip(gear.magnets, gear._magnet_boundary_subdomain_tags):
-            M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
+            if isinstance(mag, PermanentAxialMagnet):
+                M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
+            else:
+                M_jump = - mag.M_as_expression(degree=p_deg)
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             m = dlf.cross(x - x_M, t)  # torque density
             tau_mag = dlf.assemble(m[0] * gear.dA(tag))
@@ -638,20 +658,22 @@ class SpurGearsProblem:
             V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
             Vm_lg = dlf.Function(V)
 
-            LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
+            dlf.LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
             B_lg = compute_current_potential(Vm_lg, project=False)
         else:
             # create function on smaller gear
             V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
             B_lg = dlf.Function(V)
 
-            LagrangeInterpolator.interpolate(B_lg, B_seg)
+            dlf.LagrangeInterpolator.interpolate(B_lg, B_seg)
+
+        V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
 
         # compute force
-        F = self.compute_force_on_gear(self.sg, B_lg)
+        F = self.compute_force_on_gear(self.sg, B_lg, p_deg=p_deg)
 
         # compute torque
-        tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
+        tau_sg = self.compute_torque_on_gear(self.sg, B_lg, p_deg=p_deg)
         F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
 
         return F_sg, tau_sg
