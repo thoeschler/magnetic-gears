@@ -485,6 +485,7 @@ class SpurGearsProblem:
             if use_ref_field:
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
                     mesh, cell_type, p_deg, scale=gear.scale_parameter)
+                assert interpol_field.function_space().mesh() is mesh
             else:
                 if field_name == "B":
                     interpol_field = interpolate_field(mag.B, mesh, cell_type, p_deg)
@@ -514,16 +515,13 @@ class SpurGearsProblem:
         Returns:
             dlf.Function: The field interpolated on the mesh.
         """
-        # save originial coordinates
-        coords_original = np.array(reference_mesh.coordinates())
-
         # A copy of the reference mesh needs to be set as a class
         # variable because fenics does not delete the mesh when
         # the function terminates. Therefore, overwrite the mesh
-        # each time the function is called.
+        # each time the function is called. This way, only a single
+        # copy is created.
         if field_name == "B":
-            if not hasattr(self, "_B_reference_mesh_copy"):
-                self._B_reference_mesh_copy = dlf.Mesh(reference_mesh)
+            self._B_reference_mesh_copy = dlf.Mesh(reference_mesh)
             ref_mesh_copy = self._B_reference_mesh_copy
             assert ref_mesh_copy is self._B_reference_mesh_copy  # same object
             V_ref = dlf.VectorFunctionSpace(self._B_reference_mesh_copy, cell_type, p_deg)
@@ -532,8 +530,7 @@ class SpurGearsProblem:
             # rotate reference field
             rotate_vector_field(ref_field_copy, magnet.Q)
         elif field_name == "Vm":
-            if not hasattr(self, "_Vm_reference_mesh_copy"):
-                self._Vm_reference_mesh_copy = dlf.Mesh(reference_mesh)
+            self._Vm_reference_mesh_copy = dlf.Mesh(reference_mesh)
             ref_mesh_copy = self._Vm_reference_mesh_copy
             assert ref_mesh_copy is self._Vm_reference_mesh_copy  # same object
             V_ref = dlf.FunctionSpace(self._Vm_reference_mesh_copy, cell_type, p_deg)
@@ -555,9 +552,6 @@ class SpurGearsProblem:
         # interpolate field to new function space and add the result
         interpol_field = dlf.Function(V)
         dlf.LagrangeInterpolator.interpolate(interpol_field, ref_field_copy)
-
-        # Reset coordinates. Degrees of freedom remain the same.
-        ref_mesh_copy.coordinates()[:] = coords_original
 
         return interpol_field
 
@@ -671,10 +665,10 @@ class SpurGearsProblem:
 
         # compute force
         F = self.compute_force_on_gear(self.sg, B_lg, p_deg=p_deg)
+        F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
 
         # compute torque
         tau_sg = self.compute_torque_on_gear(self.sg, B_lg, p_deg=p_deg)
-        F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
 
         return F_sg, tau_sg
  
