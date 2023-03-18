@@ -163,18 +163,6 @@ class PermanentMagnet:
         Vm = lambda x: self.Vm_eigen(self.Q.T.dot(x - self.x_M))
         return CustomScalarExpression(Vm, degree=degree)
 
-    def M_as_expression(self, degree=1):
-        """Magnetic potential as dolfin expression.
-
-        Args:
-            degree (int, optional): Polynomial degree. Defaults to 1.
-
-        Returns:
-            CustomVectorExpression: Magnetization field.
-        """
-        M_lambda = lambda x: self.M_eigen(self.Q.T.dot(x - self.x_M))
-        return CustomVectorExpression(M_lambda, degree=degree)
-
     def update_parameters(self, x_M, Q):
         """Update magnet parameters by specifying new x_M and Q.
 
@@ -619,7 +607,7 @@ class CylinderSegment(PermanentMagnet):
 
     @property
     def size(self):
-        return self.Rm
+        return self.w
 
     @property
     def Rm(self):
@@ -712,10 +700,10 @@ class CylinderSegment(PermanentMagnet):
         Returns:
             np.ndarray: Magnetization vector.
         """
-        assert self.is_inside_eigen(x_eigen) or self.on_boundary_eigen(x_eigen)
+        assert (self.is_inside_eigen(x_eigen) or self.on_boundary_eigen(x_eigen))
         _, y, z = x_eigen
         rho = np.sqrt(y ** 2 + z ** 2)
-        return np.array([y / rho, z / rho, 0.])
+        return np.array([0., y / rho, z / rho])
 
     def M(self, x0):
         """
@@ -727,10 +715,22 @@ class CylinderSegment(PermanentMagnet):
         Returns:
             np.ndarray: Magnetization vector in laboratory coordinates.
         """
-        if self.is_inside(x0):
+        if self.is_inside(x0) or self.on_boundary(x0):
             x_eigen = self.Q.T.dot(x0 - self.x_M) + np.array([0., self.Rm, 0.])
             M_eigen = self.M_eigen(x_eigen)
 
             return self.Q.dot(M_eigen)
         else:
             return np.zeros(3)
+
+    def M_as_expression(self, degree=1):
+        """Magnetic potential as dolfin expression.
+
+        Args:
+            degree (int, optional): Polynomial degree. Defaults to 1.
+
+        Returns:
+            CustomVectorExpression: Magnetization field.
+        """
+        M_lambda = lambda x: self.M(x)
+        return CustomVectorExpression(M_lambda, degree=degree)
