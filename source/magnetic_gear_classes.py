@@ -511,8 +511,9 @@ class SegmentGear(MagneticGear):
             CylinderSegment: The reference magnet.
         """
         return CylinderSegment(radius=self.R / self.scale_parameter, width=self.w / self.scale_parameter, \
-                             thickness=self.t / self.scale_parameter, magnetization_strength=1.0, \
-                                position_vector=np.zeros(3), rotation_matrix=np.eye(3))
+                             thickness=self.t / self.scale_parameter, alpha=self.alpha, \
+                                magnetization_strength=1.0, position_vector=np.zeros(3), \
+                                    rotation_matrix=np.eye(3))
 
     def create_magnets(self, magnetization_strength):
         """Create magnets, given some magnetization strength.
