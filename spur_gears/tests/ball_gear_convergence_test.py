@@ -56,7 +56,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                     Vm_mag = interpolate_field(mag.Vm, self.sg.mesh, "CG", p_deg)
                     Vm_lg_vec += Vm_mag.vector()
                 Vm_lg = dlf.Function(V, Vm_lg_vec)
-                B_lg = compute_current_potential(Vm_lg, project=False)
+                B_lg = compute_current_potential(Vm_lg, project=True)
             else:
                 V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
                 B_lg_vec = 0.
@@ -128,7 +128,8 @@ def compute_torque_ana(magnet_1, magnet_2, force, x_M_gear):
     return tau
 
 
-def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_Vm=False, dir=None):
+def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_Vm=False, dir=None,
+         analytical_solution=True, R_inf_mult=None):
     if dir is not None:
         if not os.path.exists(dir):
             os.mkdir(dir)
@@ -136,8 +137,6 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
     assert interpolate in ("never", "once", "twice")
 
     names = ("f_12", "f_21", "tau_12", "tau_21")
-    for name in names:
-        open(f"{name}_error.csv", "w").close()
 
     for ms in mesh_sizes[::-1]:
         # create two ball gears
@@ -157,6 +156,10 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
 
         # mesh the segment if interpolation is used (once or twice)
         if interpolate in ("once", "twice"):
+            R_inf = R_inf_mult * cg.sg.magnets[0].size
+            cg.load_reference_field(cg.lg, "Vm" if use_Vm else "B", "CG", p_deg, \
+                                    ms, 3 * ms, cg.domain_size, analytical_solution=analytical_solution,
+                                    R_inf=R_inf)
             cg.mesh_reference_segment(ms)
             cg.interpolate_to_reference_segment(ms, p_deg, interpolate=interpolate, use_Vm=use_Vm)
 
@@ -240,7 +243,7 @@ def main(mesh_sizes, p_deg=1, mesh_all_magnets=False, interpolate="never", use_V
         for error, name in zip(errors, names):
             with open(f"{name}_error.csv", "a+") as f:
                 f.write(f"{ms} {error} \n")
-        del cg
+
     os.chdir("..")
 
 if __name__ == "__main__":
@@ -249,23 +252,24 @@ if __name__ == "__main__":
         os.mkdir(conv_dir)
     os.chdir(conv_dir)
     mesh_sizes = np.geomspace(1e-1, 1.0, num=6)
-    for p_deg in (1, 2):
+    for p_deg in (2,):
         ma = True
         # 1. interpolate never, use Vm
-        main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
-             dir=f"Vm_interpol_never_pdeg_{p_deg}")
+        #main(mesh_sizes, p_deg, interpolate="never", use_Vm=True, mesh_all_magnets=ma, \
+        #     dir=f"Vm_interpol_never_pdeg_{p_deg}")
         # 2. interpolate once, use Vm
-        main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, mesh_all_magnets=ma, \
-             dir=f"Vm_interpol_once_pdeg_{p_deg}")
+        #main(mesh_sizes, p_deg, interpolate="once", use_Vm=True, mesh_all_magnets=ma, \
+        #     dir=f"Vm_interpol_once_pdeg_{p_deg}")
         # 3. interpolate twice, use Vm
-        main(mesh_sizes[1:], p_deg, interpolate="twice", use_Vm=True, mesh_all_magnets=ma, \
-             dir=f"Vm_interpol_twice_pdeg_{p_deg}")
+        for R_inf_mult in np.linspace(1., 50, num=10):
+            main(mesh_sizes[2:3], p_deg, interpolate="twice", use_Vm=True, mesh_all_magnets=ma, \
+                dir=f"Vm_interpol_twice_pdeg_{p_deg}", analytical_solution=False, R_inf_mult=R_inf_mult)
         # 4. inteyrpolate never, use B directly
-        main(mesh_sizes, p_deg, interpolate="never", use_Vm=False, mesh_all_magnets=ma, \
-             dir=f"B_interpol_never_pdeg_{p_deg}")
+        #main(mesh_sizes, p_deg, interpolate="never", use_Vm=False, mesh_all_magnets=ma, \
+        #     dir=f"B_interpol_never_pdeg_{p_deg}")
         # 5. interpolate once, use B directly
-        main(mesh_sizes, p_deg, interpolate="once", use_Vm=False, mesh_all_magnets=ma, \
-             dir=f"B_interpol_once_pdeg_{p_deg}")
+        #main(mesh_sizes, p_deg, interpolate="once", use_Vm=False, mesh_all_magnets=ma, \
+        #     dir=f"B_interpol_once_pdeg_{p_deg}")
         # 6. interpolate twice, use B directly
-        main(mesh_sizes[1:], p_deg, interpolate="twice", use_Vm=False, mesh_all_magnets=ma, \
-             dir=f"B_interpol_twice_pdeg_{p_deg}")
+        #main(mesh_sizes[1:], p_deg, interpolate="twice", use_Vm=False, mesh_all_magnets=ma, \
+        #     dir=f"B_interpol_twice_pdeg_{p_deg}")

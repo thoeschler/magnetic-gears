@@ -331,7 +331,7 @@ class BallMagnet(PermanentAxialMagnet):
             np.ndarray: The magnetic field's value at x_eigen.
         """
         return np.array([0., 0., - 1. / 3.])
-    
+
     def H_eigen(self, x_eigen, limit_direction=-1):
         """Free current potential in eigen coordinates.
 
@@ -358,6 +358,18 @@ class BallMagnet(PermanentAxialMagnet):
                                                               3. / 2. * y * z,
                                                               - 1. / 2. * (x ** 2 + y ** 2) + z ** 2
                                                               ])
+
+    def H_eigen_as_expression(self, degree=1):
+        """Free current potential as dolfin expression.
+
+        Args:
+            degree (int, optional): Polynomial degree. Defaults to 1.
+
+        Returns:
+            CustomVectorExpression: Free current potential as dolfin expression.
+        """
+        H_eigen = lambda x_eigen: self.H_eigen(x_eigen)
+        return CustomVectorExpression(H_eigen, degree=degree)
 
     def B_eigen_plus(self, x_eigen):
         """External magnetic field in eigen coordinates.

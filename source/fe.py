@@ -6,8 +6,8 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 from source.tools.mesh_tools import generate_mesh_with_markers
 
 
-def compute_magnetic_potential(magnet, R_domain, mesh_size_magnet=0.2, mesh_size_mid_layer_min=2.0, \
-                               mesh_size_mid_layer_max=2.0, p_deg=2, fname=None, \
+def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_mid_layer_min=0.2, \
+                               mesh_size_mid_layer_max=0.5, p_deg=2, fname=None, \
                                 write_to_pvd=False):
     """
     Compute magnetic potential of magnet.
@@ -30,10 +30,16 @@ def compute_magnetic_potential(magnet, R_domain, mesh_size_magnet=0.2, mesh_size
     """
     if write_to_pvd:
         assert fname is not None
+    
+    if R_domain <= magnet.size:
+        R_domain = magnet.size + mesh_size_magnet
+    if R_inf is None:
+        R_inf = R_domain + 3 * mesh_size_magnet
+    if R_inf < R_domain:
+        R_inf = R_domain + 3 * mesh_size_magnet
 
-    print(mesh_size_magnet)
     mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag = \
-        magnet_mesh(magnet, R_domain=R_domain, R_box=max(R_domain, 30 * magnet.size), \
+        magnet_mesh(magnet, R_domain=R_domain, R_box=R_inf, \
                     mesh_size_magnet=mesh_size_magnet, mesh_size_mid_layer_min=mesh_size_mid_layer_min, \
                         mesh_size_mid_layer_max=mesh_size_mid_layer_max, mesh_size_space=40.0, \
                             fname=fname, write_to_pvd=write_to_pvd)
