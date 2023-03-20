@@ -128,13 +128,13 @@ def generate_mesh_with_markers(file_name, delete_source_files=False):
     return mesh, cell_marker, facet_marker
 
 def read_mesh_and_markers(file_name):
-    """_summary_
+    """Read mesh and markers.
 
     Args:
-        file_name (_type_): _description_
+        file_name (str): File name.
 
     Returns:
-        _type_: _description_
+        tuple: Mesh, cell marker and facet marker.
     """
     file_name = file_name.rstrip(".xdmf")
     # load xdmf meshes

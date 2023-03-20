@@ -20,9 +20,9 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         shape (str): Shape of reference mesh.
         thickness (float): Thickness of cylinder reference mesh. Only specify for
                            shape="cylinder".
+        fname (str): File name. Defaults to "reference_mesh".
         verbose (bool, optional): Whether to display gmsh info. Defaults to False.
     """
-    fname = fname.split(".")[0]
     print("Creating reference mesh... ", end="")
     gmsh.initialize()
     if not verbose:
@@ -98,7 +98,7 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
     """Interpolate a field on a mesh.
 
     Args:
-        field (callable): The field to interpolate.
+        field (callable, dlf.Function): The field to interpolate.
         mesh (dlf.Mesh): A finite element mesh.
         cell_type (str): Finite element type.
         p_deg (int): Polynomial degree.
@@ -117,15 +117,16 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
     vector_valued = np.atleast_1d(field(np.zeros(3))).size > 1
     print("Interpolating reference field ...", end="")
 
-    if vector_valued:
-        V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
-        field_expr = CustomVectorExpression(field, degree=p_deg)
-    else:
-        V = dlf.FunctionSpace(mesh, cell_type, p_deg)
-        field_expr = CustomScalarExpression(field, dim=1, degree=p_deg)
+    if callable(field):
+        if vector_valued:
+            V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
+            field = CustomVectorExpression(field, degree=p_deg)
+        else:
+            V = dlf.FunctionSpace(mesh, cell_type, p_deg)
+            field = CustomScalarExpression(field, dim=1, degree=p_deg)
 
     field_interpolated = dlf.Function(V)
-    dlf.LagrangeInterpolator.interpolate(field_interpolated, field_expr)
+    dlf.LagrangeInterpolator.interpolate(field_interpolated, field)
     if write_pvd:
         assert fname is not None
         dlf.File(f"{fname}.pvd") << field_interpolated
@@ -147,7 +148,7 @@ def write_hdf5_file(field, mesh, fname, field_name):
     print(f"Writing hdf5 file... ", end="")
     f = dlf.HDF5File(mesh.mpi_comm(), fname, "w")
     f.write(field, field_name)
-    print("Done")
+    print("Done.")
 
 def read_hd5f_file(fname, field_name, mesh, cell_type, p_deg, vector_valued=False):
     """Read field from hdf5 file.
