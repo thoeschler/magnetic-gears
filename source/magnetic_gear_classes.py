@@ -44,7 +44,7 @@ class MagneticGear:
         self._x_M = x_M
         # update magnet coordinates
         if hasattr(self, "_magnets"):
-            self.update_magnets(d_angle=0., d_x_M=d_x_M)
+            self.update_magnets(self._magnets, d_angle=0., d_x_M=d_x_M)
 
     @property
     def angle(self):
@@ -66,7 +66,7 @@ class MagneticGear:
             self.rotate_mesh(d_angle)
         self._angle = angle
         if hasattr(self, "_magnets"):
-            self.update_magnets(d_angle, np.zeros(3))
+            self.update_magnets(self._magnets, d_angle, np.zeros(3))
 
     @property
     def magnets(self):
@@ -228,11 +228,11 @@ class MagneticGear:
         self._angle += d_angle
         # then update the rest
         if hasattr(self, "_magnets"):
-            self.update_magnets(d_angle, np.zeros(3))
+            self.update_magnets(self._magnets, d_angle, np.zeros(3))
         if hasattr(self, "_mesh"):
             self.rotate_mesh(d_angle)
 
-    def update_magnets(self, d_angle, d_x_M):
+    def update_magnets(self, magnets, d_angle, d_x_M):
         """Update magnets according to increment of angle and gear's center of mass.
 
         Make sure that the center of mass has been updated first.
@@ -243,7 +243,7 @@ class MagneticGear:
         """
         assert hasattr(self, "magnets")
         rot = get_rot(d_angle)
-        for mag in self.magnets:
+        for mag in magnets:
             # new position vector
             x_M = mag.x_M + d_x_M  # shift by d_x_M
             x_M_rot = self._x_M + rot.dot(x_M - self._x_M)  # rotate around new center
