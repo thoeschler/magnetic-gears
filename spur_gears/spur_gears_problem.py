@@ -7,6 +7,7 @@ from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
 from source.tools.fenics_tools import rotate_vector_field, compute_current_potential
 from source.tools.tools import create_reference_mesh, interpolate_field, write_hdf5_file, read_hd5f_file
 from source.tools.mesh_tools import read_mesh
+from source.tools.math_tools import get_rot
 from source.fe import compute_magnetic_potential
 from spur_gears.grid_generator import cylinder_segment_mesh
 
@@ -41,11 +42,14 @@ class SpurGearsProblem:
         self.assign_gear_roles()
 
         # set the domain size
-        self.set_domain_size()
-
-        # overwrite in subclass
         self.gear_2.x_M = self.gear_1.x_M + np.array([0., D, 0.])
-        self._magnet_type = None
+        self.set_domain_size()
+        self._magnet_type = self.gear_1.magnet_type
+
+    @property
+    def domain_size(self):
+        assert hasattr(self, "_domain_size")
+        return self._domain_size
 
     @property
     def D(self):
@@ -249,7 +253,8 @@ class SpurGearsProblem:
 
         return True
 
-    def _load_reference_field(self, gear: MagneticGear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, domain_size):
+    def load_reference_field(self, gear: MagneticGear, field_name, cell_type, p_deg, mesh_size_min, \
+                              mesh_size_max, domain_size, analytical_solution=True, R_inf=None):
         """Load reference field from hdf5 file. If no appropriate file is
            found the file will be written first.
 
@@ -302,10 +307,10 @@ class SpurGearsProblem:
             assert hasattr(ref_mag, field_name), f"{field_name} is not implemented for this magnet class"
 
             # for the segment gear no analytical solution is available: compute potential numerically
-            if isinstance(gear, SegmentGear):
+            if not analytical_solution:
                 # radius of sphere has to be larger such that it contains the cylinder
                 ref_radius = np.sqrt(domain_size ** 2 + thickness ** 2 / 4) + 1e-3
-                field_num = compute_magnetic_potential(ref_mag, ref_radius, mesh_size_magnet=mesh_size_min, \
+                field_num = compute_magnetic_potential(ref_mag, ref_radius, R_inf=R_inf, mesh_size_magnet=mesh_size_min, \
                                                             mesh_size_mid_layer_min=mesh_size_min, \
                                                                 mesh_size_mid_layer_max=mesh_size_max, p_deg=p_deg,
                                                                 fname="test", write_to_pvd=True)
@@ -358,7 +363,7 @@ class SpurGearsProblem:
             mesh_size (float): Mesh size.
         """
         # set geometrical paramters
-        t = self.sg.width  # segment width (thickness)
+        t = self.sg.width  # segment thickness (width)
 
         # angle to contain smaller gear
         angle = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
@@ -395,32 +400,25 @@ class SpurGearsProblem:
                                                         x_axis=x_axis, fname=ref_path + "/reference_segment", \
                                                             mesh_size=mesh_size, write_to_pvd=True)
 
-    def interpolate_to_reference_segment(self, mesh_size=None, p_deg=2, interpolate="twice", use_Vm=True):
+    def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
         """
         Interpolate field of larger gear on reference segment.
 
         Args:
-            mesh_size (float): Mesh size of used reference field. Set only for
-                               interpolate="twice". Defaults to None.
             p_deg (int, optional): Polynomial degree. Defaults to 2.
-            interpolate (str, optional): Number of interpolation steps. Defaults to "once".
+            interpolate (str, optional): Number of interpolation steps. Defaults to "twice".
             use_Vm (bool, optional): Whether to use magnetic potential Vm. Defaults to True.
         """
         assert hasattr(self, "segment_mesh")
 
         if interpolate == "twice":
-            assert isinstance(mesh_size, float)
-            mesh_size_min = mesh_size / self.lg.scale_parameter
-            mesh_size_max = 3 * mesh_size_min
             # interpolate fields of other gear on segment
             if use_Vm:
                 self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                      mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
-                                                        use_ref_field=True)
+                                                              use_ref_field=True)
             else:
                 self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
-                                                         mesh_size_min=mesh_size_min, mesh_size_max=mesh_size_max, \
-                                                            use_ref_field=True)
+                                                             use_ref_field=True)
         else:
             if use_Vm:
                 # interpolate fields of other gear on segment
@@ -430,8 +428,7 @@ class SpurGearsProblem:
                 self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
                                                          use_ref_field=False)
 
-    def interpolate_field_gear(self, gear: MagneticGear, mesh, field_name, cell_type, p_deg, \
-                               mesh_size_min=1.0, mesh_size_max=1.0, use_ref_field=True):
+    def interpolate_field_gear(self, gear: MagneticGear, mesh, field_name, cell_type, p_deg, use_ref_field=True):
         """Interpolate a field of a gear on a given mesh.
 
         Args:
@@ -440,13 +437,6 @@ class SpurGearsProblem:
             field_name (str): Name of the field, e.g. "B".
             cell_type (str): Finite element cell type.
             p_deg (int): Polynomial degree of finite element.
-            mesh_size_min (float, optional): Minimum mesh size of reference field. This value
-                                   will be used as the starting mesh size at the center
-                                   of the reference mesh. Defaults to 1.0.
-            mesh_size_max (float, optional): Maximum mesh size of reference mesh. The reference
-                                   mesh size is increased up to this value with increasing
-                                   distance from the center of the reference mesh. Defaults
-                                   to 1.0.
             use_ref_field (bool, optional): Whether or not to use a reference field or to evaluate
                                   the field of each magnet directly. Defaults to True.
 
@@ -457,9 +447,8 @@ class SpurGearsProblem:
         assert hasattr(self, "_domain_size")
 
         if use_ref_field:
-            # load reference field if not done yet
-            if not hasattr(gear, f"_{field_name}_ref"):
-                self._load_reference_field(gear, field_name, cell_type, p_deg, mesh_size_min, mesh_size_max, self._domain_size)
+            # make sure reference field has been loaded
+            assert hasattr(gear, f"_{field_name}_ref"), "Reference field has not been set."
 
             # create reference field handler
             ref_field = gear.reference_field(field_name)
@@ -701,7 +690,48 @@ class SpurGearsProblem:
         gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
             magnet_boundary_subdomain_tags)
 
+    def remove_magnets(self, gear: MagneticGear, D_ref):
+        """
+        Remove magnets if they are outside the relevant domain.
+
+        Args:
+            gear (MagneticGear): Magnetic gear.
+            D_ref (float): Reference distance.
+        """
+        if gear is self.gear_1:
+            other_gear = self.gear_2
+        elif gear is self.gear_2:
+            other_gear = self.gear_1
+        else:
+            raise RuntimeError()
+ 
+        rot = get_rot(np.pi / gear.n)
+        magnets = list(gear.magnets)  # copy magnet list: list is different, magnets are the same
+        for magnet in magnets:
+            x_M_max = rot.dot(magnet.x_M - gear.x_M) + gear.x_M
+            x_M_min = rot.T.dot(magnet.x_M - gear.x_M) + gear.x_M
+            # remove magnet if too far away
+            if (np.linalg.norm(x_M_max - other_gear.x_M) > D_ref) and (np.linalg.norm(x_M_min - other_gear.x_M) > D_ref):
+                gear.magnets.remove(magnet)
+        # set new domain size
+        self.set_domain_size()
 
     def set_domain_size(self):
         """Set domain size of the problem."""
-        self._domain_size = self.D + self.gear_1.outer_radius + self.gear_2.outer_radius
+        # get number of removed magnets
+        n_rem_1 = self.gear_1.n - len(self.gear_1.magnets)
+        n_rem_2 = self.gear_2.n - len(self.gear_2.magnets)
+        if n_rem_1 > 0:
+            alpha_r_1 = np.pi / self.gear_1.n * (self.gear_1.n - len(self.gear_1.magnets) - 1)  # allow rotation by +- pi / n
+        else:
+            alpha_r_1 = 0.
+        if n_rem_2 > 0:
+            alpha_r_2 = np.pi / self.gear_2.n * (self.gear_2.n - len(self.gear_2.magnets) - 1)  # allow rotation by +- pi / n
+        else:
+            alpha_r_2 = 0.
+        # domain_size
+        # compute position of the two points with the greatest distance
+        xP1 = self.gear_1.x_M + self.gear_1.outer_radius * np.array([0., - np.cos(alpha_r_1), np.sin(alpha_r_1)])
+        xP2 = self.gear_2.x_M + self.gear_2.outer_radius * np.array([0., np.cos(alpha_r_2), - np.sin(alpha_r_2)])
+        self._domain_size = np.linalg.norm(xP1 - xP2)
+        print(xP1, xP2, self._domain_size)
