@@ -315,6 +315,8 @@ class MagneticBallGear(MagneticGear):
         """
         super().__init__(n, R, x_M)
         self._r = r  # the magnet radius
+        if self.r > self.R * np.sin(np.pi / self.n):
+            raise ValueError("Magnets intersect!")
         self._scale_parameter = r
         self._magnet_type = "Ball"
 
@@ -386,6 +388,8 @@ class MagneticBarGear(MagneticGear):
         self._w = w
         self._t = t
         self._d = d
+        if self.d > (2 * self.R - self.t) * np.tan(np.pi / self.n):
+            raise ValueError("Magnets intersect!")
         self._scale_parameter = t  # use thickness for scaling
         self._magnet_type = "Bar"
 
@@ -467,7 +471,7 @@ class SegmentGear(MagneticGear):
             x_M (np.ndarray): Position vector.
         """
         super().__init__(n, R, x_M)
-        
+
         self._w = w
         self._t = t
         self._alpha = 2 * np.pi / n  # angle per magnet

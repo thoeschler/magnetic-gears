@@ -70,7 +70,6 @@ def add_ball_magnet(model, magnet):
     magnet_tag = model.occ.addSphere(*magnet.x_M, magnet.R)
     return magnet_tag
 
-
 def add_bar_magnet(model, magnet):
     """
     Add bar magnet to gmsh model.
@@ -85,10 +84,10 @@ def add_bar_magnet(model, magnet):
     assert isinstance(magnet, mc.BarMagnet)
 
     # add magnet corner points
-    p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, magnet.h]))))
-    p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, magnet.h]))))
-    p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, - magnet.w, - magnet.h]))))
-    p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.d, magnet.w, - magnet.h]))))
+    p1 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.w / 2, magnet.d / 2, magnet.h / 2]))))
+    p2 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.w / 2, - magnet.d / 2, magnet.h / 2]))))
+    p3 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.w / 2, - magnet.d / 2, - magnet.h / 2]))))
+    p4 = model.occ.addPoint(*(magnet.x_M + magnet.Q.dot(np.array([- magnet.w / 2, magnet.d / 2, - magnet.h / 2]))))
 
     # combine points with lines
     l1 = model.occ.addLine(p1, p2)
@@ -102,7 +101,7 @@ def add_bar_magnet(model, magnet):
     model.occ.synchronize()
 
     # extrude front surface to create the bar magnet
-    vec = np.array([2 * magnet.d, 0., 0.])
+    vec = np.array([magnet.w, 0., 0.])
     dx, dy, dz = vec
     magnet_gmsh = model.occ.extrude([(2, surf)], dx, dy, dz)
 
