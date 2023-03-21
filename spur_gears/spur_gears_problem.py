@@ -110,15 +110,16 @@ class SpurGearsProblem:
     def align_gears(self):
         """Rotate both gears such that magnets align."""
         assert hasattr(self.gear_1, "_magnets")
-        assert hasattr(self.gear_1, "_magnets")
+        assert hasattr(self.gear_2, "_magnets")
 
         # align both gears
         self.align_gear(self.gear_1, self.gear_2)
         self.align_gear(self.gear_2, self.gear_1)
 
         # make sure north and south pole of the magnets are facing each other
-        self.gear_2.update_parameters(2 * np.pi / self.gear_2.n)
-        self.gear_2.reset_angle(0.)
+        self.sg.update_parameters(2 * np.pi / self.sg.n)
+        self.sg.reset_angle(0.)
+        assert np.isclose(self.sg.angle, 0.)
 
     def assign_gear_roles(self):
         """Assign smaller and larger gear."""
@@ -146,7 +147,11 @@ class SpurGearsProblem:
         x_M_magnet = gear.x_M + gear.R * vec
 
         # rotate gear such that first magnet is aligned
-        angle = np.abs(np.arccos(np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2))
+        arg = np.dot(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M) / gear.R ** 2  # argument of arccos
+        if np.isclose(abs(arg), 1.):  # the value may be slightly higher than 1, like 1.0000000000004 => set to 1
+            arg = np.sign(arg) * 1
+
+        angle = np.abs(np.arccos(arg))
         sign = np.sign(np.cross(gear.magnets[0].x_M - gear.x_M, x_M_magnet - gear.x_M).dot(np.array([1., 0., 0.])))
         if np.isclose(angle, np.pi):  # angle = pi leads to sign = 0, so set the sign manually
             sign = 1
@@ -734,4 +739,3 @@ class SpurGearsProblem:
         xP1 = self.gear_1.x_M + self.gear_1.outer_radius * np.array([0., - np.cos(alpha_r_1), np.sin(alpha_r_1)])
         xP2 = self.gear_2.x_M + self.gear_2.outer_radius * np.array([0., np.cos(alpha_r_2), - np.sin(alpha_r_2)])
         self._domain_size = np.linalg.norm(xP1 - xP2)
-        print(xP1, xP2, self._domain_size)
