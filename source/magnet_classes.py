@@ -712,7 +712,6 @@ class CylinderSegment(PermanentMagnet):
         Returns:
             np.ndarray: Magnetization vector.
         """
-        assert (self.is_inside_eigen(x_eigen) or self.on_boundary_eigen(x_eigen))
         _, y, z = x_eigen
         rho = np.sqrt(y ** 2 + z ** 2)
         return np.array([0., y / rho, z / rho])
@@ -734,6 +733,27 @@ class CylinderSegment(PermanentMagnet):
             return self.Q.dot(M_eigen)
         else:
             return np.zeros(3)
+
+    def M_inner(self, x0):
+        """
+        Inner magnetization field.
+
+        Args:
+            x0 (np.ndarray): Point in space.
+        """
+        x_eigen = self.Q.T.dot(x0 - self.x_M) + np.array([0., self.Rm, 0.])
+        M_eigen = self.M_eigen(x_eigen)
+        return self.Q.dot(M_eigen)
+
+    def M_inner_as_expression(self, degree=1):
+        """
+        Inner magnetization field.
+
+        Args:
+            x0 (np.ndarray): Point in space.
+        """
+        M_lambda = lambda x: self.M_inner(x)
+        return CustomVectorExpression(M_lambda, degree=degree)
 
     def M_as_expression(self, degree=1):
         """Magnetic potential as dolfin expression.
