@@ -6,9 +6,9 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 from source.tools.mesh_tools import generate_mesh_with_markers
 
 
-def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_mid_layer_min=0.2, \
-                               mesh_size_mid_layer_max=0.5, p_deg=2, fname=None, \
-                                write_to_pvd=False):
+def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_domain_min=0.2, \
+                               mesh_size_domain_max=0.5, mesh_size_max=None, p_deg=2, cylinder_mesh_size_field=True,
+                               mesh_size_field_thickness=None, fname=None, write_to_pvd=False):
     """
     Compute magnetic potential of magnet.
 
@@ -20,29 +20,48 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
         magnet (PermanentMagnet): Permanent magnet.
         R_domain (float): Radius of domain.
         mesh_size_magnet (float, optional): Mesh size for magnet. Defaults to 0.2.
-        mesh_size_mid_layer_min (float, optional): Mesh size of of mid layer.
-                                                   Defaults to 2.0.
-        mesh_size_mid_layer_max (float, optional): Maximum mesh size of mid layer.
-                                                   Defaults to 2.0.
+        mesh_size_domain_min (float, optional): Minimum domain mesh size.
+                                                   Defaults to 0.2.
+        mesh_size_domain_max (float, optional): Maximum domain mesh size.
+                                                   Defaults to 0.2.
+        mesh_size_max (float, optional): Maximum mesh size outside magnet and domain.
         p_deg (int, optional): Polynomial degree. Defaults to 2.
+        cylinder_mesh_size_field (bool, optional): If True set a mesh size field in the
+                                                   form of a cylinder (a gear).
+                                                   Defaults to True.
+        mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
+                                                     Defaults to None, 
         fname (str, optional): File name. Defaults to None.
         write_to_pvd (bool, optional): If True write field to pvd file. Defaults to False.
     """
     if write_to_pvd:
         assert fname is not None
-    
+    if cylinder_mesh_size_field:
+        if mesh_size_field_thickness is None:
+            mesh_size_field_thickness = magnet.size
+
+    if mesh_size_max is None:
+        mesh_size_max = 7 * mesh_size_domain_min
+    if mesh_size_max > 7 * mesh_size_domain_min:
+         mesh_size_max = 7 * mesh_size_domain_min
+
     if R_domain <= magnet.size:
         R_domain = magnet.size + mesh_size_magnet
     if R_inf is None:
-        R_inf = R_domain + 3 * mesh_size_magnet
+        R_inf = 70 * magnet.size
     if R_inf < R_domain:
-        R_inf = R_domain + 3 * mesh_size_magnet
+        if R_domain > 70 * magnet.size:
+            R_inf = R_domain + mesh_size_magnet
+        else:
+            R_inf = 70 * magnet.size
 
     mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag = \
         magnet_mesh(magnet, R_domain=R_domain, R_box=R_inf, \
-                    mesh_size_magnet=mesh_size_magnet, mesh_size_mid_layer_min=mesh_size_mid_layer_min, \
-                        mesh_size_mid_layer_max=mesh_size_mid_layer_max, mesh_size_space=40.0, \
-                            fname=fname, write_to_pvd=write_to_pvd)
+                    mesh_size_magnet=mesh_size_magnet, mesh_size_domain_min=mesh_size_domain_min, \
+                        mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_max, \
+                            cylinder_mesh_size_field=cylinder_mesh_size_field, \
+                                mesh_size_field_thickness=mesh_size_field_thickness, \
+                                    fname=fname, write_to_pvd=write_to_pvd)
 
     # magnetization
     if isinstance(magnet, PermanentAxialMagnet):
@@ -50,8 +69,12 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
     else:
         VM = dlf.VectorFunctionSpace(mesh, "CG", p_deg)
         M = dlf.Function(VM)
-        assert hasattr(magnet, "M_as_expression")
-        dlf.LagrangeInterpolator.interpolate(M, magnet.M_as_expression(degree=p_deg))
+        # Use inner magnetic field expression to make sure
+        # magnetization is set correctly near the boundary.
+        # The integration that follows is only over the magnet 
+        # volume so this is a valid procedure
+        assert hasattr(magnet, "M_inner_as_expression")
+        dlf.LagrangeInterpolator.interpolate(M, magnet.M_inner_as_expression(degree=p_deg))
         dlf.File("M.pvd") << M
 
     # volume measure
@@ -81,8 +104,29 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
 
     return Vm
 
-def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_mid_layer_min, mesh_size_mid_layer_max, \
-                mesh_size_space, fname=None, write_to_pvd=False, verbose=False):
+def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min, mesh_size_domain_max, \
+                mesh_size_space, cylinder_mesh_size_field, mesh_size_field_thickness=None, fname=None, \
+                    write_to_pvd=False, verbose=False):
+    """
+    Create magnet mesh for finite element computation.
+
+    Args:
+        magnet (PermanentMagnet): Permanent magnet.
+        R_domain (float): Radius of domain (mesh will be fine inside the domain).
+        R_box (float): Radius of surrounding domain.
+        mesh_size_magnet (float): Mesh size of magnet.
+        mesh_size_domain_min (float): Minimum domain mesh size.
+        mesh_size_domain_max (float): Maximumm domain mesh size.
+        cylinder_mesh_size_field (bool): Whether to apply a mesh size field in the form
+                                         of a cylinder.
+        mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
+                                                     Defaults to None.
+        fname (str, optional): File name. Defaults to None.
+        verbose (bool, optional): If True output gmsh info. Defaults to False.
+
+    Returns:
+        tuple: Mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag.
+    """
     if write_to_pvd:
         assert fname is not None
     if fname is None:
@@ -122,7 +166,7 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_mid_layer_m
     box_boundary_tag = model.addPhysicalGroup(2, [outer_boundary])
     mag_boundary_tag = model.addPhysicalGroup(2, mag_boundary)
     model.occ.synchronize()
-    
+
     # mesh size fields
     model.mesh.setSize(model.occ.getEntities(0), mesh_size_space)
 
@@ -131,21 +175,39 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_mid_layer_m
     model.mesh.field.setNumber(mag_field_tag, "VIn", mesh_size_magnet)
     model.mesh.field.setNumbers(mag_field_tag, "VolumesList", [mag_tag])
 
-    # set medium layer mesh size
-    # add distance field
-    mid_point = model.occ.addPoint(*magnet.x_M)
-    model.occ.synchronize()
-    distance_tag = model.mesh.field.add("Distance")
-    model.mesh.field.setNumbers(distance_tag, "PointsList", [mid_point])
+    # set cylinder mesh size field
+    if cylinder_mesh_size_field:
+        # line distance field
+        cylinder_ms_field = model.mesh.field.add("Cylinder")
+        model.mesh.field.setNumber(cylinder_ms_field, "Radius", 1.0 * R_domain)
+        model.mesh.field.setNumber(cylinder_ms_field, "VIn", mesh_size_domain_min)
+        model.mesh.field.setNumber(cylinder_ms_field, "VOut", mesh_size_space)
+        model.mesh.field.setNumber(cylinder_ms_field, "XAxis", mesh_size_field_thickness)
+        model.mesh.field.setNumber(cylinder_ms_field, "YAxis", 0.)
+        model.mesh.field.setNumber(cylinder_ms_field, "ZAxis", 0.)
+        model.mesh.field.setNumber(cylinder_ms_field, "XCenter", magnet.x_M[0])
+        model.mesh.field.setNumber(cylinder_ms_field, "YCenter", magnet.x_M[1])
+        model.mesh.field.setNumber(cylinder_ms_field, "ZCenter", magnet.x_M[2])
 
-    # add MathEval field that depends on distance
-    math_eval_tag = model.mesh.field.add("MathEval")
-    model.mesh.field.setString(math_eval_tag, "F", f"F{distance_tag} / {R_domain} * "\
-        + f"{mesh_size_mid_layer_max - mesh_size_mid_layer_min} + {mesh_size_mid_layer_min}")
+        ms_fields = [mag_field_tag, cylinder_ms_field]
+    else:
+        # set domain mesh size
+        # add distance field
+        mid_point = model.occ.addPoint(*magnet.x_M)
+        model.occ.synchronize()
+        distance_tag = model.mesh.field.add("Distance")
+        model.mesh.field.setNumbers(distance_tag, "PointsList", [mid_point])
+
+        # add MathEval field that depends on distance
+        math_eval_tag = model.mesh.field.add("MathEval")
+        model.mesh.field.setString(math_eval_tag, "F", f"F{distance_tag} / {R_domain} * "\
+            + f"{mesh_size_domain_max - mesh_size_domain_min} + {mesh_size_domain_min}")
+
+        ms_fields = [mag_field_tag, math_eval_tag]
 
     # use the minimum of all the fields as the mesh size field
     min_tag = model.mesh.field.add("Min")
-    model.mesh.field.setNumbers(min_tag, "FieldsList", [mag_field_tag, math_eval_tag])
+    model.mesh.field.setNumbers(min_tag, "FieldsList", ms_fields)
     model.mesh.field.setAsBackgroundMesh(min_tag)
 
     # use parallel "HXT" algorithm
