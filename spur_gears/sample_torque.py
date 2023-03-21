@@ -282,8 +282,6 @@ def sample_bar(n_iterations, par_number):
     w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d1 = 1.0
-    d2 = 1.0
     d = 0.1
     # create sample directory
     sample_dir = "sample_bar_gear"
@@ -296,7 +294,7 @@ def sample_bar(n_iterations, par_number):
     d = 0.1
 
     # parameters
-    gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
+    gear_ratio_values = np.array([1.2, 1.5, 2.0, 4.0])
     R1_values = np.array([6.0, 10.0, 20.0])
     p1_values = list(range(4, 40, 2))
     par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
@@ -304,13 +302,15 @@ def sample_bar(n_iterations, par_number):
     gear_ratio, R1, p1 = par
 
     # compute rest of values
-    R2 = R1 * gear_ratio
     p2 = p1 * gear_ratio
     if not p2.is_integer():
         exit()
     if int(p2) % 2 != 0:
         exit()
     p2 = int(p2)
+    d1 = np.tan(np.pi / p1) * (2 * R1 - t1)
+    d2 = d1
+    R2 = 1 / 2 * (np.tan(np.pi / p1) / np.tan(np.pi / p2) * (2 * R1 - t1) + t2)
 
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
@@ -332,6 +332,7 @@ def sample_bar(n_iterations, par_number):
 
     # mesh smaller gear
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}")
+    sampling.mesh_gear(sampling.lg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.lg is sampling.gear_1 else 2}")
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
