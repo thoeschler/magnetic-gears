@@ -408,7 +408,7 @@ class SpurGearsProblem:
 
         self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
                                                         x_axis=x_axis, fname=ref_path + "/reference_segment", \
-                                                            mesh_size=mesh_size, write_to_pvd=True)
+                                                        pad=False, mesh_size=mesh_size, write_to_pvd=True)
 
     def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
         """
