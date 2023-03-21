@@ -302,11 +302,6 @@ class SpurGearsProblem:
                 thickness = self.gear_1.width
             else:
                 raise RuntimeError()
-            create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
-                                  shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
-
-            # read reference mesh
-            reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
 
             # create reference magnet and check if the field is implemented
             assert hasattr(ref_mag, field_name), f"{field_name} is not implemented for this magnet class"
@@ -316,16 +311,26 @@ class SpurGearsProblem:
                 # radius of sphere has to be larger such that it contains the cylinder
                 ref_radius = np.sqrt(domain_size ** 2 + thickness ** 2 / 4) + 1e-3
                 field_num = compute_magnetic_potential(ref_mag, ref_radius, R_inf=R_inf, mesh_size_magnet=mesh_size_min, \
-                                                            mesh_size_mid_layer_min=mesh_size_min, \
-                                                                mesh_size_mid_layer_max=mesh_size_max, p_deg=p_deg,
-                                                                fname="test", write_to_pvd=True)
+                                                        mesh_size_domain_min=mesh_size_min, \
+                                                        mesh_size_domain_max=mesh_size_max, p_deg=p_deg, \
+                                                        cylinder_mesh_size_field=True, mesh_size_field_thickness=thickness, \
+                                                        fname=f"{self._main_dir}/data/Vm", write_to_pvd=True)
                 if field_name == "B":
                     field_num = compute_current_potential(field_num, project=True)
+
+                create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
+                                        shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
+                # read reference mesh
+                reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
 
                 # interpolate reference field
                 field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
                                                     fname=f"{ref_dir}/{field_name}", write_pvd=True)
             else:
+                create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
+                                  shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
+                # read reference mesh
+                reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
                 # interpolate reference field
                 if field_name == "B":
                     field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, fname=f"{ref_dir}/{field_name}", \
