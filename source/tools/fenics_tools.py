@@ -27,7 +27,7 @@ class CustomScalarExpression(dlf.UserExpression):
     def value_shape(self):
         return tuple()
 
-def compute_current_potential(Vm: dlf.Function, project=False):
+def compute_current_potential(Vm: dlf.Function, project=False, cell_type="CG"):
     """Compute free current potential from magnetic potential.
 
     If the magnetization is zero the free current potential
@@ -35,8 +35,10 @@ def compute_current_potential(Vm: dlf.Function, project=False):
 
     Args:
         Vm (dlf.Function): Magnetic potential.
-        project (bool, optional): Whether to project to a CG space.
+        project (bool, optional): Whether to project to a FE space.
                                   Defaults to False.
+        cell_type (str, optional): Cell type used if projection is True.
+                                   Defaults to "CG".
 
     Returns:
         dlf.Function: Free current potential.
@@ -50,7 +52,7 @@ def compute_current_potential(Vm: dlf.Function, project=False):
         return H
 
     Vm_p_deg = Vm.ufl_element().degree()
-    V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), "CG", Vm_p_deg)
+    V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), cell_type, Vm_p_deg)
 
     # compute magnetic field and project to function space
     # This is due to an UMFPACK error that limits the memory usage to 4GB
