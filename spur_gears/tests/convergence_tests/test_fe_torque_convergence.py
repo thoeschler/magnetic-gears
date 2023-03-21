@@ -25,7 +25,8 @@ def test_fe_torque_convergence():
     mesh_sizes = np.geomspace(1e-1, 1.0, num=6)
     p_deg = 2
     ma = False
-    # 3. interpolate twice, use Vm
+
+    # interpolate twice, use Vm
     dir_all = "all" if ma else "not_all"
     for R_inf_mult in np.linspace(5, 50, num=5):
         dir = f"{dir_all}_{R_inf_mult}"
@@ -36,7 +37,7 @@ def test_fe_torque_convergence():
             errors, names = convergence_test(ct, mesh_size=mesh_size, p_deg=p_deg, \
                                             interpolate="twice", use_Vm=True, \
                                             mesh_all_magnets=ma, D_ref=ct.D, \
-                                            analytical_solution=False, R_inf_mult=10)
+                                            analytical_solution=False, R_inf_mult=100)
 
             print(f"In gear 1 {ct.gear_1.n - len(ct.gear_1.magnets)} out of {ct.gear_1.n} magnets have been deleted.")
             print(f"In gear 2 {ct.gear_2.n - len(ct.gear_2.magnets)} out of {ct.gear_2.n} magnets have been deleted.")
@@ -44,7 +45,6 @@ def test_fe_torque_convergence():
             for error, name in zip(errors, names):
                 with open(f"{dir}/{name}.csv", "a+") as f:
                     f.write(f"{mesh_size} {error} \n")
-        os.chdir("..")
 
 if __name__ == "__main__":
     test_fe_torque_convergence()
