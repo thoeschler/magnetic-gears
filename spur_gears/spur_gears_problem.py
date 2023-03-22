@@ -408,7 +408,7 @@ class SpurGearsProblem:
 
         self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
                                                         x_axis=x_axis, fname=ref_path + "/reference_segment", \
-                                                        pad=False, mesh_size=mesh_size, write_to_pvd=True)
+                                                        pad=True, mesh_size=mesh_size, write_to_pvd=True)
 
     def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
         """
@@ -482,8 +482,12 @@ class SpurGearsProblem:
         for mag in gear.magnets:
             print("Interpolating field of magnet...", end="")
             if use_ref_field:
+                scale = gear.scale_parameter
+                if not isinstance(mag, PermanentAxialMagnet):
+                    scale *= mag.mag_sign * gear.reference_magnet().mag_sign
+
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
-                    mesh, cell_type, p_deg, scale=gear.scale_parameter)
+                    mesh, cell_type, p_deg, scale=scale)
                 assert interpol_field.function_space().mesh() is mesh
             else:
                 if field_name == "B":
@@ -526,6 +530,9 @@ class SpurGearsProblem:
             V_ref = dlf.VectorFunctionSpace(self._B_reference_mesh_copy, cell_type, p_deg)
             ref_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
+            # scale field sign
+            if not np.isclose(scale, 1.0):
+                ref_field_copy.vector()[:] *= np.sign(scale)
             # rotate reference field
             rotate_vector_field(ref_field_copy, magnet.Q)
         elif field_name == "Vm":
@@ -537,12 +544,13 @@ class SpurGearsProblem:
             ref_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
             if not np.isclose(scale, 1.0):
                 ref_field_copy.vector()[:] *= scale
+            print("SCALING VALUE:", scale)
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()
 
         # scale, rotate and shift reference mesh according to magnet placement
-        ref_mesh_copy.scale(scale)
+        ref_mesh_copy.scale(abs(scale))
         # rotate first, then shift!
         coords = np.array(ref_mesh_copy.coordinates())
         ref_mesh_copy.coordinates()[:] = magnet.Q.dot(coords.T).T

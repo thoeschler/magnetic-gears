@@ -586,7 +586,7 @@ class BarMagnet(PermanentAxialMagnet):
 
 class CylinderSegment(PermanentMagnet):
     def __init__(self, radius, width, thickness, alpha, magnetization_strength, position_vector, \
-                 rotation_matrix, magnetization_direction="out"):
+                 rotation_matrix, magnetization_sign=1):
         """
         Radially magnetized CylinderSegment.
 
@@ -601,17 +601,18 @@ class CylinderSegment(PermanentMagnet):
                                           center of mass. Instead, it is the point at dis-
                                           tance Rm with a zero angle (in eigen coordinates).
                                           This can be considered the mid point.
-            magnetization_direction (str, optional): The radial magnetization can be either
-                                                     pointing "in" (negative radial direction)
-                                                     or "out" (positive radial direction).
-                                                     Defaults to "out".
+            magnetization_sign (int, optional): The radial magnetization can be either
+                                                     pointing in negative radial direction
+                                                     (-1) or in positive radial direction (1).
+                                                     Defaults to 1.
         """
         super().__init__(type_classifier='CylinderSegment',
                          position_vector=position_vector,
                          magnetization_strength=magnetization_strength,
                          rotation_matrix=rotation_matrix
                          )
-        assert magnetization_direction in ("out", "in")
+        assert magnetization_sign in (1, -1)
+        self._mag_sign = magnetization_sign
         self._Rm = radius
         self._width = width
         self._thickness = thickness
@@ -636,6 +637,10 @@ class CylinderSegment(PermanentMagnet):
     @property
     def alpha(self):
         return self._alpha
+
+    @property
+    def mag_sign(self):
+        return self._mag_sign
 
     def is_inside(self, x0):
         """Check if point x0 is inside the magnet's domain.
@@ -714,7 +719,7 @@ class CylinderSegment(PermanentMagnet):
         """
         _, y, z = x_eigen
         rho = np.sqrt(y ** 2 + z ** 2)
-        return np.array([0., y / rho, z / rho])
+        return self.mag_sign * np.array([0., y / rho, z / rho])
 
     def M(self, x0):
         """

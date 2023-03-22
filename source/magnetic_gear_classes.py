@@ -515,9 +515,9 @@ class SegmentGear(MagneticGear):
             CylinderSegment: The reference magnet.
         """
         return CylinderSegment(radius=self.R / self.scale_parameter, width=self.w / self.scale_parameter, \
-                             thickness=self.t / self.scale_parameter, alpha=self.alpha, \
+                               thickness=self.t / self.scale_parameter, alpha=self.alpha, \
                                 magnetization_strength=1.0, position_vector=np.zeros(3), \
-                                    rotation_matrix=np.eye(3))
+                                    rotation_matrix=np.eye(3), magnetization_sign=1)
 
     def create_magnets(self, magnetization_strength):
         """Create magnets, given some magnetization strength.
@@ -532,14 +532,14 @@ class SegmentGear(MagneticGear):
         for k in range(self.n):
             if k % 2 == 0:
                 # magnetization pointing outward
-                magnetization_direction = "out"
+                magnetization_sign = 1
             else:
                 # magnetization pointing inward
-                magnetization_direction = "in"
+                magnetization_sign = -1
             Q = get_rot(2 * np.pi / self.n * k)
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
             self._magnets.append(CylinderSegment(radius=self.R, width=self.w, thickness=self.t, \
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \
                                                     position_vector=x_M, rotation_matrix=Q, \
-                                                        magnetization_direction=magnetization_direction))
+                                                        magnetization_sign=magnetization_sign))
         print("Done.")
