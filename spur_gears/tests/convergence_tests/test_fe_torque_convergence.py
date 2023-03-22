@@ -32,7 +32,8 @@ def test_fe_torque_convergence():
         dir = f"{dir_all}_{R_inf_mult}"
         if not os.path.exists(dir):
             os.mkdir(dir)
-        for mesh_size in mesh_sizes[::-1]:
+        mesh_size_selection = mesh_sizes[:2]
+        for mesh_size in mesh_size_selection[::-1]:
             ct = create_convergence_test(main_dir=dir)
             errors, names = convergence_test(ct, mesh_size=mesh_size, p_deg=p_deg, \
                                             interpolate="twice", use_Vm=True, \

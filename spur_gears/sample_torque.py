@@ -120,90 +120,6 @@ class SpurGearsSampling(SpurGearsProblem):
             # rotate larger gear
             self.update_gear(self.lg, d_angle=d_angle_lg)
 
-def sample_torque_ball(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_ball_gear"):
-    # create directory
-    if not os.path.exists(sample_dir):
-        os.mkdir(sample_dir)
-
-    # create two ball gears
-    gear_1_ball = MagneticBallGear(n=12, r=1., R=6, x_M=np.zeros(3))
-    gear_2_ball = MagneticBallGear(n=18, r=1.5, R=9., x_M=np.array([0., 1., 0.]))
-    gear_1_ball.create_magnets(magnetization_strength=1.0)
-    gear_2_ball.create_magnets(magnetization_strength=1.0)
-
-    # create coaxial gears problem
-    D = gear_1_ball.outer_radius + gear_2_ball.outer_radius + 1.0
-    bg = SpurGearsSampling(gear_1_ball, gear_2_ball, D, main_dir=sample_dir)
-
-    # mesh smaller gear
-    bg.mesh_gear(bg.sg, mesh_size=mesh_size, fname=f"gear_{1 if bg.sg is bg.gear_1 else 2}")
-
-    # mesh the segment
-    bg.load_reference_field(bg.lg, "Vm", "CG", p_deg, mesh_size, 3 * mesh_size, \
-                            bg.domain_size, analytical_solution=True)
-    bg.mesh_reference_segment(mesh_size)
-    bg.interpolate_to_reference_segment(mesh_size, p_deg=p_deg, interpolate=interpolate)
-
-    write_parameter_file(bg, sample_dir)
-
-    bg.sample(n_iterations, p_deg=p_deg)
-
-
-def sample_torque_bar(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_bar_gear"):
-    # create test directory
-    if not os.path.exists(sample_dir):
-        os.mkdir(sample_dir)
-
-    gear_1_bar = MagneticBarGear(n=2, h=2.0, w=0.75, d=0.5, R=12, x_M=np.zeros(3))
-    gear_2_bar = MagneticBarGear(n=4, h=2.0, w=0.75, d=0.5, R=18, x_M=np.array([0., 1., 0.]))
-    gear_1_bar.create_magnets(magnetization_strength=1.0)
-    gear_2_bar.create_magnets(magnetization_strength=1.0)
-
-    # create coaxial gears problem
-    D = gear_1_bar.outer_radius + gear_2_bar.outer_radius + 1.0
-    bg = SpurGearsSampling(gear_1_bar, gear_2_bar, D, main_dir=sample_dir)
-
-    # mesh smaller gear
-    bg.mesh_gear(bg.sg, mesh_size=mesh_size, fname=f"gear_{1 if bg.sg is bg.gear_1 else 2}")
-
-    # mesh the segment
-    bg.load_reference_field(bg.lg, "Vm", "CG", p_deg, mesh_size, 3 * mesh_size, \
-                            bg.domain_size, analytical_solution=True)
-    bg.mesh_reference_segment(mesh_size)
-    bg.interpolate_to_reference_segment(mesh_size, p_deg=p_deg, interpolate=interpolate)
-
-    write_parameter_file(bg, sample_dir)
-
-    bg.sample(n_iterations, p_deg=p_deg)
-
-def sample_torque_segment(n_iterations, mesh_size, p_deg=2, interpolate="twice", sample_dir="sample_segment_gear"):
-    sample_dir = "sample_segment_gear"
-    # create test directory
-    if not os.path.exists(sample_dir):
-        os.mkdir(sample_dir)
-
-    gear_1_segment = SegmentGear(n=12, R=6.0, w=0.75, t=1., x_M=np.zeros(3))
-    gear_2_segment = SegmentGear(n=4, R=6.0, w=0.75, t=1., x_M=np.array([0., 1., 0.]))
-    gear_1_segment.create_magnets(magnetization_strength=1.0)
-    gear_2_segment.create_magnets(magnetization_strength=1.0)
-
-    # create coaxial gears problem
-    D = gear_1_segment.outer_radius + gear_2_segment.outer_radius + 1.0
-    sg = SpurGearsSampling(gear_1_segment, gear_2_segment, D, main_dir=sample_dir)
-
-    # mesh smaller gear
-    sg.mesh_gear(sg.sg, mesh_size=mesh_size, fname=f"gear_{1 if sg.sg is sg.gear_1 else 2}")
-
-    # mesh the segment
-    sg.load_reference_field(sg.lg, "Vm", "CG", p_deg, mesh_size, 3 * mesh_size, \
-                            sg.domain_size, analytical_solution=False, \
-                                R_inf=10 * sg.domain_size)
-    sg.mesh_reference_segment(mesh_size)
-    sg.interpolate_to_reference_segment(mesh_size, p_deg=p_deg, interpolate=interpolate)
-
-    write_parameter_file(sg, sample_dir)
-
-    sg.sample(n_iterations, p_deg=p_deg)
 
 def write_parameter_file(problem, sample_dir):
     with open(sample_dir + "/par.json", "w") as f:
@@ -267,7 +183,7 @@ def sample_ball(n_iterations, par_number):
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
-                                    mesh_size_max=4 * mesh_size, domain_size=sampling.domain_size, \
+                                    mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
                                     analytical_solution=True)
     sampling.mesh_reference_segment(mesh_size)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
@@ -294,7 +210,7 @@ def sample_bar(n_iterations, par_number):
     d = 0.1
 
     # parameters
-    gear_ratio_values = np.array([1.2, 1.5, 2.0, 4.0])
+    gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
     R1_values = np.array([6.0, 10.0, 20.0])
     p1_values = list(range(4, 40, 2))
     par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
@@ -336,7 +252,7 @@ def sample_bar(n_iterations, par_number):
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
-                                    mesh_size_max=4 * mesh_size, domain_size=sampling.domain_size, \
+                                    mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
                                     analytical_solution=True)
     sampling.mesh_reference_segment(mesh_size)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
@@ -402,8 +318,8 @@ def sample_segment(n_iterations, par_number):
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
-                                    mesh_size_max=4 * mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=False, R_inf=40 * sampling.sg.t)
+                                    mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
+                                    analytical_solution=False)
     sampling.mesh_reference_segment(mesh_size)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 

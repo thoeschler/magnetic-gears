@@ -175,7 +175,7 @@ def convergence_test(cg: SpurGearsConvergenceTest, mesh_size, p_deg=1, mesh_all_
         else:
             R_inf = R_inf_mult * cg.sg.magnets[0].size
         cg.load_reference_field(cg.lg, "Vm" if use_Vm else "B", "CG", p_deg, \
-                                mesh_size, 3 * mesh_size, cg.domain_size, analytical_solution=analytical_solution,
+                                mesh_size, mesh_size, cg.domain_size, analytical_solution=analytical_solution,
                                 R_inf=R_inf)
         cg.mesh_reference_segment(mesh_size)
         cg.interpolate_to_reference_segment(p_deg, interpolate=interpolate, use_Vm=use_Vm)
