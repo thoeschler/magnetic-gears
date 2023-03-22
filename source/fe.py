@@ -41,9 +41,9 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
             mesh_size_field_thickness = magnet.size
 
     if mesh_size_max is None:
-        mesh_size_max = 7 * mesh_size_domain_min
-    if mesh_size_max > 7 * mesh_size_domain_min:
-         mesh_size_max = 7 * mesh_size_domain_min
+        mesh_size_max = 20 * mesh_size_domain_min
+    if mesh_size_max > 20 * mesh_size_domain_min:
+         mesh_size_max = 20 * mesh_size_domain_min
 
     if R_domain <= magnet.size:
         R_domain = magnet.size + mesh_size_magnet
