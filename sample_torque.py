@@ -63,63 +63,50 @@ class SpurGearsSampling(SpurGearsProblem):
         d_angle_1 = angles_1[1]- angles_1[0]
         d_angle_2 = angles_2[1]- angles_2[0]
 
-        # assign angle increments
-        if self.gear_1 is self.sg:
-            angles_sg = angles_1
-            angles_lg = angles_2
-            d_angle_sg = d_angle_1
-            d_angle_lg = d_angle_2
-        elif self.gear_2 is self.sg:
-            angles_sg = angles_2
-            angles_lg = angles_1
-            d_angle_sg = d_angle_2
-            d_angle_lg = d_angle_1
-        else:
-            raise RuntimeError()
         assert np.isclose(self.gear_1.angle, 0.)
         assert np.isclose(self.gear_2.angle, 0.)
         # rotate segment back by - pi / n
-        self.update_gear(self.lg, - np.pi / self.lg.n)
-        self.update_gear(self.sg, - np.pi / self.sg.n)
-        assert np.isclose(self.lg.angle, angles_lg[0])
-        assert np.isclose(self.sg.angle, angles_sg[0])
+        self.update_gear(self.gear_1, - np.pi / self.gear_1.n)
+        self.update_gear(self.gear_2, - np.pi / self.gear_2.n)
+        assert np.isclose(self.gear_1.angle, angles_1[0])
+        assert np.isclose(self.gear_2.angle, angles_2[0])
 
         tau_12_values = np.zeros((n_iterations, n_iterations))
         tau_21_values = np.zeros((n_iterations, n_iterations))
         for i in range(n_iterations):
             for j in range(n_iterations):
                 # check angles
-                assert np.isclose(self.sg.angle, angles_sg[j])
-                assert np.isclose(self.lg.angle, angles_lg[i])
+                assert np.isclose(self.gear_1.angle, angles_1[i])
+                assert np.isclose(self.gear_2.angle, angles_2[j])
                 F_sg, tau_sg = self.compute_force_torque(p_deg, use_Vm=True)
                 tau_lg = (np.cross(self.lg.x_M - self.sg.x_M, F_sg) - tau_sg)[0]
 
                 if self.gear_1 is self.sg:
                     tau_21 = tau_sg
                     tau_12 = tau_lg
-                    tau_12_values[j, i] = tau_12
-                    tau_21_values[j, i] = tau_21
                 elif self.gear_2 is self.sg:
                     tau_21 = tau_lg
                     tau_12 = tau_sg
-                    tau_12_values[i, j] = tau_12
-                    tau_21_values[i, j] = tau_21
                 else:
                     raise RuntimeError()
 
-                # rotate smaller gear
-                self.update_gear(self.sg, d_angle=d_angle_sg)
+                # save torque values
+                tau_12_values[i, j] = tau_12
+                tau_21_values[i, j] = tau_21
 
-            # rotate back to zero angle
-            self.update_gear(self.sg, d_angle=float(-self.sg.angle) + angles_sg[0])
-            assert np.isclose(self.sg.angle, angles_sg[0])
+                # rotate first gear
+                self.update_gear(self.gear_2, d_angle=d_angle_2)
+
+            # rotate first gear back to initial angle
+            self.update_gear(self.gear_2, d_angle=float(-self.gear_2.angle) + angles_2[0])
+            assert np.isclose(self.gear_2.angle, angles_2[0])
 
             # update csv files
             pd.DataFrame(tau_12_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/{data_dir}/tau_12.csv")
             pd.DataFrame(tau_21_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/{data_dir}/tau_21.csv")
 
-            # rotate larger gear
-            self.update_gear(self.lg, d_angle=d_angle_lg)
+            # rotate second gear
+            self.update_gear(self.gear_1, d_angle=d_angle_1)
 
 
 def write_parameter_file(problem, sample_dir):
@@ -209,12 +196,11 @@ def sample_bar(n_iterations, par_number):
     # set parameters
     mesh_size = 0.2
     p_deg = 2
-    d = 0.1
 
     # parameters
     gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
     R1_values = np.array([6.0, 10.0, 20.0])
-    p1_values = list(range(4, 40, 2))
+    p1_values = list(range(12, 40, 2))
     par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
     par = par_list[par_number]
     gear_ratio, R1, p1 = par
@@ -249,7 +235,6 @@ def sample_bar(n_iterations, par_number):
     sampling = SpurGearsSampling(gear_1, gear_2, D, main_dir=sample_dir)
 
     # mesh smaller gear
-    print(f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}")
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, \
                        fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
                         write_to_pvd=False)
@@ -285,7 +270,7 @@ def sample_segment(n_iterations, par_number):
     # parameters
     gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
     R1_values = np.array([6.0, 10.0, 20.0])
-    p1_values = list(range(4, 40, 2))
+    p1_values = list(range(12, 40, 2))
     par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
     par = par_list[par_number]
     gear_ratio, R1, p1 = par
@@ -340,10 +325,10 @@ if __name__ == "__main__":
     it_nb = int(sys.argv[2])
 
     if magnet_type == "ball":
-        sample_ball(10, it_nb)
+        sample_ball(23, it_nb)
     elif magnet_type == "bar":
-        sample_bar(10, it_nb)
+        sample_bar(23, it_nb)
     elif magnet_type == "cylinder_segment":
-        sample_segment(10, it_nb)
+        sample_segment(23, it_nb)
     else:
         raise RuntimeError()
