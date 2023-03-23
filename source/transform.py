@@ -12,6 +12,7 @@ def sph_to_cart_matrix(x_vec, cs="sph"):
         np.ndarray: Transformation matrix.
     """
     assert len(x_vec) == 3
+
     if cs=="cart":
         x, y, z = x_vec
     elif cs=="sph":

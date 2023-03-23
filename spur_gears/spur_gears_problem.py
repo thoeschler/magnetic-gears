@@ -326,7 +326,7 @@ class SpurGearsProblem:
 
                 # interpolate reference field
                 field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
-                                                    fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=write_to_pvd)
+                                                    fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=True)
             else:
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
                                   shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")

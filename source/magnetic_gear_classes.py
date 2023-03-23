@@ -34,6 +34,16 @@ class MagneticGear:
     def x_M(self):
         return self._x_M
 
+    @x_M.setter
+    def x_M(self, x_M):
+        d_x_M = x_M - self._x_M
+        self._x_M = x_M
+        # update mesh coordinates
+        if hasattr(self, "_mesh"):
+            self.translate_mesh(d_x_M)
+        if hasattr(self, "_magnets"):
+            self.update_magnets(self._magnets, d_angle=0., d_x_M=d_x_M)
+
     @property
     def angle(self):
         return self._angle
