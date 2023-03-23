@@ -4,6 +4,16 @@ from scipy.spatial.transform import Rotation
 
 
 def get_rot(angle, axis=0):
+    """
+    Get rotation matrix.
+
+    Args:
+        angle (float): Angle.
+        axis (int, optional): Rotation axis. Defaults to 0.
+
+    Returns:
+        np.ndarray: Rotation matrix.
+    """
     return Rotation.from_rotvec(angle * np.eye(3)[axis]).as_matrix()
 
 def get_interpolater(data, x, y):

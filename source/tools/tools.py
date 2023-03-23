@@ -10,7 +10,7 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
     shape="sphere", thickness=None, fname="reference_mesh", verbose=False):
     """
-    Create a mesh of a reference sphere.
+    Create a reference mesh.
 
     Args:
         reference_magnet (PermanentMagnet): Reference magnet.
@@ -42,7 +42,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     else:
         raise RuntimeError()
 
-    # create surrounding box sphere
+    # create surrounding box
     x_M = reference_magnet.x_M
     if shape.lower() == "sphere":
         box = model.occ.addSphere(*x_M, domain_radius)
@@ -51,7 +51,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
             t = t_min + 1e-3  # some padding
         else:
             t = max(t_min, thickness) + 1e-3 
-        box = model.occ.addCylinder(-t / 2, 0., 0., t, 0., 0., r=domain_radius)
+        box = model.occ.addCylinder(x_M[0] - t / 2, x_M[1], x_M[2], t, 0., 0., r=domain_radius)
     else:
         raise RuntimeError()
 
@@ -112,12 +112,14 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
     """
     if write_pvd:
         assert isinstance(fname, str)
+    
+    assert callable(field)
 
     # test whether the field is scalar or vector-valued (evaluate at random point (0, 0, 0))
     vector_valued = np.atleast_1d(field(np.zeros(3))).size > 1
     print("Interpolating reference field ...", end="")
 
-    if callable(field):
+    if not isinstance(field, dlf.Function):
         if vector_valued:
             V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
             field = CustomVectorExpression(field, degree=p_deg)

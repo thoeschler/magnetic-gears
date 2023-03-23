@@ -35,15 +35,15 @@ def compute_current_potential(Vm: dlf.Function, project=False, cell_type="CG"):
 
     Args:
         Vm (dlf.Function): Magnetic potential.
-        project (bool, optional): Whether to project to a FE space.
+        project (bool, optional): Whether to project to a finite element space.
                                   Defaults to False.
         cell_type (str, optional): Cell type used if projection is True.
                                    Defaults to "CG".
 
     Returns:
-        dlf.Function: Free current potential.
+        dlf.Function or dlf.ComponentTensor: Free current potential.
     """
-    
+
     # compute gradient
     H = - dlf.grad(Vm)
 
