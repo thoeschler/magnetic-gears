@@ -107,6 +107,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
                                                      Defaults to None.
         fname (str, optional): File name. Defaults to None.
+        write_to_pvd (bool, optional): If True write field to pvd file. Defaults to False.
         verbose (bool, optional): If True output gmsh info. Defaults to False.
 
     Returns:

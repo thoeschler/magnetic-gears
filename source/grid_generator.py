@@ -210,7 +210,7 @@ def gear_mesh(gear, mesh_size, fname, write_to_pvd=False, verbose=False):
     gmsh.write(fname + '.msh')
 
     # create mesh and markers
-    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname.rstrip("/"), delete_source_files=False)
+    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname.rstrip("/"), delete_source_files=True)
     if write_to_pvd:
         dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
         dlf.File(fname.rstrip("/") + "_cell_marker.pvd") << cell_marker

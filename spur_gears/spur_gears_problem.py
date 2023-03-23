@@ -259,7 +259,8 @@ class SpurGearsProblem:
         return True
 
     def load_reference_field(self, gear: MagneticGear, field_name, cell_type, p_deg, mesh_size_min, \
-                              mesh_size_max, domain_size, analytical_solution=True, R_inf=None):
+                              mesh_size_max, domain_size, analytical_solution=True, R_inf=None, \
+                                write_to_pvd=False):
         """Load reference field from hdf5 file. If no appropriate file is
            found the file will be written first.
 
@@ -314,7 +315,7 @@ class SpurGearsProblem:
                                                         mesh_size_domain_min=mesh_size_min, \
                                                         mesh_size_domain_max=mesh_size_max, p_deg=p_deg, \
                                                         cylinder_mesh_size_field=True, mesh_size_field_thickness=thickness, \
-                                                        fname=f"{self._main_dir}/data/Vm_{id(self)}", write_to_pvd=True)
+                                                        fname=f"{self._main_dir}/data/Vm_{id(self)}", write_to_pvd=write_to_pvd)
                 if field_name == "B":
                     field_num = compute_current_potential(field_num, project=True)
 
@@ -325,7 +326,7 @@ class SpurGearsProblem:
 
                 # interpolate reference field
                 field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
-                                                    fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=True)
+                                                    fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=write_to_pvd)
             else:
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
                                   shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
