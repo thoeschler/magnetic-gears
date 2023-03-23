@@ -34,18 +34,6 @@ class MagneticGear:
     def x_M(self):
         return self._x_M
 
-    @x_M.setter
-    def x_M(self, x_M):
-        assert len(x_M) == 3
-        d_x_M = x_M - self.x_M
-        # update mesh coordinates
-        if hasattr(self, "_mesh"):
-            self.translate_mesh(d_x_M)
-        self._x_M = x_M
-        # update magnet coordinates
-        if hasattr(self, "_magnets"):
-            self.update_magnets(self._magnets, d_angle=0., d_x_M=d_x_M)
-
     @property
     def angle(self):
         return self._angle
@@ -55,20 +43,7 @@ class MagneticGear:
         """The gear's width."""
 
     def reset_angle(self, angle):
-        print("Resetting angle ...", end="")
         self._angle = angle
-
-    @angle.setter
-    def angle(self, angle):
-        print("Rotating gear ...", end="")
-        assert isinstance(angle, (float, int))
-        d_angle = angle - self.angle
-        # update mesh coordinates
-        if hasattr(self, "_mesh"):
-            self.rotate_mesh(d_angle)
-        self._angle = angle
-        if hasattr(self, "_magnets"):
-            self.update_magnets(self._magnets, d_angle=d_angle, d_x_M=np.zeros(3))
 
     @property
     def magnets(self):
@@ -231,8 +206,12 @@ class MagneticGear:
             d_angle (float): Angle increment.
         """
         # update the angle
-        old_angle = float(self.angle)
-        self.angle = old_angle + d_angle
+        self._angle = float(self._angle) + d_angle
+        # update mesh coordinates
+        if hasattr(self, "_mesh"):
+            self.rotate_mesh(d_angle)
+        if hasattr(self, "_magnets"):
+            self.update_magnets(self._magnets, d_angle=d_angle, d_x_M=np.zeros(3))
 
     def update_magnets(self, magnets, d_angle, d_x_M):
         """Update magnets according to increment of angle and gear's center of mass.
@@ -248,10 +227,10 @@ class MagneticGear:
         for mag in magnets:
             assert isinstance(mag, PermanentMagnet)
             # new position vector
-            x_M = np.ndarray(mag.x_M) + d_x_M  # shift by d_x_M
+            x_M = mag.x_M + d_x_M  # shift by d_x_M
             x_M_rot = self._x_M + rot.dot(x_M - self._x_M)  # rotate around new center
             # new rotation matrix
-            Q = rot.dot(np.ndarray(mag.Q))
+            Q = rot.dot(mag.Q)
             # update both
             mag.update_parameters(x_M=x_M_rot, Q=Q)
 
