@@ -58,8 +58,8 @@ class SpurGearsSampling(SpurGearsProblem):
             data_dir (str): Directory where sampling data shall be saved.
             p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
         """
-        angles_1 = np.linspace(- np.pi / self.gear_1.n, np.pi / self.gear_1.n, num=n_iterations, endpoint=False)
-        angles_2 = np.linspace(- np.pi / self.gear_2.n, np.pi / self.gear_2.n, num=n_iterations, endpoint=False)
+        angles_1 = np.linspace(- np.pi / self.gear_1.n, np.pi / self.gear_1.n, num=n_iterations, endpoint=True)
+        angles_2 = np.linspace(- np.pi / self.gear_2.n, np.pi / self.gear_2.n, num=n_iterations, endpoint=True)
         d_angle_1 = angles_1[1]- angles_1[0]
         d_angle_2 = angles_2[1]- angles_2[0]
 
@@ -97,14 +97,15 @@ class SpurGearsSampling(SpurGearsProblem):
                 if self.gear_1 is self.sg:
                     tau_21 = tau_sg
                     tau_12 = tau_lg
+                    tau_12_values[j, i] = tau_12
+                    tau_21_values[j, i] = tau_21
                 elif self.gear_2 is self.sg:
                     tau_21 = tau_lg
                     tau_12 = tau_sg
+                    tau_12_values[i, j] = tau_12
+                    tau_21_values[i, j] = tau_21
                 else:
                     raise RuntimeError()
-
-                tau_12_values[i, j] = tau_12
-                tau_21_values[i, j] = tau_21
 
                 # rotate smaller gear
                 self.update_gear(self.sg, d_angle=d_angle_sg)
@@ -137,7 +138,7 @@ def sample_ball(n_iterations, par_number):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.8
+    mesh_size = 0.2
     p_deg = 2
     r1 = 1.0
     r2 = 1.0
@@ -179,13 +180,14 @@ def sample_ball(n_iterations, par_number):
     sampling = SpurGearsSampling(gear_1, gear_2, D, main_dir=sample_dir)
 
     # mesh smaller gear
-    sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}")
+    sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}", \
+                       write_to_pvd=False)
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=True)
-    sampling.mesh_reference_segment(mesh_size)
+                                    analytical_solution=True, write_to_pvd=False)
+    sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, f"{sample_dir}/{data_dir}")
@@ -198,14 +200,14 @@ def sample_bar(n_iterations, par_number):
     w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d = 0.1
+    d = 0.5
     # create sample directory
     sample_dir = "sample_bar_gear"
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.8
+    mesh_size = 0.2
     p_deg = 2
     d = 0.1
 
@@ -247,6 +249,7 @@ def sample_bar(n_iterations, par_number):
     sampling = SpurGearsSampling(gear_1, gear_2, D, main_dir=sample_dir)
 
     # mesh smaller gear
+    print(f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}")
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, \
                        fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
                         write_to_pvd=False)
@@ -254,8 +257,8 @@ def sample_bar(n_iterations, par_number):
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=True)
-    sampling.mesh_reference_segment(mesh_size)
+                                    analytical_solution=True, write_to_pvd=False)
+    sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, f"{sample_dir}/{data_dir}")
@@ -275,7 +278,7 @@ def sample_segment(n_iterations, par_number):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.8
+    mesh_size = 0.2
     p_deg = 2
     d = 0.1
 
@@ -316,13 +319,13 @@ def sample_segment(n_iterations, par_number):
 
     # mesh smaller gear
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, 
-                       fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}",\
+                       fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
                        write_to_pvd=False)
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=False)
+                                    analytical_solution=False, write_to_pvd=False)
     sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
@@ -337,10 +340,10 @@ if __name__ == "__main__":
     it_nb = int(sys.argv[2])
 
     if magnet_type == "ball":
-        sample_ball(3, it_nb)
+        sample_ball(10, it_nb)
     elif magnet_type == "bar":
-        sample_bar(3, it_nb)
+        sample_bar(10, it_nb)
     elif magnet_type == "cylinder_segment":
-        sample_segment(3, it_nb)
+        sample_segment(10, it_nb)
     else:
         raise RuntimeError()
