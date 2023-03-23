@@ -1,6 +1,6 @@
 import dolfin as dlf
 import numpy as np
-from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment
+from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment, PermanentMagnet
 from source.tools.math_tools import get_rot
 
 
@@ -55,10 +55,12 @@ class MagneticGear:
         """The gear's width."""
 
     def reset_angle(self, angle):
+        print("Resetting angle ...", end="")
         self._angle = angle
 
     @angle.setter
     def angle(self, angle):
+        print("Rotating gear ...", end="")
         assert isinstance(angle, (float, int))
         d_angle = angle - self.angle
         # update mesh coordinates
@@ -66,7 +68,7 @@ class MagneticGear:
             self.rotate_mesh(d_angle)
         self._angle = angle
         if hasattr(self, "_magnets"):
-            self.update_magnets(self._magnets, d_angle, np.zeros(3))
+            self.update_magnets(self._magnets, d_angle=d_angle, d_x_M=np.zeros(3))
 
     @property
     def magnets(self):
@@ -185,20 +187,17 @@ class MagneticGear:
         self._magnet_boundary_subdomain_tags = magnet_boundary_subdomain_tags
         self.set_differential_measures()
 
-    def _set_padded_radius(self):
-        "Purely virtual method."
-        pass
-
     def set_reference_field(self, reference_field, field_name):
         """Set reference field for magnetic gear.
 
         Args:
             reference_field (dlf.Function): The reference field (field on a suitable
                                             reference mesh).
+            field_name (str): Name of the reference field.
         """
         assert isinstance(reference_field, dlf.Function)
         assert isinstance(field_name, str)
-        
+
         if field_name == "B":
             self._B_ref = reference_field
         elif field_name == "Vm":
@@ -207,8 +206,15 @@ class MagneticGear:
             raise RuntimeError()
 
     def set_reference_mesh(self, reference_mesh, field_name):
+        """
+        Set reference mesh.
+
+        Args:
+            reference_mesh (dlf.Mesh): Reference finite element mesh. 
+            field_name (str): Name of the physical field.
+        """
         assert isinstance(reference_mesh, dlf.Mesh)
-        
+
         if field_name == "B":
             self._B_reference_mesh = reference_mesh
         elif field_name == "Vm":
@@ -225,12 +231,8 @@ class MagneticGear:
             d_angle (float): Angle increment.
         """
         # update the angle
-        self._angle += d_angle
-        # then update the rest
-        if hasattr(self, "_magnets"):
-            self.update_magnets(self._magnets, d_angle, np.zeros(3))
-        if hasattr(self, "_mesh"):
-            self.rotate_mesh(d_angle)
+        old_angle = float(self.angle)
+        self.angle = old_angle + d_angle
 
     def update_magnets(self, magnets, d_angle, d_x_M):
         """Update magnets according to increment of angle and gear's center of mass.
@@ -238,19 +240,20 @@ class MagneticGear:
         Make sure that the center of mass has been updated first.
 
         Args:
+            magnets (list): List of magnets.
             d_angle (float): Angle incerement.
             d_x_M (np.ndarray): Center of mass increment.
         """
-        assert hasattr(self, "magnets")
         rot = get_rot(d_angle)
         for mag in magnets:
+            assert isinstance(mag, PermanentMagnet)
             # new position vector
-            x_M = mag.x_M + d_x_M  # shift by d_x_M
+            x_M = np.ndarray(mag.x_M) + d_x_M  # shift by d_x_M
             x_M_rot = self._x_M + rot.dot(x_M - self._x_M)  # rotate around new center
             # new rotation matrix
-            Q = rot.dot(mag.Q)
+            Q = rot.dot(np.ndarray(mag.Q))
             # update both
-            mag.update_parameters(x_M_rot, Q)
+            mag.update_parameters(x_M=x_M_rot, Q=Q)
 
     def set_differential_measures(self):
         """Set differential measures. 
@@ -284,14 +287,6 @@ class MagneticGear:
         assert hasattr(self, "_mesh")
         # convert rad to deg
         self._mesh.rotate(d_angle * 180 / np.pi, 0, dlf.Point(*self.x_M))
-
-    def scale_mesh(self, mesh):
-        """Scale mesh by gear's scaling parameter.
-
-        Args:
-            mesh (dlf.Mesh): Finite element mesh.
-        """
-        mesh.scale(self.scale_parameter)
 
     def translate_mesh(self, vec):
         """Translate gear's mesh by vec.
@@ -535,7 +530,7 @@ class SegmentGear(MagneticGear):
                 magnetization_sign = 1
             else:
                 # magnetization pointing inward
-                magnetization_sign = -1
+                magnetization_sign = - 1
             Q = get_rot(2 * np.pi / self.n * k)
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
             self._magnets.append(CylinderSegment(radius=self.R, width=self.w, thickness=self.t, \

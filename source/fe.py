@@ -19,26 +19,25 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
     Args:
         magnet (PermanentMagnet): Permanent magnet.
         R_domain (float): Radius of domain.
+        R_inf (float, optional): Radius of outer domain to impose condition at "infinity".
+                                 Defaults to None. R_inf is then set automatically.
         mesh_size_magnet (float, optional): Mesh size for magnet. Defaults to 0.2.
-        mesh_size_domain_min (float, optional): Minimum domain mesh size.
-                                                   Defaults to 0.2.
-        mesh_size_domain_max (float, optional): Maximum domain mesh size.
-                                                   Defaults to 0.2.
+        mesh_size_domain_min (float, optional): Minimum domain mesh size. Defaults to 0.2.
+        mesh_size_domain_max (float, optional): Maximum domain mesh size. Defaults to 0.5.
         mesh_size_space (float, optional): Maximum mesh size outside magnet and domain.
+                                           Defaults to None. Mesh size is then set automatically.
         p_deg (int, optional): Polynomial degree. Defaults to 2.
         cylinder_mesh_size_field (bool, optional): If True set a mesh size field in the
-                                                   form of a cylinder (a gear).
+                                                   form of a cylinder (a magnetic gear).
                                                    Defaults to True.
         mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
-                                                     Defaults to None, 
-        fname (str, optional): File name. Defaults to None.
+                                                     Defaults to None. Thickness is then set
+                                                     automatically.
+        fname (str, optional): File name. Defaults to None. Specify only if write_to_pvd is True.
         write_to_pvd (bool, optional): If True write field to pvd file. Defaults to False.
     """
     if write_to_pvd:
         assert fname is not None
-    if cylinder_mesh_size_field:
-        if mesh_size_field_thickness is None:
-            mesh_size_field_thickness = magnet.size
 
     mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag = \
         magnet_mesh(magnet, R_domain=R_domain, R_inf=R_inf, \
@@ -97,11 +96,11 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
     Args:
         magnet (PermanentMagnet): Permanent magnet.
         R_domain (float): Radius of domain (mesh will be fine inside the domain).
-        R_inf (float): Radius of surrounding domain.
+        R_inf (float or None): Radius of surrounding domain.
         mesh_size_magnet (float): Mesh size of magnet.
         mesh_size_domain_min (float): Minimum domain mesh size.
         mesh_size_domain_max (float): Maximum domain mesh size.
-        mesh_size_space (float): Mesh size of surrounding space.
+        mesh_size_space (float or None): Mesh size of surrounding space.
         cylinder_mesh_size_field (bool): Whether to apply a mesh size field in the form
                                          of a cylinder.
         mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
@@ -114,13 +113,12 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         tuple: Mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag.
     """
     # check input
+    if cylinder_mesh_size_field:
+        if mesh_size_field_thickness is None:
+            mesh_size_field_thickness = magnet.size + 1e-3
+
     if mesh_size_space is None:
-        if cylinder_mesh_size_field:
-            mesh_size_space = 20 * mesh_size_domain_min
-        else:
-            mesh_size_space = 20 * mesh_size_domain_max
-    if mesh_size_space > 20 * mesh_size_domain_min:
-         mesh_size_space = 20 * mesh_size_domain_min
+            mesh_size_space = 20.
 
     if R_domain <= magnet.size:
         R_domain = magnet.size + mesh_size_magnet
@@ -136,15 +134,10 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         else:
             R_inf = 50 * magnet.size
 
-    print("Magnet size:", magnet.size)
-    print("Domain size:", R_domain)
-    print("R_inf:", R_inf)
-
     if write_to_pvd:
         assert fname is not None
-    if fname is None:
-        fname = "magnet_mesh"
-    print("Creating magnet mesh ...", end="")
+
+    print("Creating mesh for fe computation ...", end="")
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
@@ -243,7 +236,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
     gmsh.write(fname.rstrip("/") + '.msh')
 
     # create namedtuple
-    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname, delete_source_files=False)
+    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname, delete_source_files=True)
     if write_to_pvd:
         dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
         dlf.File(fname.rstrip("/") + "_cell_marker.pvd") << cell_marker
