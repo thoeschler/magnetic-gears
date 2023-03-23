@@ -620,7 +620,7 @@ class CylinderSegment(PermanentMagnet):
 
     @property
     def size(self):
-        return self.w
+        return self.alpha * self.Rm
 
     @property
     def Rm(self):

@@ -62,7 +62,7 @@ def cylinder_segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, mesh_size, p
         fname (str): File name.
         mesh_size (float): Mesh size.
         pad (bool, optional): If True add some padding. Defaults to True.
-        write_to_pvd (bool, optional): _description_. Defaults to False.
+        write_to_pvd (bool, optional): If True write pvd files. Defaults to False.
 
     Returns:
         tuple: Mesh, cell marker and facet marker.
@@ -108,7 +108,7 @@ def cylinder_segment_mesh(Ri, Ro, t, angle, x_M_ref, x_axis, fname, mesh_size, p
     gmsh.write(fname.rstrip("/") + '.msh')
 
     # generate mesh and markers
-    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname, delete_source_files=False)
+    mesh, cell_marker, facet_marker = generate_mesh_with_markers(fname, delete_source_files=True)
     if write_to_pvd:
         dlf.File(fname.rstrip("/") + "_mesh.pvd") << mesh
         dlf.File(fname.rstrip("/") + "_cell_marker.pvd") << cell_marker

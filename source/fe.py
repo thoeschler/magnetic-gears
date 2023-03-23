@@ -7,7 +7,7 @@ from source.tools.mesh_tools import generate_mesh_with_markers
 
 
 def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_domain_min=0.2, \
-                               mesh_size_domain_max=0.5, mesh_size_max=None, p_deg=2, cylinder_mesh_size_field=True,
+                               mesh_size_domain_max=0.5, mesh_size_space=None, p_deg=2, cylinder_mesh_size_field=True,
                                mesh_size_field_thickness=None, fname=None, write_to_pvd=False):
     """
     Compute magnetic potential of magnet.
@@ -24,7 +24,7 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
                                                    Defaults to 0.2.
         mesh_size_domain_max (float, optional): Maximum domain mesh size.
                                                    Defaults to 0.2.
-        mesh_size_max (float, optional): Maximum mesh size outside magnet and domain.
+        mesh_size_space (float, optional): Maximum mesh size outside magnet and domain.
         p_deg (int, optional): Polynomial degree. Defaults to 2.
         cylinder_mesh_size_field (bool, optional): If True set a mesh size field in the
                                                    form of a cylinder (a gear).
@@ -40,25 +40,10 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
         if mesh_size_field_thickness is None:
             mesh_size_field_thickness = magnet.size
 
-    if mesh_size_max is None:
-        mesh_size_max = 20 * mesh_size_domain_min
-    if mesh_size_max > 20 * mesh_size_domain_min:
-         mesh_size_max = 20 * mesh_size_domain_min
-
-    if R_domain <= magnet.size:
-        R_domain = magnet.size + mesh_size_magnet
-    if R_inf is None:
-        R_inf = 70 * magnet.size
-    if R_inf < R_domain:
-        if R_domain > 70 * magnet.size:
-            R_inf = R_domain + mesh_size_magnet
-        else:
-            R_inf = 70 * magnet.size
-
     mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag = \
-        magnet_mesh(magnet, R_domain=R_domain, R_box=R_inf, \
+        magnet_mesh(magnet, R_domain=R_domain, R_inf=R_inf, \
                     mesh_size_magnet=mesh_size_magnet, mesh_size_domain_min=mesh_size_domain_min, \
-                        mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_max, \
+                        mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_space, \
                             cylinder_mesh_size_field=cylinder_mesh_size_field, \
                                 mesh_size_field_thickness=mesh_size_field_thickness, \
                                     fname=fname, write_to_pvd=write_to_pvd)
@@ -75,7 +60,6 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
         # volume so this is a valid procedure
         assert hasattr(magnet, "M_inner_as_expression")
         dlf.LagrangeInterpolator.interpolate(M, magnet.M_inner_as_expression(degree=p_deg))
-        dlf.File("M.pvd") << M
 
     # volume measure
     dV = dlf.Measure("dx", domain=mesh, subdomain_data=cell_marker)
@@ -104,7 +88,7 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
 
     return Vm
 
-def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min, mesh_size_domain_max, \
+def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min, mesh_size_domain_max, \
                 mesh_size_space, cylinder_mesh_size_field, mesh_size_field_thickness=None, fname=None, \
                     write_to_pvd=False, verbose=False):
     """
@@ -113,10 +97,11 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min,
     Args:
         magnet (PermanentMagnet): Permanent magnet.
         R_domain (float): Radius of domain (mesh will be fine inside the domain).
-        R_box (float): Radius of surrounding domain.
+        R_inf (float): Radius of surrounding domain.
         mesh_size_magnet (float): Mesh size of magnet.
         mesh_size_domain_min (float): Minimum domain mesh size.
-        mesh_size_domain_max (float): Maximumm domain mesh size.
+        mesh_size_domain_max (float): Maximum domain mesh size.
+        mesh_size_space (float): Mesh size of surrounding space.
         cylinder_mesh_size_field (bool): Whether to apply a mesh size field in the form
                                          of a cylinder.
         mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
@@ -127,6 +112,33 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min,
     Returns:
         tuple: Mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag.
     """
+    # check input
+    if mesh_size_space is None:
+        if cylinder_mesh_size_field:
+            mesh_size_space = 20 * mesh_size_domain_min
+        else:
+            mesh_size_space = 20 * mesh_size_domain_max
+    if mesh_size_space > 20 * mesh_size_domain_min:
+         mesh_size_space = 20 * mesh_size_domain_min
+
+    if R_domain <= magnet.size:
+        R_domain = magnet.size + mesh_size_magnet
+    if R_inf is None:
+        R_inf = 50 * magnet.size
+    if R_inf < R_domain:
+        if R_domain > 50 * magnet.size:
+            R_inf = R_domain + mesh_size_magnet
+            if cylinder_mesh_size_field:
+                mesh_size_space = mesh_size_domain_min
+            else:
+                mesh_size_space = mesh_size_domain_max
+        else:
+            R_inf = 50 * magnet.size
+
+    print("Magnet size:", magnet.size)
+    print("Domain size:", R_domain)
+    print("R_inf:", R_inf)
+
     if write_to_pvd:
         assert fname is not None
     if fname is None:
@@ -138,7 +150,7 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min,
     model = gmsh.model()
 
     # create box
-    box = model.occ.addSphere(*magnet.x_M, R_box)
+    box = model.occ.addSphere(*magnet.x_M, R_inf)
 
     # create magnet
     if isinstance(magnet, BallMagnet):
@@ -179,7 +191,7 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min,
     if cylinder_mesh_size_field:
         # line distance field
         cylinder_ms_field = model.mesh.field.add("Cylinder")
-        model.mesh.field.setNumber(cylinder_ms_field, "Radius", 1.0 * R_domain)
+        model.mesh.field.setNumber(cylinder_ms_field, "Radius", R_domain)
         model.mesh.field.setNumber(cylinder_ms_field, "VIn", mesh_size_domain_min)
         model.mesh.field.setNumber(cylinder_ms_field, "VOut", mesh_size_space)
         model.mesh.field.setNumber(cylinder_ms_field, "XAxis", mesh_size_field_thickness)
@@ -189,7 +201,19 @@ def magnet_mesh(magnet, R_domain, R_box, mesh_size_magnet, mesh_size_domain_min,
         model.mesh.field.setNumber(cylinder_ms_field, "YCenter", magnet.x_M[1])
         model.mesh.field.setNumber(cylinder_ms_field, "ZCenter", magnet.x_M[2])
 
-        ms_fields = [mag_field_tag, cylinder_ms_field]
+        # threshold field for surrounding space
+        distance_space = model.mesh.field.add("Distance")
+        mid_point = model.occ.addPoint(*magnet.x_M)
+        model.mesh.field.setNumbers(distance_space, "PointsList", [mid_point])
+
+        threshold_space = model.mesh.field.add("Threshold")
+        model.mesh.field.setNumber(threshold_space, "InField", distance_space)
+        model.mesh.field.setNumber(threshold_space, "SizeMin", 10 * mesh_size_domain_min)
+        model.mesh.field.setNumber(threshold_space, "SizeMax", 20.)
+        model.mesh.field.setNumber(threshold_space, "DistMin", R_domain)
+        model.mesh.field.setNumber(threshold_space, "DistMax", R_inf)
+
+        ms_fields = [mag_field_tag, cylinder_ms_field, threshold_space]
     else:
         # set domain mesh size
         # add distance field

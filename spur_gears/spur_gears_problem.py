@@ -314,7 +314,7 @@ class SpurGearsProblem:
                                                         mesh_size_domain_min=mesh_size_min, \
                                                         mesh_size_domain_max=mesh_size_max, p_deg=p_deg, \
                                                         cylinder_mesh_size_field=True, mesh_size_field_thickness=thickness, \
-                                                        fname=f"{self._main_dir}/data/Vm", write_to_pvd=True)
+                                                        fname=f"{self._main_dir}/data/Vm_{id(self)}", write_to_pvd=True)
                 if field_name == "B":
                     field_num = compute_current_potential(field_num, project=True)
 
@@ -325,7 +325,7 @@ class SpurGearsProblem:
 
                 # interpolate reference field
                 field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
-                                                    fname=f"{ref_dir}/{field_name}", write_pvd=True)
+                                                    fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=True)
             else:
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
                                   shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
@@ -366,11 +366,12 @@ class SpurGearsProblem:
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
-    def mesh_reference_segment(self, mesh_size):
+    def mesh_reference_segment(self, mesh_size, write_to_pvd=False):
         """Create mesh of reference cylinder segment.
 
         Args:
             mesh_size (float): Mesh size.
+            write_to_pvd (bool, optional): If True write pvd files. Defaults to False.
         """
         # set geometrical paramters
         t = self.sg.width  # segment thickness (width)
@@ -407,8 +408,8 @@ class SpurGearsProblem:
             os.makedirs(ref_path)
 
         self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
-                                                        x_axis=x_axis, fname=ref_path + "/reference_segment", \
-                                                        pad=True, mesh_size=mesh_size, write_to_pvd=True)
+                                                        x_axis=x_axis, fname=ref_path + f"/reference_segment_{id(self)}", \
+                                                        pad=True, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 
     def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
         """
@@ -487,7 +488,7 @@ class SpurGearsProblem:
                     scale *= mag.mag_sign * gear.reference_magnet().mag_sign
 
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
-                    mesh, cell_type, p_deg, scale=scale)
+                                                        mesh, cell_type, p_deg, scale=scale)
                 assert interpol_field.function_space().mesh() is mesh
             else:
                 if field_name == "B":
@@ -544,7 +545,6 @@ class SpurGearsProblem:
             ref_field_copy = dlf.Function(V_ref, ref_field.vector().copy())
             if not np.isclose(scale, 1.0):
                 ref_field_copy.vector()[:] *= scale
-            print("SCALING VALUE:", scale)
             V = dlf.FunctionSpace(mesh, cell_type, p_deg)
         else:
             raise RuntimeError()

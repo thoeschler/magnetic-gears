@@ -247,8 +247,9 @@ def sample_bar(n_iterations, par_number):
     sampling = SpurGearsSampling(gear_1, gear_2, D, main_dir=sample_dir)
 
     # mesh smaller gear
-    sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}")
-    sampling.mesh_gear(sampling.lg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.lg is sampling.gear_1 else 2}")
+    sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, \
+                       fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
+                        write_to_pvd=False)
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
@@ -314,13 +315,15 @@ def sample_segment(n_iterations, par_number):
     sampling = SpurGearsSampling(gear_1, gear_2, D, main_dir=sample_dir)
 
     # mesh smaller gear
-    sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}")
+    sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, 
+                       fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}",\
+                       write_to_pvd=False)
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
                                     analytical_solution=False)
-    sampling.mesh_reference_segment(mesh_size)
+    sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, f"{sample_dir}/{data_dir}")
@@ -332,7 +335,7 @@ if __name__ == "__main__":
     import sys
     magnet_type = sys.argv[1]
     it_nb = int(sys.argv[2])
-    
+
     if magnet_type == "ball":
         sample_ball(3, it_nb)
     elif magnet_type == "bar":
