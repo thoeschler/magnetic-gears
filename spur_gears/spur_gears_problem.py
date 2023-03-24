@@ -14,7 +14,11 @@ from spur_gears.grid_generator import cylinder_segment_mesh
 
 class SpurGearsProblem:
     def __init__(self, first_gear: MagneticGear, second_gear: MagneticGear, D, main_dir=None):
-        """Constructor method.
+        """Spur gears problem base.
+
+        The rotation axis is chosen to be the x-axis. The two gears are expected to be
+        seperated only in y-direction. The second gear's center point is reset according
+        to the first gear's center point and the specified distance D.
 
         Args:
             first_gear (MagneticGear): First magnetic gear.
@@ -489,7 +493,7 @@ class SpurGearsProblem:
                     scale *= mag.mag_sign * gear.reference_magnet().mag_sign
 
                 interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
-                                                        mesh, cell_type, p_deg, scale=scale)
+                                                                mesh, cell_type, p_deg, scale=scale)
                 assert interpol_field.function_space().mesh() is mesh
             else:
                 if field_name == "B":
@@ -503,7 +507,7 @@ class SpurGearsProblem:
         print("Done.")
         return dlf.Function(V, field_sum)
 
-    def _interpolate_field_magnet(self, magnet, ref_field, field_name, reference_mesh, mesh, cell_type, p_deg, scale=1.0):
+    def _interpolate_field_magnet(self, magnet, ref_field: dlf.Function, field_name, reference_mesh, mesh, cell_type, p_deg, scale=1.0):
         """Interpolate a magnet's magnetic field on a mesh. 
 
         Args:
@@ -588,7 +592,7 @@ class SpurGearsProblem:
             if isinstance(mag, PermanentAxialMagnet):
                 M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
             else:
-                M_jump = - mag.M_as_expression(degree=p_deg)
+                M_jump = - mag.M_inner_as_expression(degree=p_deg)
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             # select y and z components
             for i, c in enumerate((t[1], t[2])):
@@ -620,7 +624,7 @@ class SpurGearsProblem:
             if isinstance(mag, PermanentAxialMagnet):
                 M_jump = dlf.as_vector(- mag.M)  # jump of magnetization
             else:
-                M_jump = - mag.M_as_expression(degree=p_deg)
+                M_jump = - mag.M_inner_as_expression(degree=p_deg)
             t = dlf.cross(dlf.cross(gear.normal_vector, M_jump), B)  # traction vector
             m = dlf.cross(x - x_M, t)  # torque density
             tau_mag = dlf.assemble(m[0] * gear.dA(tag))
