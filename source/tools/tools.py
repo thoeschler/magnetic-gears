@@ -119,13 +119,12 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
     vector_valued = np.atleast_1d(field(np.zeros(3))).size > 1
     print("Interpolating reference field ...", end="")
 
-    if not isinstance(field, dlf.Function):
-        if vector_valued:
-            V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
-            field = CustomVectorExpression(field, degree=p_deg)
-        else:
-            V = dlf.FunctionSpace(mesh, cell_type, p_deg)
-            field = CustomScalarExpression(field, dim=1, degree=p_deg)
+    if vector_valued:
+        V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
+        field = CustomVectorExpression(field, degree=p_deg)
+    else:
+        V = dlf.FunctionSpace(mesh, cell_type, p_deg)
+        field = CustomScalarExpression(field, dim=1, degree=p_deg)
 
     field_interpolated = dlf.Function(V)
     dlf.LagrangeInterpolator.interpolate(field_interpolated, field)
