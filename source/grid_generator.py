@@ -6,7 +6,7 @@ import source.magnetic_gear_classes as mgc
 import source.magnet_classes as mc 
 
 
-def add_physical_groups(model, magnet_entities, magnet_boundary_entities):
+def add_physical_groups(model: gmsh.model, magnet_entities, magnet_boundary_entities):
     """
     Add magnets as physical groups to gmsh model.
 
@@ -15,7 +15,7 @@ def add_physical_groups(model, magnet_entities, magnet_boundary_entities):
     Args:
         model (gmsh.model): A gmsh model.
         magnet_entities (list): Magnet tags in gmsh.occ.
-        magnet_boundary_entities (list): Magnet boundary tags in gmsh.occ.
+        magnet_boundary_entities (np.ndarray): Magnet boundary tags in gmsh.occ.
 
     Returns:
         tuple: magnet_subdomain_tags, magnet_boundary_subdomain_tags
@@ -25,13 +25,13 @@ def add_physical_groups(model, magnet_entities, magnet_boundary_entities):
     magnet_boundary_subdomain_tags = []
 
     # magnet boundary
-    for n, tag in enumerate(magnet_boundary_entities):
-        physical_tag = model.addPhysicalGroup(2, np.atleast_1d(tag), name="magnet_" + str(n + 1), tag=int("1%.2d" % (n + 1)))
+    for n, tags in enumerate(magnet_boundary_entities):
+        physical_tag = model.addPhysicalGroup(2, np.atleast_1d(tags), tag=int("1%.2d" % (n + 1)))
         magnet_boundary_subdomain_tags.append(physical_tag)
 
     # magnet volume
     for n, tag in enumerate(magnet_entities):
-        physical_tag = model.addPhysicalGroup(3, [tag], name="magnet_" + str(n + 1), tag=int("3%.2d" % (n + 1)))
+        physical_tag = model.addPhysicalGroup(3, [tag], tag=int("3%.2d" % (n + 1)))
         magnet_subdomain_tags.append(physical_tag)
 
     return magnet_subdomain_tags, magnet_boundary_subdomain_tags
@@ -44,7 +44,7 @@ def set_mesh_size_fields_gmsh(model, magnet_entities, mesh_size):
         model (gmsh.model): Gmsh model.
         magnet_entities (list): List of magnet tags in gmsh.occ.
         mesh_size (float): Mesh size.
-    """          
+    """
     # mesh size field for magnets
     mag_field_tag = model.mesh.field.add("Constant")
     model.mesh.field.setNumber(mag_field_tag, "VIn", mesh_size)
@@ -192,8 +192,8 @@ def gear_mesh(gear, mesh_size, fname, write_to_pvd=False, verbose=False):
     model.occ.synchronize()
 
     # get boundary entities
-    magnet_boundary_entities = [model.getBoundary([(3, magnet_tag)], oriented=False)[0][1] \
-        for magnet_tag in magnet_entities]
+    magnet_boundary_entities = np.array([np.array(model.getBoundary([(3, magnet_tag)], oriented=False))[:, 1] \
+        for magnet_tag in magnet_entities])
 
     # create namedtuple
     magnet_subdomain_tags, magnet_boundary_subdomain_tags = add_physical_groups(
