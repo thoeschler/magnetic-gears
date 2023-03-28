@@ -40,6 +40,10 @@ class PermanentMagnet:
     @property
     def x_M(self):
         return self._xM
+    
+    @x_M.setter
+    def x_M(self, x_M):
+        self._xM = x_M
 
     @property
     def M0(self):
@@ -48,6 +52,10 @@ class PermanentMagnet:
     @property
     def Q(self):
         return self._Q
+
+    @Q.setter
+    def Q(self, Q):
+        self._Q = Q
 
     def is_inside(self, x0):
         """
@@ -161,8 +169,8 @@ class PermanentMagnet:
             x_M (np.ndarray): New position vector.
             Q (np.ndarray): New rotation matrix.
         """
-        self._Q = Q
-        self._xM = x_M
+        self.Q = Q
+        self.x_M = x_M
 
 
 class PermanentAxialMagnet(PermanentMagnet):
@@ -209,8 +217,8 @@ class PermanentAxialMagnet(PermanentMagnet):
             x_M (np.ndarray): New position vector.
             Q (np.ndarray): New rotation matrix.
         """
-        super().update_parameters(x_M, Q)
-        self._M = self._Q.dot(np.array([0., 0., 1.]))
+        self.x_M = x_M
+        self.Q = Q
 
 
 class BallMagnet(PermanentAxialMagnet):
