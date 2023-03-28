@@ -58,16 +58,22 @@ class SpurGearsSampling(SpurGearsProblem):
             data_dir (str): Directory where sampling data shall be saved.
             p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
         """
-        angles_1 = np.linspace(- np.pi / self.gear_1.n, np.pi / self.gear_1.n, num=n_iterations, endpoint=True)
-        angles_2 = np.linspace(- np.pi / self.gear_2.n, np.pi / self.gear_2.n, num=n_iterations, endpoint=True)
-        d_angle_1 = angles_1[1]- angles_1[0]
-        d_angle_2 = angles_2[1]- angles_2[0]
+        angle_1_lim = [- np.pi / self.gear_1.n, np.pi / self.gear_1.n]
+        angle_2_lim = [- np.pi / self.gear_2.n, np.pi / self.gear_2.n]
+        if self.gear_1 is self.lg:
+            angle_1_lim[0] = 0.
+        elif self.gear_2 is self.lg:
+            angle_2_lim[0] = 0.
+        angles_1 = np.linspace(*angle_1_lim, num=n_iterations, endpoint=True)
+        angles_2 = np.linspace(*angle_2_lim, num=n_iterations, endpoint=True)
+        d_angle_1 = angles_1[1] - angles_1[0]
+        d_angle_2 = angles_2[1] - angles_2[0]
 
         assert np.isclose(self.gear_1.angle, 0.)
         assert np.isclose(self.gear_2.angle, 0.)
         # rotate segment back by - pi / n
-        self.update_gear(self.gear_1, - np.pi / self.gear_1.n)
-        self.update_gear(self.gear_2, - np.pi / self.gear_2.n)
+        self.update_gear(self.gear_1, angles_1[0])
+        self.update_gear(self.gear_2, angles_2[0])
         assert np.isclose(self.gear_1.angle, angles_1[0])
         assert np.isclose(self.gear_2.angle, angles_2[0])
 
@@ -125,16 +131,14 @@ def sample_ball(n_iterations, par_number):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.2
+    mesh_size = 0.6
     p_deg = 2
-    r1 = 1.0
-    r2 = 1.0
     d = 0.1
 
     # parameters
     gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
     R1_values = np.array([6.0, 10.0, 20.0])
-    p1_values = list(range(4, 40, 2))
+    p1_values = list(range(12, 40, 2))
     par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
     par = par_list[par_number]
     gear_ratio, R1, p1 = par
@@ -147,6 +151,9 @@ def sample_ball(n_iterations, par_number):
     if int(p2) % 2 != 0:
         exit()
     p2 = int(p2)
+
+    r1 = R1 * np.sin(np.pi / p1)
+    r2 = R2 * np.sin(np.pi / p2)
 
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
@@ -168,13 +175,13 @@ def sample_ball(n_iterations, par_number):
 
     # mesh smaller gear
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}", \
-                       write_to_pvd=False)
+                       write_to_pvd=True)
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=True, write_to_pvd=False)
-    sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
+                                    analytical_solution=True, write_to_pvd=True)
+    sampling.mesh_reference_segment(mesh_size, write_to_pvd=True)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, f"{sample_dir}/{data_dir}")
@@ -243,6 +250,7 @@ def sample_bar(n_iterations, par_number):
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
                                     analytical_solution=True, write_to_pvd=False)
+
     sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
@@ -256,16 +264,15 @@ def sample_segment(n_iterations, par_number):
     w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d = 0.1
+    d = 0.5
     # create sample directory
     sample_dir = "sample_cylinder_segment_gear"
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.2
+    mesh_size = 0.8
     p_deg = 2
-    d = 0.1
 
     # parameters
     gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
@@ -325,10 +332,10 @@ if __name__ == "__main__":
     it_nb = int(sys.argv[2])
 
     if magnet_type == "ball":
-        sample_ball(23, it_nb)
+        sample_ball(25, it_nb)
     elif magnet_type == "bar":
-        sample_bar(23, it_nb)
+        sample_bar(3, it_nb)
     elif magnet_type == "cylinder_segment":
-        sample_segment(23, it_nb)
+        sample_segment(3, it_nb)
     else:
         raise RuntimeError()

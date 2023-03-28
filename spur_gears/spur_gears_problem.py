@@ -382,10 +382,7 @@ class SpurGearsProblem:
         t = self.sg.width  # segment thickness (width)
 
         # angle to contain smaller gear
-        angle = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
-        angle += 2 * np.pi / self.lg.n  # allow rotation by +- pi / n
-        if angle > 2 * np.pi:  # make sure angle is at most 2 pi
-            angle = 2 * np.pi
+        beta = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
 
         # inner segment radius
         Ri = self.D - self.sg.outer_radius
@@ -412,7 +409,8 @@ class SpurGearsProblem:
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
 
-        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle=angle, x_M_ref=self.lg.x_M, \
+        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - np.pi / self.lg.n, \
+                                                        angle_stop=beta / 2, x_M_ref=self.lg.x_M, \
                                                         x_axis=x_axis, fname=ref_path + f"/reference_segment_{id(self)}", \
                                                         pad=True, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 
@@ -432,6 +430,7 @@ class SpurGearsProblem:
             if use_Vm:
                 self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
                                                               use_ref_field=True)
+                dlf.File("Vm.pvd") << self.Vm_segment
             else:
                 self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
                                                              use_ref_field=True)
@@ -666,6 +665,17 @@ class SpurGearsProblem:
 
             dlf.LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
             B_lg = compute_current_potential(Vm_lg, project=False)
+
+            """if np.isclose(self.gear_1.angle, 0.):
+                if np.isclose(self.gear_2.angle, 0.):
+                    dlf.File("Vm_lg.pvd") << Vm_lg
+                    dlf.File("B_lg.pvd") << B_lg
+                    exit()"""
+
+            ################################################
+            ###### REMOVE PROJECTION
+            ################################################
+
         else:
             # create function on smaller gear
             V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
