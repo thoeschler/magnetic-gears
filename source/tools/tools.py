@@ -56,13 +56,40 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         raise RuntimeError()
 
     # cut magnet from surrounding box
-    model.occ.cut([(3, box)], [(3, magnet)], removeObject=True, removeTool=False)
+    if isinstance(reference_magnet, mc.BarMagnet):
+        # for the bar magnet, add another bar magnet
+        w_interface = reference_magnet.w + mesh_size_min / 2
+        d_interface = reference_magnet.d + mesh_size_min / 2
+        h_interface = reference_magnet.h + mesh_size_min / 2
+        # create magnet to create interface
+        interface_magnet = mc.BarMagnet(w_interface, d_interface, h_interface, \
+                                    magnetization_strength=1.0, \
+                                    position_vector=reference_magnet.x_M, \
+                                    rotation_matrix=reference_magnet.Q
+                                    )
+        magnet = add_bar_magnet(model, magnet=reference_magnet)
+        interface = add_bar_magnet(model, magnet=interface_magnet)
+        # cut interface magnet from box
+        model.occ.cut([(3, box)], [(3, interface)], removeObject=True, removeTool=False)
+        # cut reference magnet from interface magnet
+        model.occ.cut([(3, interface)], [(3, magnet)], removeObject=True, removeTool=False)
+        # create mesh size field for interface magnet
+        model.occ.synchronize()
+        # mesh size field for interface
+        interface_field = model.mesh.field.add("Constant")
+        model.mesh.field.setNumber(interface_field, "VIn", 2e-2)
+        model.mesh.field.setNumbers(interface_field, "VolumesList", [interface])
+    else:
+        model.occ.cut([(3, box)], [(3, magnet)], removeObject=True, removeTool=False)
+
     model.occ.synchronize()
 
     # add physical groups
     bndry_ids = np.array(model.getBoundary([(3, box)]))[:, 1]
     model.addPhysicalGroup(2, bndry_ids)
     model.addPhysicalGroup(3, [box])
+    if isinstance(reference_magnet, mc.BarMagnet):
+        model.addPhysicalGroup(3, [interface])
     model.addPhysicalGroup(3, [magnet])
 
     # add distance field

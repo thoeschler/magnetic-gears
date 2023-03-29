@@ -6,7 +6,7 @@ import os
 import subprocess
 
 
-def test_ball_magnet():
+def test_ball_magnet(test_dir):
     # create field interpolator
     domain_radius = 5
     cell_type = "CG"
@@ -15,14 +15,14 @@ def test_ball_magnet():
     mesh_size_max = 1.0
 
     # file names
-    mesh_fname = "reference_mesh.xdmf"
+    mesh_fname = "reference_mesh"
 
     # reference magnet
     ref_mag = BallMagnet(1., 1., np.zeros(3), np.eye(3))
 
     # create mesh, write it to xdmf file and read it
     create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}")
-    mesh = read_mesh(f"{test_dir}/{mesh_fname}")
+    mesh = read_mesh(f"{test_dir}/{mesh_fname}.xdmf")
 
     # interpolate reference field
     Vm_interpol = interpolate_field(ref_mag.Vm, mesh, cell_type, p_deg, fname=f"{test_dir}/Vm_ball", write_pvd=True)
@@ -42,7 +42,7 @@ def test_ball_magnet():
     write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
     _ = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
-def test_bar_magnet():
+def test_bar_magnet(test_dir):
     # create field interpolator
     domain_radius = 7
     cell_type = "CG"
@@ -51,15 +51,15 @@ def test_bar_magnet():
     mesh_size_max = 1.0
 
     # file names
-    mesh_fname = "reference_mesh_bar.xdmf"
+    mesh_fname = "reference_mesh_bar"
 
     # reference magnet
     ref_mag = BarMagnet(width=2., depth=1., height=5., magnetization_strength=1., \
                         position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     # create mesh, write it to xdmf file and read it
-    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}.xdmf")
-    mesh = read_mesh(f"{test_dir}/{mesh_fname}")
+    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}")
+    mesh = read_mesh(f"{test_dir}/{mesh_fname}.xdmf")
 
     # interpolate reference field
     Vm_interpol = interpolate_field(ref_mag.Vm, mesh, cell_type, p_deg, fname=f"{test_dir}/Vm_bar", write_pvd=True)
@@ -79,22 +79,22 @@ def test_bar_magnet():
     write_hdf5_file(B_interpol, mesh, f"{test_dir}/{field_file_name}", field_name)
     _ = read_hd5f_file(f"{test_dir}/{field_file_name}", field_name, mesh, cell_type, p_deg, vector_valued=True)
 
-def test_magnet_segment():
+def test_magnet_segment(test_dir):
     # create field interpolator
     domain_radius = 13.
     mesh_size_min = 0.1
     mesh_size_max = 1.0
 
     # file names
-    mesh_fname = "reference_mesh_segment.xdmf"
+    mesh_fname = "reference_mesh_segment"
 
     # reference magnet
     ref_mag = CylinderSegment(radius=5., width=1., thickness=1., alpha=np.pi / 4, magnetization_strength=1.0, \
                             position_vector=np.zeros(3), rotation_matrix=np.eye(3))
 
     # create mesh, write it to xdmf file and read it
-    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}.xdmf")
-    _ = read_mesh(f"{test_dir}/{mesh_fname}")
+    create_reference_mesh(ref_mag, domain_radius, mesh_size_min, mesh_size_max, fname=f"{test_dir}/{mesh_fname}")
+    _ = read_mesh(f"{test_dir}/{mesh_fname}.xdmf")
 
 
 if __name__ == "__main__":
@@ -103,9 +103,9 @@ if __name__ == "__main__":
     if not os.path.exists(test_dir):
         os.mkdir(test_dir)
 
-    test_ball_magnet()
-    test_bar_magnet()
-    test_magnet_segment()
+    test_ball_magnet(test_dir)
+    test_bar_magnet(test_dir)
+    test_magnet_segment(test_dir)
 
     # remove test directory
     subprocess.run(["rm", "-rf",  test_dir], stdout=subprocess.DEVNULL, check=True)

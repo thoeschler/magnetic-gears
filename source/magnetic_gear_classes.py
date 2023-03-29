@@ -524,6 +524,6 @@ class SegmentGear(MagneticGear):
             x_M = self.x_M + Q.dot(np.array([0., self.R, 0.]))
             self._magnets.append(CylinderSegment(radius=self.R, width=self.w, thickness=self.t, \
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \
-                                                    position_vector=x_M, rotation_matrix=Q, \
-                                                        magnetization_sign=magnetization_sign))
+                                                 position_vector=x_M, rotation_matrix=Q, \
+                                                 magnetization_sign=magnetization_sign))
         print("Done.")
