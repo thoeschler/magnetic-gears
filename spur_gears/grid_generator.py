@@ -4,7 +4,7 @@ import numpy as np
 from source.tools.mesh_tools import generate_mesh_with_markers
 
 
-def add_cylinder_segment(model, Ri, Ro, t, angle_start, angle_stop, x_M, x_axis):
+def add_cylinder_segment(model: gmsh.model, Ri, Ro, t, angle_start, angle_stop, x_M, x_axis):
     """
     Add cylinder segment to gmsh model.
 

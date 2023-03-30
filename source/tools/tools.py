@@ -58,9 +58,9 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     # cut magnet from surrounding box
     if isinstance(reference_magnet, mc.BarMagnet):
         # for the bar magnet, add another bar magnet
-        w_interface = reference_magnet.w + mesh_size_min / 2
-        d_interface = reference_magnet.d + mesh_size_min / 2
-        h_interface = reference_magnet.h + mesh_size_min / 2
+        w_interface = reference_magnet.w + mesh_size_min / 3
+        d_interface = reference_magnet.d + mesh_size_min / 3
+        h_interface = reference_magnet.h + mesh_size_min / 3
         # create magnet to create interface
         interface_magnet = mc.BarMagnet(w_interface, d_interface, h_interface, \
                                     magnetization_strength=1.0, \

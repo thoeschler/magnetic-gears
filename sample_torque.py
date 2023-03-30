@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
+from math import ceil
 import itertools as it
 from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear, MagneticGear
 from spur_gears.spur_gears_problem import SpurGearsProblem
@@ -58,29 +59,33 @@ class SpurGearsSampling(SpurGearsProblem):
             data_dir (str): Directory where sampling data shall be saved.
             p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
         """
-        angle_1_lim = [- np.pi / self.gear_1.n, np.pi / self.gear_1.n]
-        angle_2_lim = [- np.pi / self.gear_2.n, np.pi / self.gear_2.n]
+        angle_1_lim = [- np.pi / self.gear_1.p, np.pi / self.gear_1.p]
+        angle_2_lim = [- np.pi / self.gear_2.p, np.pi / self.gear_2.p]
         if self.gear_1 is self.lg:
             angle_1_lim[0] = 0.
+            n1 = ceil(n_iterations / 2)
+            n2 = n_iterations
         elif self.gear_2 is self.lg:
             angle_2_lim[0] = 0.
-        angles_1 = np.linspace(*angle_1_lim, num=n_iterations, endpoint=True)
-        angles_2 = np.linspace(*angle_2_lim, num=n_iterations, endpoint=True)
+            n1 = n_iterations
+            n2 = ceil(n_iterations / 2)
+        angles_1 = np.linspace(*angle_1_lim, num=n1, endpoint=True)
+        angles_2 = np.linspace(*angle_2_lim, num=n2, endpoint=True)
         d_angle_1 = angles_1[1] - angles_1[0]
         d_angle_2 = angles_2[1] - angles_2[0]
 
         assert np.isclose(self.gear_1.angle, 0.)
         assert np.isclose(self.gear_2.angle, 0.)
-        # rotate segment back by - pi / n
+        # move gears to inital position
         self.update_gear(self.gear_1, angles_1[0])
         self.update_gear(self.gear_2, angles_2[0])
         assert np.isclose(self.gear_1.angle, angles_1[0])
         assert np.isclose(self.gear_2.angle, angles_2[0])
 
-        tau_12_values = np.zeros((n_iterations, n_iterations))
-        tau_21_values = np.zeros((n_iterations, n_iterations))
-        for i in range(n_iterations):
-            for j in range(n_iterations):
+        tau_12_values = np.zeros((n1, n2))
+        tau_21_values = np.zeros((n1, n2))
+        for i in range(n1):
+            for j in range(n2):
                 # check angles
                 assert np.isclose(self.gear_1.angle, angles_1[i])
                 assert np.isclose(self.gear_2.angle, angles_2[j])
@@ -175,13 +180,13 @@ def sample_ball(n_iterations, par_number):
 
     # mesh smaller gear
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}", \
-                       write_to_pvd=True)
+                       write_to_pvd=False)
 
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=True, write_to_pvd=True)
-    sampling.mesh_reference_segment(mesh_size, write_to_pvd=True)
+                                    analytical_solution=True, write_to_pvd=False)
+    sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, f"{sample_dir}/{data_dir}")
@@ -194,18 +199,18 @@ def sample_bar(n_iterations, par_number):
     w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d = 0.5
+    d = 0.1
     # create sample directory
     sample_dir = "sample_bar_gear"
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.2
+    mesh_size = 0.1
     p_deg = 2
 
     # parameters
-    gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
+    gear_ratio_values = np.array([1.0, 1.4, 2.0, 3.0])
     R1_values = np.array([6.0, 10.0, 20.0])
     p1_values = list(range(12, 40, 2))
     par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
@@ -264,14 +269,14 @@ def sample_segment(n_iterations, par_number):
     w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d = 0.5
+    d = 0.1
     # create sample directory
     sample_dir = "sample_cylinder_segment_gear"
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.8
+    mesh_size = 0.1
     p_deg = 2
 
     # parameters
@@ -313,7 +318,6 @@ def sample_segment(n_iterations, par_number):
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, 
                        fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
                        write_to_pvd=False)
-
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
@@ -334,8 +338,8 @@ if __name__ == "__main__":
     if magnet_type == "ball":
         sample_ball(25, it_nb)
     elif magnet_type == "bar":
-        sample_bar(3, it_nb)
+        sample_bar(5, it_nb)
     elif magnet_type == "cylinder_segment":
-        sample_segment(3, it_nb)
+        sample_segment(5, it_nb)
     else:
         raise RuntimeError()
