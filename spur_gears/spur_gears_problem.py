@@ -121,7 +121,7 @@ class SpurGearsProblem:
         self.align_gear(self.gear_2, self.gear_1)
 
         # make sure north and south pole of the magnets are facing each other
-        self.sg.update_parameters(2 * np.pi / self.sg.n)
+        self.sg.update_parameters(2 * np.pi / self.sg.p)
         self.sg.reset_angle(0.)
         assert np.isclose(self.sg.angle, 0.)
 
@@ -382,7 +382,7 @@ class SpurGearsProblem:
         t = self.sg.width  # segment thickness (width)
 
         # angle to contain smaller gear
-        beta = np.abs(2 * np.arccos(1 - 0.5 * (self.sg.outer_radius / self.D) ** 2))
+        beta = np.abs(2 * np.arccos(np.sqrt(self.D ** 2 - self.sg.outer_radius ** 2) / self.D))
 
         # inner segment radius
         Ri = self.D - self.sg.outer_radius
@@ -392,8 +392,8 @@ class SpurGearsProblem:
         # are removed
         # "-1" to allow rotation by +- pi / n
         # => assume one magnet less has been removed
-        if self.sg.n > len(self.sg.magnets):
-            alpha_r = np.pi / self.sg.n * (self.sg.n - len(self.sg.magnets) - 1)
+        if self.sg.p > len(self.sg.magnets):
+            alpha_r = np.pi / self.sg.p * (self.sg.p - len(self.sg.magnets) - 1)
         else:
             alpha_r = 0.
         # outer segment radius
@@ -409,10 +409,10 @@ class SpurGearsProblem:
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
 
-        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - np.pi / self.lg.n, \
+        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - np.pi / self.lg.p, \
                                                         angle_stop=beta / 2, x_M_ref=self.lg.x_M, \
                                                         x_axis=x_axis, fname=ref_path + f"/reference_segment_{id(self)}", \
-                                                        pad=True, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
+                                                        pad=False, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 
     def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
         """
@@ -429,7 +429,7 @@ class SpurGearsProblem:
             # interpolate fields of other gear on segment
             if use_Vm:
                 self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                              use_ref_field=True)
+                                                              use_ref_field=True,)
                 dlf.File("Vm.pvd") << self.Vm_segment
             else:
                 self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
@@ -665,17 +665,6 @@ class SpurGearsProblem:
 
             dlf.LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
             B_lg = compute_current_potential(Vm_lg, project=False)
-
-            """if np.isclose(self.gear_1.angle, 0.):
-                if np.isclose(self.gear_2.angle, 0.):
-                    dlf.File("Vm_lg.pvd") << Vm_lg
-                    dlf.File("B_lg.pvd") << B_lg
-                    exit()"""
-
-            ################################################
-            ###### REMOVE PROJECTION
-            ################################################
-
         else:
             # create function on smaller gear
             V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
@@ -738,7 +727,7 @@ class SpurGearsProblem:
         else:
             raise RuntimeError()
  
-        rot = get_rot(np.pi / gear.n)
+        rot = get_rot(np.pi / gear.p)
         magnets = list(gear.magnets)  # copy magnet list: list is different, magnets are the same
         for magnet in magnets:
             x_M_max = rot.dot(magnet.x_M - gear.x_M) + gear.x_M
@@ -752,14 +741,14 @@ class SpurGearsProblem:
     def set_domain_size(self):
         """Set domain size of the problem."""
         # get number of removed magnets
-        n_rem_1 = self.gear_1.n - len(self.gear_1.magnets)
-        n_rem_2 = self.gear_2.n - len(self.gear_2.magnets)
+        n_rem_1 = self.gear_1.p - len(self.gear_1.magnets)
+        n_rem_2 = self.gear_2.p - len(self.gear_2.magnets)
         if n_rem_1 > 0:
-            alpha_r_1 = np.pi / self.gear_1.n * (self.gear_1.n - len(self.gear_1.magnets) - 1)  # allow rotation by +- pi / n
+            alpha_r_1 = np.pi / self.gear_1.p * (self.gear_1.p - len(self.gear_1.magnets) - 1)  # allow rotation by +- pi / n
         else:
             alpha_r_1 = 0.
         if n_rem_2 > 0:
-            alpha_r_2 = np.pi / self.gear_2.n * (self.gear_2.n - len(self.gear_2.magnets) - 1)  # allow rotation by +- pi / n
+            alpha_r_2 = np.pi / self.gear_2.p * (self.gear_2.p - len(self.gear_2.magnets) - 1)  # allow rotation by +- pi / n
         else:
             alpha_r_2 = 0.
         # domain_size
