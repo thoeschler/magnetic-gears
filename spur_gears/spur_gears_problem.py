@@ -429,8 +429,7 @@ class SpurGearsProblem:
             # interpolate fields of other gear on segment
             if use_Vm:
                 self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                              use_ref_field=True,)
-                dlf.File("Vm.pvd") << self.Vm_segment
+                                                              use_ref_field=True)
             else:
                 self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
                                                              use_ref_field=True)
