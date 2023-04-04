@@ -372,7 +372,8 @@ class MagneticBarGear(MagneticGear):
         self._w = w
         self._t = t
         self._d = d
-        if self.d > (2 * self.R - self.t) * np.tan(np.pi / self.p):
+        if self.d > (2 * self.R - self.t) * np.tan(np.pi / self.p) and \
+            not np.isclose(d, (2 * self.R - self.t) * np.tan(np.pi / self.p)):
             raise ValueError("Magnets intersect!")
         self._scale_parameter = t  # use thickness for scaling
         self._magnet_type = "Bar"
