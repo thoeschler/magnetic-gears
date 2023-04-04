@@ -8,7 +8,7 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 
 
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
-    shape="sphere", thickness=None, fname="reference_mesh", verbose=False):
+    shape="sphere", thickness=None, d=None, fname="reference_mesh", verbose=False):
     """
     Create a reference mesh.
 
@@ -19,7 +19,9 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         mesh_size_max (float): Maximum mesh size.
         shape (str): Shape of reference mesh.
         thickness (float): Thickness of cylinder reference mesh. Only specify for
-                           shape="cylinder".
+                           shape="cylinder". Defaults to None.
+        d (float): Interface size around magnet. Only specify for BarMagnet.
+                   Defaults to None.
         fname (str): File name. Defaults to "reference_mesh".
         verbose (bool, optional): Whether to display gmsh info. Defaults to False.
     """
@@ -58,9 +60,9 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     # cut magnet from surrounding box
     if isinstance(reference_magnet, mc.BarMagnet):
         # for the bar magnet, add another bar magnet
-        w_interface = reference_magnet.w + mesh_size_min / 3
-        d_interface = reference_magnet.d + mesh_size_min / 3
-        h_interface = reference_magnet.h + mesh_size_min / 3
+        w_interface = reference_magnet.w + d
+        d_interface = reference_magnet.d + d
+        h_interface = reference_magnet.h + d
         # create magnet to create interface
         interface_magnet = mc.BarMagnet(w_interface, d_interface, h_interface, \
                                     magnetization_strength=1.0, \
@@ -77,7 +79,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         model.occ.synchronize()
         # mesh size field for interface
         interface_field = model.mesh.field.add("Constant")
-        model.mesh.field.setNumber(interface_field, "VIn", 2e-2)
+        model.mesh.field.setNumber(interface_field, "VIn", d / 3)
         model.mesh.field.setNumbers(interface_field, "VolumesList", [interface])
     else:
         model.occ.cut([(3, box)], [(3, magnet)], removeObject=True, removeTool=False)

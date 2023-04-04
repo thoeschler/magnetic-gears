@@ -10,6 +10,8 @@ from source.tools.mesh_tools import read_mesh
 from source.tools.math_tools import get_rot
 from source.fe import compute_magnetic_potential
 from spur_gears.grid_generator import cylinder_segment_mesh
+dlf.parameters["allow_extrapolation"] = True
+assert dlf.parameters["allow_extrapolation"] is True
 
 
 class SpurGearsProblem:
@@ -323,8 +325,9 @@ class SpurGearsProblem:
                 if field_name == "B":
                     field_num = compute_current_potential(field_num, project=True)
 
+                d = self.D - self.gear_1.outer_radius - self.gear_2.outer_radius
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
-                                        shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
+                                        shape="cylinder", thickness=thickness, d=d, fname=f"{ref_dir}/reference_mesh")
                 # read reference mesh
                 reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
 
@@ -332,8 +335,9 @@ class SpurGearsProblem:
                 field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
                                                     fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=True)
             else:
+                d = self.D - self.gear_1.outer_radius - self.gear_2.outer_radius
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
-                                  shape="cylinder", thickness=thickness, fname=f"{ref_dir}/reference_mesh")
+                                  shape="cylinder", thickness=thickness, d=d, fname=f"{ref_dir}/reference_mesh")
                 # read reference mesh
                 reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
                 # interpolate reference field
