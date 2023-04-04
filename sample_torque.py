@@ -136,17 +136,17 @@ def sample_ball(n_iterations, par_number):
         os.mkdir(sample_dir)
 
     # set parameters
+    R1 = 10.
     mesh_size = 0.6
     p_deg = 2
     d = 0.1
 
     # parameters
-    gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
-    R1_values = np.array([6.0, 10.0, 20.0])
-    p1_values = list(range(12, 40, 2))
-    par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
+    gear_ratio_values = np.array([1.0, 1.4, 2.0, 2.4])
+    p1_values = list(range(4, 40, 2))
+    par_list = list(it.product(gear_ratio_values, p1_values))
     par = par_list[par_number]
-    gear_ratio, R1, p1 = par
+    gear_ratio, p1 = par
 
     # compute rest of values
     R2 = R1 * gear_ratio
@@ -162,9 +162,8 @@ def sample_ball(n_iterations, par_number):
 
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
-    radius_dir = f"R1_{str(R1).replace('.', 'p')}"
     pole_nb_dir = f"p1_{str(p1).replace('.', 'p')}"
-    data_dir = f"{gear_ratio_dir}/{radius_dir}/{pole_nb_dir}"
+    data_dir = f"{gear_ratio_dir}/{pole_nb_dir}"
     if not os.path.exists(f"{sample_dir}/{data_dir}"):
         os.makedirs(f"{sample_dir}/{data_dir}")
 
@@ -195,27 +194,29 @@ def sample_ball(n_iterations, par_number):
 
 
 def sample_bar(n_iterations, par_number):
-    w1 = 3.0
-    w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d = 0.1
+    d_ref = 0.2
+    R1 = 10.
     # create sample directory
     sample_dir = "sample_bar_gear"
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.1
+    mesh_size = 0.6
     p_deg = 2
 
     # parameters
-    gear_ratio_values = np.array([1.0, 1.4, 2.0, 3.0])
-    R1_values = np.array([6.0, 10.0, 20.0])
-    p1_values = list(range(12, 40, 2))
-    par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
+    gear_ratio_values = np.array([1.0, 1.4, 2.0, 2.4])
+    w_ref = 3.0
+    R_ref_values = np.array([6., 10., 20.])
+    w1_values = w_ref * R1 / R_ref_values
+    p1_values = list(range(4, 20, 2))
+    par_list = list(it.product(gear_ratio_values, w1_values, p1_values))
     par = par_list[par_number]
-    gear_ratio, R1, p1 = par
+    gear_ratio, w1, p1 = par
+    w2 = w1
 
     # compute rest of values
     p2 = p1 * gear_ratio
@@ -223,16 +224,18 @@ def sample_bar(n_iterations, par_number):
         exit()
     if int(p2) % 2 != 0:
         exit()
+    d = d_ref * w1 / w_ref
+
     p2 = int(p2)
     d1 = np.tan(np.pi / p1) * (2 * R1 - t1)
     d2 = d1
     R2 = 1 / 2 * (np.tan(np.pi / p1) / np.tan(np.pi / p2) * (2 * R1 - t1) + t2)
-
+    exit()
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
-    radius_dir = f"R1_{str(R1).replace('.', 'p')}"
+    width_dir = f"w1_{str(w1).replace('.', 'p')}"
     pole_nb_dir = f"p1_{str(p1).replace('.', 'p')}"
-    data_dir = f"{gear_ratio_dir}/{radius_dir}/{pole_nb_dir}"
+    data_dir = f"{gear_ratio_dir}/{width_dir}/{pole_nb_dir}"
     if not os.path.exists(f"{sample_dir}/{data_dir}"):
         os.makedirs(f"{sample_dir}/{data_dir}")
 
@@ -265,11 +268,10 @@ def sample_bar(n_iterations, par_number):
 
 
 def sample_segment(n_iterations, par_number):
-    w1 = 3.0
-    w2 = w1
     t1 = 1.0
     t2 = 1.0
-    d = 0.1
+    d = 0.2
+    R1 = 10.
     # create sample directory
     sample_dir = "sample_cylinder_segment_gear"
     if not os.path.exists(sample_dir):
@@ -280,12 +282,15 @@ def sample_segment(n_iterations, par_number):
     p_deg = 2
 
     # parameters
-    gear_ratio_values = np.array([1.0, 1.5, 2.0, 4.0])
-    R1_values = np.array([6.0, 10.0, 20.0])
-    p1_values = list(range(12, 40, 2))
-    par_list = list(it.product(gear_ratio_values, R1_values, p1_values))
+    gear_ratio_values = np.array([1.0, 1.4, 2.0, 2.4])
+    w_ref = 3.0
+    R_ref_values = np.array([6., 10., 20.])
+    w1_values = w_ref * R1 / R_ref_values
+    p1_values = list(range(4, 40, 2))
+    par_list = list(it.product(gear_ratio_values, w1_values, p1_values))
     par = par_list[par_number]
-    gear_ratio, R1, p1 = par
+    gear_ratio, w1, p1 = par
+    w2 = w1
 
     # compute rest of values
     R2 = R1 * gear_ratio
@@ -298,9 +303,9 @@ def sample_segment(n_iterations, par_number):
 
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
-    radius_dir = f"R1_{str(R1).replace('.', 'p')}"
+    width_dir = f"w1_{str(w1).replace('.', 'p')}"
     pole_nb_dir = f"p1_{str(p1).replace('.', 'p')}"
-    data_dir = f"{gear_ratio_dir}/{radius_dir}/{pole_nb_dir}"
+    data_dir = f"{gear_ratio_dir}/{width_dir}/{pole_nb_dir}"
     if not os.path.exists(f"{sample_dir}/{data_dir}"):
         os.makedirs(f"{sample_dir}/{data_dir}")
 
@@ -318,6 +323,7 @@ def sample_segment(n_iterations, par_number):
     sampling.mesh_gear(sampling.sg, mesh_size=mesh_size, 
                        fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
                        write_to_pvd=False)
+
     # mesh the segment
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \

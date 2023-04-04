@@ -26,7 +26,7 @@ run_with_lock(){
 magnet=$1
 n_procs=$2
 open_sem $n_procs
-for par_nb in {1..168}; do
+for par_nb in {1..456}; do
     echo "ITERATION" $((par_nb-1))
     run_with_lock python3 sample_torque.py $magnet $(( par_nb-1 )) 2>> log.txt
 done
