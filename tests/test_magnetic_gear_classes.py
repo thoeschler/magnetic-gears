@@ -7,14 +7,14 @@ import os
 
 def test_ball_gear():
     # create gear
-    n = 6
+    p = 6
     R = 10.
     r = 1.
     x_M = np.random.rand(3)
 
-    ball_gear = MagneticBallGear(n, R, r, x_M)
+    ball_gear = MagneticBallGear(p, R, r, x_M)
 
-    assert ball_gear.n == n
+    assert ball_gear.p == p
     assert ball_gear.R == R
     assert ball_gear.r == r
     assert np.all(ball_gear.x_M == x_M)
@@ -30,16 +30,16 @@ def test_ball_gear():
 
 def test_bar_gear():
     # create gear
-    n = 6
+    p = 6
     R = 10.
     t = 1.
     w = 2.
     d = 3.
     x_M = np.random.rand(3)
 
-    bar_gear = MagneticBarGear(n, R, w, t, d, x_M)
+    bar_gear = MagneticBarGear(p, R, w, t, d, x_M)
 
-    assert bar_gear.n == n
+    assert bar_gear.p == p
     assert bar_gear.R == R
     assert bar_gear.d == d
     assert bar_gear.w == w
@@ -57,15 +57,15 @@ def test_bar_gear():
 
 def test_segment_gear():
     # create gear
-    n = 6
+    p = 6
     R = 10.
     w = 2.
     t = 3.
     x_M = np.random.rand(3)
 
-    segment_gear = SegmentGear(n, R, w, t, x_M)
+    segment_gear = SegmentGear(p, R, w, t, x_M)
 
-    assert segment_gear.n == n
+    assert segment_gear.p == p
     assert segment_gear.R == R
     assert segment_gear.t == t
     assert segment_gear.w == w

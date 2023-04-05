@@ -204,7 +204,7 @@ def sample_bar(n_iterations, par_number):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.6
+    mesh_size = 0.1
     p_deg = 2
 
     # parameters
@@ -212,7 +212,7 @@ def sample_bar(n_iterations, par_number):
     w_ref = 3.0
     R_ref_values = np.array([6., 10., 20.])
     w1_values = w_ref * R1 / R_ref_values
-    p1_values = list(range(4, 20, 2))
+    p1_values = list(range(4, 60, 2))
     par_list = list(it.product(gear_ratio_values, w1_values, p1_values))
     par = par_list[par_number]
     gear_ratio, w1, p1 = par
@@ -230,7 +230,7 @@ def sample_bar(n_iterations, par_number):
     d1 = np.tan(np.pi / p1) * (2 * R1 - t1)
     d2 = d1
     R2 = 1 / 2 * (np.tan(np.pi / p1) / np.tan(np.pi / p2) * (2 * R1 - t1) + t2)
-    exit()
+
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
     width_dir = f"w1_{str(w1).replace('.', 'p')}"
@@ -270,7 +270,7 @@ def sample_bar(n_iterations, par_number):
 def sample_segment(n_iterations, par_number):
     t1 = 1.0
     t2 = 1.0
-    d = 0.2
+    d_ref = 0.2
     R1 = 10.
     # create sample directory
     sample_dir = "sample_cylinder_segment_gear"
@@ -286,7 +286,7 @@ def sample_segment(n_iterations, par_number):
     w_ref = 3.0
     R_ref_values = np.array([6., 10., 20.])
     w1_values = w_ref * R1 / R_ref_values
-    p1_values = list(range(4, 40, 2))
+    p1_values = list(range(4, 60, 2))
     par_list = list(it.product(gear_ratio_values, w1_values, p1_values))
     par = par_list[par_number]
     gear_ratio, w1, p1 = par
@@ -300,6 +300,7 @@ def sample_segment(n_iterations, par_number):
     if int(p2) % 2 != 0:
         exit()
     p2 = int(p2)
+    d = d_ref * w1 / w_ref
 
     # create directory
     gear_ratio_dir = f"gear_ratio_{str(gear_ratio).replace('.', 'p')}"
