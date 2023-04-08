@@ -313,6 +313,10 @@ class SpurGearsProblem:
             # create reference magnet and check if the field is implemented
             assert hasattr(ref_mag, field_name), f"{field_name} is not implemented for this magnet class"
 
+            # interface size (only used if field is seemingly poorly defined near the boundary)
+            d = self.D - self.gear_1.outer_radius - self.gear_2.outer_radius
+            d /= gear.scale_parameter  # make sure d is still large enough after rescaling the reference field
+
             # for the segment gear no analytical solution is available: compute potential numerically
             if not analytical_solution:
                 # radius of sphere has to be larger such that it contains the cylinder
@@ -325,7 +329,6 @@ class SpurGearsProblem:
                 if field_name == "B":
                     field_num = compute_current_potential(field_num, project=True)
 
-                d = self.D - self.gear_1.outer_radius - self.gear_2.outer_radius
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
                                         shape="cylinder", thickness=thickness, d=d, fname=f"{ref_dir}/reference_mesh")
                 # read reference mesh
@@ -335,7 +338,6 @@ class SpurGearsProblem:
                 field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
                                                     fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=True)
             else:
-                d = self.D - self.gear_1.outer_radius - self.gear_2.outer_radius
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
                                   shape="cylinder", thickness=thickness, d=d, fname=f"{ref_dir}/reference_mesh")
                 # read reference mesh
