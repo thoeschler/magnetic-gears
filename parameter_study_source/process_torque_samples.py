@@ -15,6 +15,8 @@ def read_torque_values(dir_name):
     tau_12_values = []
     tau_21_values = []
     for subdir in subdirs:
+        if not(os.path.isdir(os.path.join(dir_name, subdir))):
+            continue
         p1 = int(subdir.split("_")[-1])
         p_values.append(p1)
         tau_12, tau_21 = read_data(os.path.join(dir_name, subdir))
@@ -38,23 +40,52 @@ def write_file(pole_numbers, torque_values, fname):
         for p, tau in zip(pole_numbers, torque_values):
             f.write(f"{p} {tau} \n")
 
-if __name__ == "__main__":
-    gear_ratio_names = ["gear_ratio_1p0"]#, "gear_ratio_1p4"]#, "gear_ratio_2p0", "gear_ratio_2p4"]
-    #w1_names = ["w1_1p5", "w1_3p0", "w1_5p0"]
-    w1_names = ["w1_3p0", "w1_5p0"]
+def process_parameter_study_gr_R_p():
+    gear_ratio_names = ["gear_ratio_1p0", "gear_ratio_1p4"]#, "gear_ratio_2p0", "gear_ratio_2p4"]
+    w1_names = ["w1_1p5", "w1_3p0", "w1_5p0"]
+    # In the computation the lengths are scaled differently. In order to get equal values for the distance
+    # d and the width as well as different radii R we need to rescale the torque values by a length factor
+    # to the power of three
+    R_ref = 10.0
+    R_values = np.array([20., 10., 6.])
+    length_factors = R_values / R_ref
 
     for gear_ratio in gear_ratio_names:
-        for w1 in w1_names:
+        for w1, length_factor in zip(w1_names, length_factors):
             # set directory names
-            source_dir_name = os.path.join("sample_cylinder_segment_gear", gear_ratio, w1)
-            #source_dir_name = os.path.join("../../tex/Data/sample_cylinder_segment_gear_d_0p1", gear_ratio, w1)
-            target_dir_name = os.path.join("sample_cylinder", gear_ratio, w1)
+            source_dir_name = os.path.join("/home/thilo/Dropbox/magnetic gears/python/parameter_study_gr_R_p_cylinder_segment", gear_ratio, w1)
+            target_dir_name = os.path.join(source_dir_name)
 
             # load torque and pole number values
             p_values, tau_12_values, tau_21_values = read_torque_values(source_dir_name)
+            tau_12_values *= length_factor ** 3
+            tau_21_values *= length_factor ** 3
 
             # write files
             if not os.path.exists(target_dir_name):
                 os.makedirs(target_dir_name)
             write_file(p_values, tau_12_values, os.path.join(target_dir_name, "tau_12.csv"))
             write_file(p_values, tau_21_values, os.path.join(target_dir_name, "tau_21.csv"))
+
+def process_parameter_study_d_p():
+    d_names = ["d_0p05", "d_0p1", "d_0p2", "d_0p4"]
+
+    for d in d_names:
+        # set directory names
+        source_dir_name = os.path.join("/home/thilo/Dropbox/magnetic gears/python/parameter_study_d", d)
+        target_dir_name = os.path.join(source_dir_name)
+
+        # load torque and pole number values
+        p_values, tau_12_values, tau_21_values = read_torque_values(source_dir_name)
+
+        # write files
+        if not os.path.exists(target_dir_name):
+            os.makedirs(target_dir_name)
+        write_file(p_values, tau_12_values, os.path.join(target_dir_name, "tau_12.csv"))
+        write_file(p_values, tau_21_values, os.path.join(target_dir_name, "tau_21.csv"))
+
+
+
+if __name__ == "__main__":
+    process_parameter_study_d_p()
+    #process_parameter_study_gr_R_p()
