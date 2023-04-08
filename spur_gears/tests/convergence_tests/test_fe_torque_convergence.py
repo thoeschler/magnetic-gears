@@ -12,40 +12,33 @@ def create_convergence_test(main_dir=None):
     gear_2.create_magnets(magnetization_strength=1.0)
 
     # create coaxial gears problem
-    D = gear_1.outer_radius + gear_2.outer_radius + 1.0
+    D = gear_1.outer_radius + gear_2.outer_radius + 0.1
     ct = SpurGearsConvergenceTest(gear_1, gear_2, D, main_dir=main_dir)
     return ct
 
-def test_fe_torque_convergence():
+def test_fe_torque_convergence(mesh_size):
     conv_dir = "test_fe_torque_convergence"
     if not os.path.exists(conv_dir):
         os.mkdir(conv_dir)
     os.chdir(conv_dir)
     # for different mesh sizes compare errors
-    mesh_sizes = np.geomspace(1e-1, 1.0, num=6)
     p_deg = 2
     ma = False
 
-    # interpolate twice, use Vm
-    dir_all = "all" if ma else "not_all"
-    for R_inf_mult in np.linspace(5, 50, num=5):
-        dir = f"{dir_all}_{R_inf_mult}"
-        if not os.path.exists(dir):
-            os.mkdir(dir)
-        mesh_size_selection = mesh_sizes[:2]
-        for mesh_size in mesh_size_selection[::-1]:
-            ct = create_convergence_test(main_dir=dir)
-            errors, names = convergence_test(ct, mesh_size=mesh_size, p_deg=p_deg, \
-                                            interpolate="twice", use_Vm=True, \
-                                            mesh_all_magnets=ma, D_ref=ct.D, \
-                                            analytical_solution=False, R_inf_mult=100)
+    ct = create_convergence_test()
+    errors, names = convergence_test(ct, mesh_size=mesh_size, p_deg=p_deg, \
+                                    interpolate="twice", use_Vm=True, \
+                                    mesh_all_magnets=ma, D_ref=ct.D, \
+                                    analytical_solution=False, R_inf_mult=50)
 
-            print(f"In gear 1 {ct.gear_1.n - len(ct.gear_1.magnets)} out of {ct.gear_1.n} magnets have been deleted.")
-            print(f"In gear 2 {ct.gear_2.n - len(ct.gear_2.magnets)} out of {ct.gear_2.n} magnets have been deleted.")
+    print(f"In gear 1 {ct.gear_1.p - len(ct.gear_1.magnets)} out of {ct.gear_1.p} magnets have been deleted.")
+    print(f"In gear 2 {ct.gear_2.p - len(ct.gear_2.magnets)} out of {ct.gear_2.p} magnets have been deleted.")
 
-            for error, name in zip(errors, names):
-                with open(f"{dir}/{name}.csv", "a+") as f:
-                    f.write(f"{mesh_size} {error} \n")
+    for error, name in zip(errors, names):
+        with open(f"{name}.csv", "a+") as f:
+            f.write(f"{mesh_size} {error} \n")
 
 if __name__ == "__main__":
-    test_fe_torque_convergence()
+    import sys
+    ms = float(sys.argv[1])
+    test_fe_torque_convergence(ms)

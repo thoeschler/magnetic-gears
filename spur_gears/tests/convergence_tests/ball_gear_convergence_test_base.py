@@ -61,14 +61,14 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
 
         return F_sg, tau_sg
 
-    def update_gear(self, gear: MagneticGear, d_angle, update_segment=False, mesh_all_magnets=False):
+    def update_gear(self, gear: MagneticGear, d_angle, mesh_all_magnets=False, interpolate="never"):
         """Update gear given an angle increment.
 
         Args:
             gear (MagneticGear): A magnetic gear.
             d_angle (float): Angle increment.
-            update_segment (bool, optional): If True update the segment as well. Defaults to False.
             mesh_all_magnets(bool, optional): If True all magnets are meshed and none are deleted.
+            interpolate (str): Interpolation type. Defaults to "never".
         """
         if not mesh_all_magnets:
             if not hasattr(self, "deleted_magnets_1"):
@@ -77,7 +77,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                 for mag in self.all_magnets_1:
                     if mag not in self.gear_1.magnets:
                         self.deleted_magnets_1.append(mag)
-                assert len(self.deleted_magnets_1) == self.gear_1.n - len(self.gear_1.magnets)
+                assert len(self.deleted_magnets_1) == self.gear_1.p - len(self.gear_1.magnets)
 
             if not hasattr(self, "deleted_magnets_2"):
                 # get deleted magnets
@@ -85,7 +85,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                 for mag in self.all_magnets_2:
                     if mag not in self.gear_2.magnets:
                         self.deleted_magnets_2.append(mag)
-                assert len(self.deleted_magnets_2) == self.gear_2.n - len(self.gear_2.magnets)
+                assert len(self.deleted_magnets_2) == self.gear_2.p - len(self.gear_2.magnets)
 
         gear.update_parameters(d_angle)
         if not mesh_all_magnets:
@@ -96,27 +96,10 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             else:
                 raise RuntimeError()
 
-        if update_segment:
+        if gear is self.lg and interpolate != "never":
             self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
             if hasattr(self, "B_segment"):
                 rotate_vector_field(self.B_segment, get_rot(d_angle))
-        if np.abs(gear.angle) > np.pi / gear.n or np.isclose(np.abs(gear.angle), np.pi / gear.n):
-            # first rotate segment
-            if update_segment:
-                # rotate back
-                self.segment_mesh.rotate(- np.sign(gear.angle) * 360. / gear.n, 0, dlf.Point(gear.x_M))
-                if hasattr(self, "B_segment"):
-                    rotate_vector_field(self.B_segment, get_rot(- np.sign(gear.angle) * 2 * np.pi / gear.n))
-            # then update parameters
-            gear.update_parameters(- np.sign(gear.angle) * 2. * np.pi / gear.n)
-            if not mesh_all_magnets:
-                if gear is self.gear_1:
-                    gear.update_magnets(self.deleted_magnets_1, - np.sign(gear.angle) * 2. * np.pi / gear.n, np.zeros(3))
-                elif gear is self.gear_2:
-                    gear.update_magnets(self.deleted_magnets_2, - np.sign(gear.angle) * 2. * np.pi / gear.n, np.zeros(3))
-                else:
-                    raise RuntimeError()
-
 
 def compute_torque_ana(magnet_1, magnet_2, force, x_M_gear):
     """Compute torque on magnet_2 caused by magnetic field of magnet_1.
@@ -181,11 +164,11 @@ def convergence_test(cg: SpurGearsConvergenceTest, mesh_size, p_deg=1, mesh_all_
         cg.interpolate_to_reference_segment(p_deg, interpolate=interpolate, use_Vm=use_Vm)
 
     # introduce some randomness: rotate gears and segment by arbitrary angles
-    cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.n).item())
+    cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.p).item())
     # the segment contains the field of the larger gear. Rotate the segment as well
     # when rotating the larger gear. Updates B_segment automatically (if used). 
-    cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.n).item(), \
-                    update_segment=(interpolate != "never"), mesh_all_magnets=mesh_all_magnets)
+    cg.update_gear(cg.lg, d_angle=(np.random.rand(1) * np.pi / cg.lg.p).item(), \
+                    mesh_all_magnets=mesh_all_magnets, interpolate=interpolate)
 
     ###############################################
     ##### 1. compute force/torque numerically #####
@@ -215,8 +198,9 @@ def convergence_test(cg: SpurGearsConvergenceTest, mesh_size, p_deg=1, mesh_all_
     f_21_ana_vec = np.zeros(3)
     tau_12_ana_vec = np.zeros(3)
     tau_21_ana_vec = np.zeros(3)
-    assert len(cg.all_magnets_1) == cg.gear_1.n
-    assert len(cg.all_magnets_2) == cg.gear_2.n
+    assert len(cg.all_magnets_1) == cg.gear_1.p
+    assert len(cg.all_magnets_2) == cg.gear_2.p
+
     for m1 in cg.all_magnets_1:
         for m2 in cg.all_magnets_2:
             f_ana = compute_force_ana(m1, m2)
