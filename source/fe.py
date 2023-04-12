@@ -126,11 +126,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         R_inf = 50 * magnet.size
     if R_inf < R_domain:
         if R_domain > 50 * magnet.size:
-            R_inf = R_domain + mesh_size_magnet
-            if cylinder_mesh_size_field:
-                mesh_size_space = mesh_size_domain_min
-            else:
-                mesh_size_space = mesh_size_domain_max
+            R_inf = R_domain + mesh_size_space
         else:
             R_inf = 50 * magnet.size
 
@@ -183,6 +179,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
 
     # set cylinder mesh size field
     if cylinder_mesh_size_field:
+        print(mesh_size_domain_min, mesh_size_space)
         # line distance field
         cylinder_ms_field = model.mesh.field.add("Cylinder")
         model.mesh.field.setNumber(cylinder_ms_field, "Radius", R_domain)
@@ -194,11 +191,6 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         model.mesh.field.setNumber(cylinder_ms_field, "XCenter", magnet.x_M[0])
         model.mesh.field.setNumber(cylinder_ms_field, "YCenter", magnet.x_M[1])
         model.mesh.field.setNumber(cylinder_ms_field, "ZCenter", magnet.x_M[2])
-
-        # threshold field for surrounding space
-        distance_space = model.mesh.field.add("Distance")
-        mid_point = model.occ.addPoint(*magnet.x_M)
-        model.mesh.field.setNumbers(distance_space, "PointsList", [mid_point])
  
         ms_fields = [mag_field_tag, cylinder_ms_field]
     else:
