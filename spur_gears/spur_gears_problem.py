@@ -677,8 +677,6 @@ class SpurGearsProblem:
 
             dlf.LagrangeInterpolator.interpolate(B_lg, B_seg)
 
-        V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
-
         # compute force
         F = self.compute_force_on_gear(self.sg, B_lg, p_deg=p_deg)
         F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)

@@ -118,7 +118,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
             mesh_size_field_thickness = magnet.size + 1e-3
 
     if mesh_size_space is None:
-            mesh_size_space = 20.
+        mesh_size_space = 10.
 
     if R_domain <= magnet.size:
         R_domain = magnet.size + mesh_size_magnet
@@ -199,15 +199,8 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         distance_space = model.mesh.field.add("Distance")
         mid_point = model.occ.addPoint(*magnet.x_M)
         model.mesh.field.setNumbers(distance_space, "PointsList", [mid_point])
-
-        threshold_space = model.mesh.field.add("Threshold")
-        model.mesh.field.setNumber(threshold_space, "InField", distance_space)
-        model.mesh.field.setNumber(threshold_space, "SizeMin", 10 * mesh_size_domain_min)
-        model.mesh.field.setNumber(threshold_space, "SizeMax", 20.)
-        model.mesh.field.setNumber(threshold_space, "DistMin", R_domain)
-        model.mesh.field.setNumber(threshold_space, "DistMax", R_inf)
-
-        ms_fields = [mag_field_tag, cylinder_ms_field, threshold_space]
+ 
+        ms_fields = [mag_field_tag, cylinder_ms_field]
     else:
         # set domain mesh size
         # add distance field
@@ -216,12 +209,28 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         distance_tag = model.mesh.field.add("Distance")
         model.mesh.field.setNumbers(distance_tag, "PointsList", [mid_point])
 
-        # add MathEval field that depends on distance
-        math_eval_tag = model.mesh.field.add("MathEval")
-        model.mesh.field.setString(math_eval_tag, "F", f"F{distance_tag} / {R_domain} * "\
-            + f"{mesh_size_domain_max - mesh_size_domain_min} + {mesh_size_domain_min}")
+        # define threshold field for relevant domain
+        threshold_field = model.mesh.field.add("Threshold")
+        model.mesh.field.setNumber(threshold_field, "InField", distance_tag)
+        model.mesh.field.setNumber(threshold_field, "SizeMin", mesh_size_domain_min)
+        model.mesh.field.setNumber(threshold_field, "SizeMax", mesh_size_domain_max)
+        model.mesh.field.setNumber(threshold_field, "DistMin", 0.)
+        model.mesh.field.setNumber(threshold_field, "DistMax", R_domain)
+        model.mesh.field.setNumber(threshold_field, "StopAtDistMax", True)
 
-        ms_fields = [mag_field_tag, math_eval_tag]
+        # threshold field for surrounding space
+        distance_space = model.mesh.field.add("Distance")
+        mid_point = model.occ.addPoint(*magnet.x_M)
+        model.mesh.field.setNumbers(distance_space, "PointsList", [mid_point])
+
+        threshold_space = model.mesh.field.add("Threshold")
+        model.mesh.field.setNumber(threshold_space, "InField", distance_space)
+        model.mesh.field.setNumber(threshold_space, "SizeMin", 10 * mesh_size_domain_max)
+        model.mesh.field.setNumber(threshold_space, "SizeMax", 20.)
+        model.mesh.field.setNumber(threshold_space, "DistMin", R_domain)
+        model.mesh.field.setNumber(threshold_space, "DistMax", R_inf)
+
+        ms_fields = [mag_field_tag, threshold_field, threshold_space]
 
     # use the minimum of all the fields as the mesh size field
     min_tag = model.mesh.field.add("Min")
