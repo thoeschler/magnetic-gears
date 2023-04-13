@@ -198,7 +198,7 @@ class SpurGearsProblem:
         subdirs = [r[0] for r in os.walk(self._main_dir + "/data/reference/")]
         for subdir in subdirs:
             if "par.json" in os.listdir(subdir):
-                with open(f"{subdir}/par.json", "r") as f:
+                with open(os.path.join(subdir, "par.json"), "r") as f:
                     # read paramters
                     par = json.loads(f.read())
                     # check if all paramters match
@@ -295,9 +295,12 @@ class SpurGearsProblem:
         if not found_dir:
             # create directory
             subdirs = [r[0] for r in os.walk(self._main_dir + "data/reference")]
-            ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_{field_name}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
-            while ref_dir in subdirs:
-                ref_dir = f"{self._main_dir}/data/reference/{gear.magnet_type}_{field_name}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
+            while True:
+                ref_dir = os.path.join(self._main_dir, "data", "reference", 
+                                   f"{gear.magnet_type}_{field_name}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
+                                   )
+                if not(ref_dir in subdirs):
+                    break
             os.makedirs(ref_dir)
 
             # create reference mesh
@@ -319,44 +322,49 @@ class SpurGearsProblem:
 
             # for the segment gear no analytical solution is available: compute potential numerically
             if not analytical_solution:
+                fname = os.path.join(self._main_dir, "data", "Vm_{id(self)}")
                 # radius of sphere has to be larger such that it contains the cylinder
                 ref_radius = np.sqrt(domain_size ** 2 + thickness ** 2 / 4) + 1e-3
-                field_num = compute_magnetic_potential(ref_mag, ref_radius, R_inf=R_inf, mesh_size_magnet=mesh_size_min, \
-                                                        mesh_size_domain_min=mesh_size_min, \
-                                                        mesh_size_domain_max=mesh_size_max, p_deg=p_deg, \
-                                                        cylinder_mesh_size_field=True, mesh_size_field_thickness=thickness, \
-                                                        fname=f"{self._main_dir}/data/Vm_{id(self)}", write_to_pvd=write_to_pvd)
+                field_num = compute_magnetic_potential(ref_mag, ref_radius, R_inf=R_inf, mesh_size_magnet=mesh_size_min,
+                                                        mesh_size_domain_min=mesh_size_min,
+                                                        mesh_size_domain_max=mesh_size_max, p_deg=p_deg,
+                                                        cylinder_mesh_size_field=True, mesh_size_field_thickness=thickness,
+                                                        fname=fname, write_to_pvd=write_to_pvd)
                 if field_name == "B":
                     field_num = compute_current_potential(field_num, project=True)
 
-                create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
-                                        shape="cylinder", thickness=thickness, d=d, fname=f"{ref_dir}/reference_mesh")
+                create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max,
+                                        shape="cylinder", thickness=thickness, d=d, fname=os.path.join(ref_dir, "reference_mesh"))
                 # read reference mesh
-                reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
+                reference_mesh = read_mesh(os.path.join(ref_dir, "reference_mesh.xdmf"))
 
                 # interpolate reference field
-                field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg, \
-                                                    fname=f"{ref_dir}/{field_name}_{id(self)}", write_pvd=True)
+                field_interpol = interpolate_field(field_num, reference_mesh, cell_type, p_deg,
+                                                   fname=os.path.join(ref_dir, f"{field_name}_{id(self)}"),
+                                                   write_pvd=True)
             else:
-                create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, mesh_size_max, \
-                                  shape="cylinder", thickness=thickness, d=d, fname=f"{ref_dir}/reference_mesh")
+                create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, 
+                                      mesh_size_max, shape="cylinder", thickness=thickness, d=d,
+                                      fname=os.path.join(ref_dir, "reference_mesh.xdmf")
+                                      )
                 # read reference mesh
-                reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
+                reference_mesh = read_mesh(os.path.join(ref_dir, "reference_mesh.xdmf"))
                 # interpolate reference field
                 if field_name == "B":
-                    field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg, fname=f"{ref_dir}/{field_name}", \
-                        write_pvd=True)
+                    field_interpol = interpolate_field(ref_mag.B, reference_mesh, cell_type, p_deg,
+                                                       fname=os.path.join(ref_dir, field_name),
+                                                       write_pvd=True)
                 elif field_name == "Vm":
-                    field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg, \
-                                                       fname=f"{ref_dir}/{field_name}", write_pvd=True)
+                    field_interpol = interpolate_field(ref_mag.Vm, reference_mesh, cell_type, p_deg,
+                                                       fname=os.path.join(ref_dir, field_name), write_pvd=True)
                 else:
                     raise RuntimeError()
 
             # write the field to hdf5 file
-            write_hdf5_file(field_interpol, reference_mesh, fname=f"{ref_dir}/{field_name}.h5", field_name=field_name)
+            write_hdf5_file(field_interpol, reference_mesh, fname=os.path.join(ref_dir, f"{field_name}.h5"), field_name=field_name)
 
             # write parameter file
-            with open(f"{ref_dir}/par.json", "w") as f:
+            with open(os.path.join(ref_dir, "par.json"), "w") as f:
                 ref_par = self._reference_parameters_dict(gear, domain_size)
                 ref_par.update({
                     "shape": "cylinder",
@@ -368,10 +376,11 @@ class SpurGearsProblem:
                 f.write(json.dumps(ref_par))
         else:
             # read the reference mesh
-            reference_mesh = read_mesh(f"{ref_dir}/reference_mesh.xdmf")
+            reference_mesh = read_mesh(os.path.join(ref_dir, "reference_mesh.xdmf"))
 
         # read reference field from hd5f file
-        reference_field = read_hd5f_file(f"{ref_dir}/{field_name}.h5", field_name, reference_mesh, cell_type, p_deg, vector_valued=vector_valued)
+        reference_field = read_hd5f_file(os.path.join(ref_dir, f"{field_name}.h5"), field_name, 
+                                         reference_mesh, cell_type, p_deg, vector_valued=vector_valued)
 
         # set reference field and mesh for gear
         gear.set_reference_mesh(reference_mesh, field_name)
@@ -411,13 +420,13 @@ class SpurGearsProblem:
         else:
             x_axis = np.array([0., -1., 0.])
 
-        ref_path = self._main_dir + "/data/reference"
+        ref_path = os.path.join(self._main_dir, "data", "reference")
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
 
-        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - np.pi / self.lg.p, \
-                                                        angle_stop=beta / 2, x_M_ref=self.lg.x_M, \
-                                                        x_axis=x_axis, fname=ref_path + f"/reference_segment_{id(self)}", \
+        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - np.pi / self.lg.p,
+                                                        angle_stop=beta / 2, x_M_ref=self.lg.x_M, x_axis=x_axis,
+                                                        fname=os.path.join(ref_path, f"reference_segment_{id(self)}"),
                                                         pad=False, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 
     def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
@@ -487,7 +496,7 @@ class SpurGearsProblem:
         # initialize the sum over all fields
         field_sum = 0.
 
-        print(f"Interpolating field of gear... ", end="")
+        print("Interpolating field of gear... ", end="")
         # interpolate field for every magnet and add it to the sum
         for mag in gear.magnets:
             print("Interpolating field of magnet...", end="")
@@ -694,8 +703,9 @@ class SpurGearsProblem:
             kwargs (any): Input to gear's mesh function.
         """
         # create directory if it does not exist
-        if not os.path.exists(self._main_dir + "/data/gears/"):
-            os.makedirs(self._main_dir + "/data/gears/")
+        gear_dir = os.path.join(self._main_dir, "data", "gears")
+        if not os.path.exists(gear_dir):
+            os.makedirs(gear_dir)
         if gear is self.gear_1:
             dir_name = "gear_1"
         elif gear is self.gear_2:
@@ -703,17 +713,17 @@ class SpurGearsProblem:
         else:
             raise RuntimeError()
 
-        target_dir = f"{self._main_dir}/data/gears/{dir_name}"
+        target_dir = os.path.join(self._main_dir, "data", "gears", dir_name)
         if not os.path.exists(target_dir):
             os.mkdir(target_dir)
-        fname = kwargs["fname"] 
-        kwargs.update({"fname": f"{target_dir}/{fname}"})
+        fname = kwargs["fname"]
+        kwargs.update({"fname": os.path.join(target_dir, fname)})
 
         mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags \
             = gear.mesh_gear(gear, **kwargs)
 
         gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
-            magnet_boundary_subdomain_tags)
+                                       magnet_boundary_subdomain_tags)
 
     def remove_magnets(self, gear: MagneticGear, D_ref):
         """
