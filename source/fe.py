@@ -118,7 +118,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
             mesh_size_field_thickness = magnet.size + 1e-3
 
     if mesh_size_space is None:
-        mesh_size_space = 10.
+        mesh_size_space = 8.
 
     if R_domain <= magnet.size:
         R_domain = magnet.size + mesh_size_magnet
@@ -129,6 +129,9 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
             R_inf = R_domain + mesh_size_space
         else:
             R_inf = 50 * magnet.size
+    
+    if 10 * mesh_size_domain_min > magnet.size:
+        mesh_size_magnet = magnet.size / 10
 
     if write_to_pvd:
         assert fname is not None
@@ -179,8 +182,6 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
 
     # set cylinder mesh size field
     if cylinder_mesh_size_field:
-        print(mesh_size_domain_min, mesh_size_space)
-        # line distance field
         cylinder_ms_field = model.mesh.field.add("Cylinder")
         model.mesh.field.setNumber(cylinder_ms_field, "Radius", R_domain)
         model.mesh.field.setNumber(cylinder_ms_field, "VIn", mesh_size_domain_min)
@@ -194,7 +195,6 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
  
         ms_fields = [mag_field_tag, cylinder_ms_field]
     else:
-        # set domain mesh size
         # add distance field
         mid_point = model.occ.addPoint(*magnet.x_M)
         model.occ.synchronize()
