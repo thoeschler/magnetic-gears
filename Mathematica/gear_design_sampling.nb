@@ -1,0 +1,201 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 10.2' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      5811,        192]
+NotebookOptionsPosition[      4952,        161]
+NotebookOutlinePosition[      5471,        178]
+CellTagsIndexPosition[      5428,        175]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Bar Magnet", "Section",
+ CellChangeTimes->{{3.889794904804872*^9, 3.889794906367723*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", " ", 
+   RowBox[{
+   "depth", " ", "of", " ", "first", " ", "and", " ", "second", " ", "gear"}],
+    " ", "*)"}], "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"d1", "=", 
+     RowBox[{
+      RowBox[{"Tan", "[", 
+       RowBox[{"\[Pi]", "/", "p1"}], "]"}], "*", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"2", "*", "R1Bar"}], "-", "t1Bar"}], ")"}]}]}], ";"}], 
+   "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"d2", "=", 
+     RowBox[{
+      RowBox[{"Tan", "[", 
+       RowBox[{"\[Pi]", "/", "p2"}], "]"}], "*", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"2", "*", "R2Bar"}], "-", "t2Bar"}], ")"}]}]}], ";"}], 
+   "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Ro1Bar", "=", 
+     RowBox[{"R1Bar", "+", 
+      RowBox[{"t1Bar", "/", "2"}]}]}], ";"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Ro2Bar", "=", 
+     RowBox[{"R2Bar", "+", 
+      RowBox[{"t2Bar", "/", "2"}]}]}], ";"}]}]}]], "Input",
+ CellChangeTimes->{{3.889782212643157*^9, 3.889782288411145*^9}, {
+  3.8897824602571983`*^9, 3.889782474047*^9}, {3.8897826238060713`*^9, 
+  3.889782627081463*^9}, {3.88988767086302*^9, 3.889887673033794*^9}, {
+  3.889940064427182*^9, 3.889940173707377*^9}}],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"d2", "==", "d1"}], "&&", 
+    RowBox[{
+     RowBox[{"t2Bar", "/", "Ro2Bar"}], "\[Equal]", 
+     RowBox[{"t1Bar", "/", "Ro1Bar"}]}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"R2Bar", ",", "t2Bar"}], "}"}], ",", "Reals"}], "]"}]], "Input",
+ CellChangeTimes->{{3.889782266071623*^9, 3.8897822739238367`*^9}, {
+  3.88978235886043*^9, 3.889782443746725*^9}, {3.889782550008625*^9, 
+  3.889782566066669*^9}, {3.889887634614624*^9, 3.889887678233142*^9}, {
+  3.889940127315962*^9, 3.889940146067547*^9}, {3.889940181639888*^9, 
+  3.8899402073652983`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"R2Bar", "\[Rule]", 
+     RowBox[{"R1Bar", " ", 
+      RowBox[{"Cot", "[", 
+       FractionBox["\[Pi]", "p2"], "]"}], " ", 
+      RowBox[{"Tan", "[", 
+       FractionBox["\[Pi]", "p1"], "]"}]}]}], ",", 
+    RowBox[{"t2Bar", "\[Rule]", 
+     RowBox[{"t1Bar", " ", 
+      RowBox[{"Cot", "[", 
+       FractionBox["\[Pi]", "p2"], "]"}], " ", 
+      RowBox[{"Tan", "[", 
+       FractionBox["\[Pi]", "p1"], "]"}]}]}]}], "}"}], "}"}]], "Output",
+ CellChangeTimes->{{3.889940182106962*^9, 3.889940189020877*^9}, 
+   3.889940219054645*^9}]
+}, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Cylinder Segment", "Section",
+ CellChangeTimes->{{3.889794913952908*^9, 3.889794915720677*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"\[Alpha]1", "=", 
+   RowBox[{"2", 
+    RowBox[{"\[Pi]", "/", "p1"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"\[Alpha]2", "=", 
+   RowBox[{"2", 
+    RowBox[{"\[Pi]", "/", "p2"}]}]}], ";"}]}], "Input",
+ CellChangeTimes->{{3.8897950411152477`*^9, 3.889795058181162*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"A1", "=", 
+   RowBox[{"\[Alpha]1", "*", "Ro1"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"A2", "=", 
+   RowBox[{"\[Alpha]2", "*", "Ro2"}]}], ";"}]}], "Input",
+ CellChangeTimes->{{3.889795070619338*^9, 3.8897951096066236`*^9}, {
+  3.889795184816662*^9, 3.889795186827738*^9}, {3.889887557127836*^9, 
+  3.8898875665222673`*^9}}],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{"t1", "/", "Ro1"}], "\[Equal]", 
+     RowBox[{"t2", "/", "Ro2"}]}], "&&", 
+    RowBox[{"A1", "\[Equal]", "A2"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"Ro2", ",", "t2"}], "}"}]}], "]"}]], "Input",
+ CellChangeTimes->{{3.8897951203715153`*^9, 3.889795156769191*^9}, {
+  3.8898875773117323`*^9, 3.889887578566465*^9}, {3.88988769300453*^9, 
+  3.88988769633559*^9}}],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"Ro2", "\[Rule]", 
+     FractionBox[
+      RowBox[{"p2", " ", "Ro1"}], "p1"]}], ",", 
+    RowBox[{"t2", "\[Rule]", 
+     FractionBox[
+      RowBox[{"p2", " ", "t1"}], "p1"]}]}], "}"}], "}"}]], "Output",
+ CellChangeTimes->{
+  3.889795157519167*^9, 3.889795194907091*^9, {3.889887573112503*^9, 
+   3.8898875862045918`*^9}, {3.8898876853956127`*^9, 3.889887696634755*^9}}]
+}, Open  ]]
+}, Open  ]]
+},
+WindowSize->{1918, 1009},
+WindowMargins->{{-9, Automatic}, {Automatic, -8}},
+FrontEndVersion->"10.2 for Linux x86 (64-bit) (July 6, 2015)",
+StyleDefinitions->FrontEnd`FileName[{$RootDirectory, "usr", "local", 
+   "Wolfram", "Mathematica", "10.2", "SystemFiles", "FrontEnd", "StyleSheets",
+    "Report"}, "StandardReport.nb", CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 95, 1, 69, "Section"],
+Cell[678, 25, 1237, 36, 130, "Input"],
+Cell[CellGroupData[{
+Cell[1940, 65, 618, 14, 41, "Input"],
+Cell[2561, 81, 599, 17, 114, "Output"]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[3209, 104, 101, 1, 69, "Section"],
+Cell[3313, 107, 319, 9, 64, "Input"],
+Cell[3635, 118, 375, 9, 64, "Input"],
+Cell[CellGroupData[{
+Cell[4035, 131, 448, 12, 41, "Input"],
+Cell[4486, 145, 438, 12, 60, "Output"]
+}, Open  ]]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)

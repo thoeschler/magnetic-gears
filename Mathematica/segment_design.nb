@@ -10,14 +10,19 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[      2968,         95]
-NotebookOptionsPosition[      2443,         76]
-NotebookOutlinePosition[      2962,         93]
-CellTagsIndexPosition[      2919,         90]
+NotebookDataLength[      5678,        179]
+NotebookOptionsPosition[      5041,        156]
+NotebookOutlinePosition[      5560,        173]
+CellTagsIndexPosition[      5517,        170]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
+
+Cell[CellGroupData[{
+Cell["Compute enclosing angle for reference segment", "Section",
+ CellChangeTimes->{{3.890454957067486*^9, 3.8904549928245277`*^9}}],
+
 Cell[BoxData[{
  RowBox[{
   RowBox[{"\[DoubleStruckX]", "=", 
@@ -30,48 +35,123 @@ Cell[BoxData[{
  RowBox[{
   RowBox[{"\[DoubleStruckX]M", "=", 
    RowBox[{"{", 
-    RowBox[{"R", ",", "0"}], "}"}]}], ";"}]}], "Input",
+    RowBox[{"D", ",", "0"}], "}"}]}], ";"}]}], "Input",
  CellChangeTimes->{{3.889099107701501*^9, 3.88909911013326*^9}, {
-  3.889099141696286*^9, 3.889099221962611*^9}}],
+   3.889099141696286*^9, 3.889099221962611*^9}, 3.889668487460332*^9, {
+   3.8904550001280727`*^9, 3.890455027945282*^9}}],
 
 Cell[CellGroupData[{
 
 Cell[BoxData[
- RowBox[{"Refine", "[", 
+ RowBox[{"Solve", "[", 
   RowBox[{
-   RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"Norm", "[", 
+      RowBox[{"\[DoubleStruckX]", "-", "\[DoubleStruckX]M"}], "]"}], 
+     "\[Equal]", "Rz"}], "&&", 
     RowBox[{
      RowBox[{
-      RowBox[{
-       RowBox[{"Norm", "[", 
-        RowBox[{"\[DoubleStruckX]", "-", "\[DoubleStruckX]M"}], "]"}], "==", 
-       "r"}], "&&", 
-      RowBox[{
-       RowBox[{
-        RowBox[{"(", 
-         RowBox[{"\[DoubleStruckX]", "-", "\[DoubleStruckX]M"}], ")"}], ".", 
-        "\[DoubleStruckX]"}], "\[Equal]", "0"}]}], ",", 
-     RowBox[{"{", 
-      RowBox[{"b", ",", "\[Phi]"}], "}"}]}], "]"}], ",", 
+      RowBox[{"(", 
+       RowBox[{"\[DoubleStruckX]", "-", "\[DoubleStruckX]M"}], ")"}], ".", 
+      "\[DoubleStruckX]"}], "\[Equal]", "0"}]}], ",", 
    RowBox[{"{", 
-    RowBox[{
-     RowBox[{"b", ">", "0"}], ",", 
-     RowBox[{"R", ">", "0"}], ",", 
-     RowBox[{"r", "<", "R"}]}], "}"}]}], "]"}]], "Input",
+    RowBox[{"b", ",", "\[Phi]"}], "}"}]}], "]"}]], "Input",
  CellChangeTimes->{{3.889099198884821*^9, 3.889099283580329*^9}, {
   3.889099341155295*^9, 3.88909935954528*^9}, {3.8890994189643106`*^9, 
   3.889099438922773*^9}, {3.889099504182992*^9, 3.88909950447873*^9}, {
   3.889099781079508*^9, 3.889099794019999*^9}, {3.889099836674489*^9, 
   3.889099874557044*^9}, {3.889099913074033*^9, 3.889099920615952*^9}, {
   3.889099951606138*^9, 3.889099977947691*^9}, {3.889100012916203*^9, 
-  3.889100014932151*^9}}],
+  3.8891000369787207`*^9}, {3.889668504199235*^9, 3.8896685051435738`*^9}}],
 
 Cell[BoxData[
- RowBox[{"{", "}"}]], "Output",
+ RowBox[{
+  StyleBox[
+   RowBox[{"Solve", "::", "ifun"}], "MessageName"], 
+  RowBox[{
+  ":", " "}], "\<\"Inverse functions are being used by \
+\[NoBreak]\\!\\(Solve\\)\[NoBreak], so some solutions may not be found; use \
+Reduce for complete solution information. \\!\\(\\*ButtonBox[\\\"\
+\[RightSkeleton]\\\", ButtonStyle->\\\"Link\\\", ButtonFrame->None, \
+ButtonData:>\\\"paclet:ref/message/Solve/ifun\\\", ButtonNote -> \
+\\\"Solve::ifun\\\"]\\)\"\>"}]], "Message", "MSG",
+ CellChangeTimes->{
+  3.889100037529711*^9, 3.8896683648047*^9, {3.889668492414836*^9, 
+   3.8896685058199244`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"b", "\[Rule]", 
+      RowBox[{"-", 
+       SqrtBox[
+        RowBox[{
+         SuperscriptBox["D", "2"], "-", 
+         SuperscriptBox["Rz", "2"]}]]}]}], ",", 
+     RowBox[{"\[Phi]", "\[Rule]", 
+      RowBox[{"-", 
+       RowBox[{"ArcCos", "[", 
+        RowBox[{"-", 
+         FractionBox[
+          SqrtBox[
+           RowBox[{
+            SuperscriptBox["D", "2"], "-", 
+            SuperscriptBox["Rz", "2"]}]], "D"]}], "]"}]}]}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"b", "\[Rule]", 
+      RowBox[{"-", 
+       SqrtBox[
+        RowBox[{
+         SuperscriptBox["D", "2"], "-", 
+         SuperscriptBox["Rz", "2"]}]]}]}], ",", 
+     RowBox[{"\[Phi]", "\[Rule]", 
+      RowBox[{"ArcCos", "[", 
+       RowBox[{"-", 
+        FractionBox[
+         SqrtBox[
+          RowBox[{
+           SuperscriptBox["D", "2"], "-", 
+           SuperscriptBox["Rz", "2"]}]], "D"]}], "]"}]}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"b", "\[Rule]", 
+      SqrtBox[
+       RowBox[{
+        SuperscriptBox["D", "2"], "-", 
+        SuperscriptBox["Rz", "2"]}]]}], ",", 
+     RowBox[{"\[Phi]", "\[Rule]", 
+      RowBox[{"-", 
+       RowBox[{"ArcCos", "[", 
+        FractionBox[
+         SqrtBox[
+          RowBox[{
+           SuperscriptBox["D", "2"], "-", 
+           SuperscriptBox["Rz", "2"]}]], "D"], "]"}]}]}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"b", "\[Rule]", 
+      SqrtBox[
+       RowBox[{
+        SuperscriptBox["D", "2"], "-", 
+        SuperscriptBox["Rz", "2"]}]]}], ",", 
+     RowBox[{"\[Phi]", "\[Rule]", 
+      RowBox[{"ArcCos", "[", 
+       FractionBox[
+        SqrtBox[
+         RowBox[{
+          SuperscriptBox["D", "2"], "-", 
+          SuperscriptBox["Rz", "2"]}]], "D"], "]"}]}]}], "}"}]}], 
+  "}"}]], "Output",
  CellChangeTimes->{
   3.889099216242537*^9, {3.889099434686614*^9, 3.889099439355545*^9}, 
    3.889099505130376*^9, 3.889099875923581*^9, 3.889099921626811*^9, 
-   3.889099955081555*^9}]
+   3.889099955081555*^9, 3.889100037532713*^9, 3.8896683648156443`*^9, {
+   3.889668492416566*^9, 3.889668505822175*^9}}]
+}, Open  ]]
 }, Open  ]]
 },
 WindowSize->{1918, 1009},
@@ -92,10 +172,14 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[558, 20, 487, 14, 64, "Input"],
 Cell[CellGroupData[{
-Cell[1070, 38, 1122, 28, 41, "Input"],
-Cell[2195, 68, 232, 5, 41, "Output"]
+Cell[580, 22, 132, 1, 69, "Section"],
+Cell[715, 25, 562, 15, 64, "Input"],
+Cell[CellGroupData[{
+Cell[1302, 44, 959, 21, 41, "Input"],
+Cell[2264, 67, 606, 13, 24, "Message"],
+Cell[2873, 82, 2140, 70, 70, "Output"]
+}, Open  ]]
 }, Open  ]]
 }
 ]
