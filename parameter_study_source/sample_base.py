@@ -2,8 +2,8 @@ import dolfin as dlf
 import numpy as np
 import pandas as pd
 import json
-from math import ceil
-from source.magnetic_gear_classes import MagneticBallGear, MagneticBarGear, SegmentGear, MagneticGear
+import os
+from source.magnetic_gear_classes import MagneticGear
 from spur_gears.spur_gears_problem import SpurGearsProblem
 from source.grid_generator import gear_mesh
 
@@ -48,7 +48,7 @@ class SpurGearsSampling(SpurGearsProblem):
             # update segment
             self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
 
-    def sample(self, n_iterations, data_dir, p_deg=2):
+    def sample(self, angles_1, angles_2, data_dir, p_deg=2):
         """
         Sample torque values.
 
@@ -57,20 +57,10 @@ class SpurGearsSampling(SpurGearsProblem):
             data_dir (str): Directory where sampling data shall be saved.
             p_deg (int, optional): Polynomial degree used for computation. Defaults to 2.
         """
-        angle_1_lim = [- np.pi / self.gear_1.p, np.pi / self.gear_1.p]
-        angle_2_lim = [- np.pi / self.gear_2.p, np.pi / self.gear_2.p]
-        if self.gear_1 is self.lg:
-            angle_1_lim[0] = 0.
-            n1 = ceil(n_iterations / 2)
-            n2 = n_iterations
-        elif self.gear_2 is self.lg:
-            angle_2_lim[0] = 0.
-            n1 = n_iterations
-            n2 = ceil(n_iterations / 2)
-        angles_1 = np.linspace(*angle_1_lim, num=n1, endpoint=True)
-        angles_2 = np.linspace(*angle_2_lim, num=n2, endpoint=True)
         d_angle_1 = angles_1[1] - angles_1[0]
         d_angle_2 = angles_2[1] - angles_2[0]
+        n1 = angles_1.size
+        n2 = angles_2.size
 
         assert np.isclose(self.gear_1.angle, 0.)
         assert np.isclose(self.gear_2.angle, 0.)
@@ -111,15 +101,20 @@ class SpurGearsSampling(SpurGearsProblem):
             assert np.isclose(self.gear_2.angle, angles_2[0])
 
             # update csv files
-            pd.DataFrame(tau_12_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/{data_dir}/tau_12.csv")
-            pd.DataFrame(tau_21_values, index=angles_1, columns=angles_2).to_csv(f"{self._main_dir}/{data_dir}/tau_21.csv")
+            pd.DataFrame(tau_12_values, index=angles_1, columns=angles_2).to_csv(
+                os.path.join(self._main_dir, data_dir, "tau_12.csv")
+                )
+            pd.DataFrame(tau_21_values, index=angles_1, columns=angles_2).to_csv(
+                os.path.join(self._main_dir, data_dir, "tau_21.csv")
+                )
 
             # rotate second gear
+            dlf.File("mesh.pvd") << self.sg.mesh
             self.update_gear(self.gear_1, d_angle=d_angle_1)
 
 
 def write_parameter_file(problem, sample_dir):
-    with open(sample_dir + "/par.json", "w") as f:
+    with open(os.path.join(sample_dir, "par.json"), "w") as f:
         par = {
             "gear_1": problem.gear_1.parameters,
             "gear_2": problem.gear_2.parameters,

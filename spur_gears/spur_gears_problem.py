@@ -322,7 +322,7 @@ class SpurGearsProblem:
 
             # for the segment gear no analytical solution is available: compute potential numerically
             if not analytical_solution:
-                fname = os.path.join(self._main_dir, "data", "Vm_{id(self)}")
+                fname = os.path.join(self._main_dir, "data", f"Vm_{id(self)}")
                 # radius of sphere has to be larger such that it contains the cylinder
                 ref_radius = np.sqrt(domain_size ** 2 + thickness ** 2 / 4) + 1e-3
                 field_num = compute_magnetic_potential(ref_mag, ref_radius, R_inf=R_inf, mesh_size_magnet=mesh_size_min,
@@ -345,7 +345,7 @@ class SpurGearsProblem:
             else:
                 create_reference_mesh(ref_mag, domain_size / gear.scale_parameter, mesh_size_min, 
                                       mesh_size_max, shape="cylinder", thickness=thickness, d=d,
-                                      fname=os.path.join(ref_dir, "reference_mesh.xdmf")
+                                      fname=os.path.join(ref_dir, "reference_mesh")
                                       )
                 # read reference mesh
                 reference_mesh = read_mesh(os.path.join(ref_dir, "reference_mesh.xdmf"))
@@ -386,7 +386,8 @@ class SpurGearsProblem:
         gear.set_reference_mesh(reference_mesh, field_name)
         gear.set_reference_field(reference_field, field_name)
 
-    def mesh_reference_segment(self, mesh_size, write_to_pvd=False):
+    def mesh_reference_segment(self, mesh_size, phi_sg_min, phi_sg_max, phi_lg_min,
+                               phi_lg_max, write_to_pvd=False):
         """Create mesh of reference cylinder segment.
 
         Args:
@@ -405,14 +406,12 @@ class SpurGearsProblem:
         # set outer segment radius
         # alpha_r is the angle that is "removed" from the smaller gear if magnets
         # are removed
-        # "-1" to allow rotation by +- pi / n
-        # => assume one magnet less has been removed
         if self.sg.p > len(self.sg.magnets):
-            alpha_r = np.pi / self.sg.p * (self.sg.p - len(self.sg.magnets) - 1)
+            alpha_r = 2 * np.pi / self.sg.p * (self.sg.p - len(self.sg.magnets)) - 2 * np.max(np.abs((phi_sg_min, phi_sg_max)))
         else:
             alpha_r = 0.
         # outer segment radius
-        Ro = np.sqrt((self.D + self.sg.outer_radius * np.cos(alpha_r)) ** 2 + (self.sg.outer_radius * np.sin(alpha_r)) ** 2)
+        Ro = np.sqrt((self.D + self.sg.outer_radius * np.cos(alpha_r / 2)) ** 2 + (self.sg.outer_radius * np.sin(alpha_r / 2)) ** 2)
 
         # x_axis of segment (for angle)
         if self.sg.x_M[1] > self.lg.x_M[1]:
@@ -424,8 +423,8 @@ class SpurGearsProblem:
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
 
-        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - np.pi / self.lg.p,
-                                                        angle_stop=beta / 2, x_M_ref=self.lg.x_M, x_axis=x_axis,
+        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - phi_lg_max,
+                                                        angle_stop=beta / 2 + phi_lg_min, x_M_ref=self.lg.x_M, x_axis=x_axis,
                                                         fname=os.path.join(ref_path, f"reference_segment_{id(self)}"),
                                                         pad=False, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 

@@ -41,7 +41,7 @@ def write_file(pole_numbers, torque_values, fname):
             f.write(f"{p} {tau} \n")
 
 def process_parameter_study_gr_R_p():
-    gear_ratio_names = ["gear_ratio_1p0", "gear_ratio_1p4"]#, "gear_ratio_2p0", "gear_ratio_2p4"]
+    gear_ratio_names = ["gear_ratio_1p0", "gear_ratio_1p4", "gear_ratio_2p0", "gear_ratio_2p4"]
     w1_names = ["w1_1p5", "w1_3p0", "w1_5p0"]
     # In the computation the lengths are scaled differently. In order to get equal values for the distance
     # d and the width as well as different radii R we need to rescale the torque values by a length factor
@@ -67,12 +67,12 @@ def process_parameter_study_gr_R_p():
             write_file(p_values, tau_12_values, os.path.join(target_dir_name, "tau_12.csv"))
             write_file(p_values, tau_21_values, os.path.join(target_dir_name, "tau_21.csv"))
 
-def process_parameter_study_d_p():
+def process_parameter_study_a_p():
     d_names = ["d_0p05", "d_0p1", "d_0p2", "d_0p4"]
 
     for d in d_names:
         # set directory names
-        source_dir_name = os.path.join("/home/thilo/Dropbox/magnetic gears/python/parameter_study_d", d)
+        source_dir_name = os.path.join("/home/thilo/Dropbox/magnetic gears/python/parameter_study_a_p", d)
         target_dir_name = os.path.join(source_dir_name)
 
         # load torque and pole number values
@@ -85,7 +85,6 @@ def process_parameter_study_d_p():
         write_file(p_values, tau_21_values, os.path.join(target_dir_name, "tau_21.csv"))
 
 
-
 if __name__ == "__main__":
-    process_parameter_study_d_p()
-    #process_parameter_study_gr_R_p()
+    #process_parameter_study_a_p()
+    process_parameter_study_gr_R_p()

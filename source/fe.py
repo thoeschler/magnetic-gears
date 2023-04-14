@@ -40,11 +40,11 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
         assert fname is not None
 
     mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag = \
-        magnet_mesh(magnet, R_domain=R_domain, R_inf=R_inf, \
-                    mesh_size_magnet=mesh_size_magnet, mesh_size_domain_min=mesh_size_domain_min, \
-                        mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_space, \
-                            cylinder_mesh_size_field=cylinder_mesh_size_field, \
-                                mesh_size_field_thickness=mesh_size_field_thickness, \
+        magnet_mesh(magnet, R_domain=R_domain, R_inf=R_inf,
+                    mesh_size_magnet=mesh_size_magnet, mesh_size_domain_min=mesh_size_domain_min,
+                        mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_space,
+                            cylinder_mesh_size_field=cylinder_mesh_size_field,
+                                mesh_size_field_thickness=mesh_size_field_thickness,
                                     fname=fname, write_to_pvd=write_to_pvd)
 
     # magnetization

@@ -2,6 +2,7 @@ import numpy as np
 import itertools as it
 import sys
 import os
+from math import ceil
 from source.magnetic_gear_classes import SegmentGear
 from parameter_study_source.sample_base import SpurGearsSampling, write_parameter_file
 
@@ -18,12 +19,12 @@ def sample_segment(n_iterations, par_number):
     w2 = w1
 
     # create sample directory
-    sample_dir = "parameter_study_d"
+    sample_dir = "parameter_study_a_p"
     if not os.path.exists(sample_dir):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.25
+    mesh_size = 0.85
     p_deg = 2
 
     par_list = list(it.product(d_values, p_values))
@@ -55,16 +56,45 @@ def sample_segment(n_iterations, par_number):
                     fname=f"gear_{1 if sampling.sg is sampling.gear_1 else 2}_{id(sampling)}", \
                     write_to_pvd=False)
 
-    # mesh the segment
+    # set angles for sampling
+    if sampling.gear_1 is sampling.lg:
+        angle_1_min = 0.
+        angle_1_max = np.pi / sampling.gear_1.p
+        angle_2_min = - np.pi / sampling.gear_2.p
+        angle_2_max = np.pi / sampling.gear_2.p
+        phi_sg_min = angle_2_min
+        phi_sg_max = angle_2_max
+        phi_lg_min = angle_1_min
+        phi_lg_max = angle_1_max
+        n1 = ceil(n_iterations / 2)
+        n2 = n_iterations
+    elif sampling.gear_2 is sampling.lg:
+        angle_1_min = - np.pi / sampling.gear_1.p
+        angle_1_max = np.pi / sampling.gear_1.p
+        angle_2_min = 0.
+        angle_2_max = np.pi / sampling.gear_2.p
+        phi_sg_min = angle_1_min
+        phi_sg_max = angle_1_max
+        phi_lg_min = angle_2_min
+        phi_lg_max = angle_2_max
+        n1 = n_iterations
+        n2 = ceil(n_iterations / 2)
+    angles_1 = np.linspace(angle_1_min, angle_1_max, num=n1, endpoint=True)
+    angles_2 = np.linspace(angle_2_min, angle_2_max, num=n2, endpoint=True)
+
+    # load reference field
     sampling.load_reference_field(sampling.lg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size, \
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size, \
-                                    analytical_solution=False, write_to_pvd=False)
-    sampling.mesh_reference_segment(mesh_size, write_to_pvd=False)
+                                    analytical_solution=False, write_to_pvd=True)
+
+    # create reference segment
+    sampling.mesh_reference_segment(mesh_size, phi_sg_min=phi_sg_min, phi_sg_max=phi_sg_max,
+                                    phi_lg_min=phi_lg_min, phi_lg_max=phi_lg_max, write_to_pvd=True)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, target_dir)
 
-    sampling.sample(n_iterations, data_dir=data_dir, p_deg=p_deg)
+    sampling.sample(angles_1, angles_2, data_dir=data_dir, p_deg=p_deg)
 
 if __name__ == "__main__":
     par_number = int(sys.argv[1])
