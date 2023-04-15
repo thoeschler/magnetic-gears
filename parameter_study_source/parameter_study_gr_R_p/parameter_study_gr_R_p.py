@@ -65,10 +65,10 @@ def sample_ball(n_iterations, par_number):
         angle_1_max = np.pi / sampling.gear_1.p
         angle_2_min = - np.pi / sampling.gear_2.p
         angle_2_max = np.pi / sampling.gear_2.p
-        phi_sg_min = angle_2_min
-        phi_sg_max = angle_2_max
-        phi_lg_min = angle_1_min
-        phi_lg_max = angle_1_max
+        phi_sg_min = angle_1_min
+        phi_sg_max = angle_1_max
+        phi_lg_min = angle_2_min
+        phi_lg_max = angle_2_max
         n1 = ceil(n_iterations / 2)
         n2 = n_iterations
     elif sampling.gear_2 is sampling.sg:
@@ -76,10 +76,10 @@ def sample_ball(n_iterations, par_number):
         angle_1_max = np.pi / sampling.gear_1.p
         angle_2_min = 0.
         angle_2_max = np.pi / sampling.gear_2.p
-        phi_sg_min = angle_1_min
-        phi_sg_max = angle_1_max
-        phi_lg_min = angle_2_min
-        phi_lg_max = angle_2_max
+        phi_sg_min = angle_2_min
+        phi_sg_max = angle_2_max
+        phi_lg_min = angle_1_min
+        phi_lg_max = angle_1_max
         n1 = n_iterations
         n2 = ceil(n_iterations / 2)
     angles_1 = np.linspace(angle_1_min, angle_1_max, num=n1, endpoint=True)
@@ -177,10 +177,10 @@ def sample_bar(n_iterations, par_number):
         angle_1_max = np.pi / sampling.gear_1.p
         angle_2_min = - np.pi / sampling.gear_2.p
         angle_2_max = np.pi / sampling.gear_2.p
-        phi_sg_min = angle_2_min
-        phi_sg_max = angle_2_max
-        phi_lg_min = angle_1_min
-        phi_lg_max = angle_1_max
+        phi_sg_min = angle_1_min
+        phi_sg_max = angle_1_max
+        phi_lg_min = angle_2_min
+        phi_lg_max = angle_2_max
         n1 = ceil(n_iterations / 2)
         n2 = n_iterations
     elif sampling.gear_2 is sampling.sg:
@@ -188,10 +188,10 @@ def sample_bar(n_iterations, par_number):
         angle_1_max = np.pi / sampling.gear_1.p
         angle_2_min = 0.
         angle_2_max = np.pi / sampling.gear_2.p
-        phi_sg_min = angle_1_min
-        phi_sg_max = angle_1_max
-        phi_lg_min = angle_2_min
-        phi_lg_max = angle_2_max
+        phi_sg_min = angle_2_min
+        phi_sg_max = angle_2_max
+        phi_lg_min = angle_1_min
+        phi_lg_max = angle_1_max
         n1 = n_iterations
         n2 = ceil(n_iterations / 2)
     angles_1 = np.linspace(angle_1_min, angle_1_max, num=n1, endpoint=True)
@@ -223,7 +223,7 @@ def sample_segment(n_iterations, par_number):
         os.mkdir(sample_dir)
 
     # set parameters
-    mesh_size = 0.25
+    mesh_size = 0.65
     p_deg = 2
 
     # parameters
@@ -274,7 +274,7 @@ def sample_segment(n_iterations, par_number):
     # mesh smaller gear
     sampling.mesh_gear(sampling.lg, mesh_size=mesh_size,
                        fname=f"gear_{1 if sampling.lg is sampling.gear_1 else 2}_{id(sampling)}",
-                        write_to_pvd=False)
+                        write_to_pvd=True)
 
     # set angles for sampling
     if sampling.gear_1 is sampling.sg:
@@ -282,10 +282,10 @@ def sample_segment(n_iterations, par_number):
         angle_1_max = np.pi / sampling.gear_1.p
         angle_2_min = - np.pi / sampling.gear_2.p
         angle_2_max = np.pi / sampling.gear_2.p
-        phi_sg_min = angle_2_min
-        phi_sg_max = angle_2_max
-        phi_lg_min = angle_1_min
-        phi_lg_max = angle_1_max
+        phi_sg_min = angle_1_min
+        phi_sg_max = angle_1_max
+        phi_lg_min = angle_2_min
+        phi_lg_max = angle_2_max
         n1 = ceil(n_iterations / 2)
         n2 = n_iterations
     elif sampling.gear_2 is sampling.sg:
@@ -293,10 +293,10 @@ def sample_segment(n_iterations, par_number):
         angle_1_max = np.pi / sampling.gear_1.p
         angle_2_min = 0.
         angle_2_max = np.pi / sampling.gear_2.p
-        phi_sg_min = angle_1_min
-        phi_sg_max = angle_1_max
-        phi_lg_min = angle_2_min
-        phi_lg_max = angle_2_max
+        phi_sg_min = angle_2_min
+        phi_sg_max = angle_2_max
+        phi_lg_min = angle_1_min
+        phi_lg_max = angle_1_max
         n1 = n_iterations
         n2 = ceil(n_iterations / 2)
     angles_1 = np.linspace(angle_1_min, angle_1_max, num=n1, endpoint=True)
@@ -305,11 +305,11 @@ def sample_segment(n_iterations, par_number):
     # load reference field
     sampling.load_reference_field(sampling.sg, "Vm", "CG", p_deg=p_deg, mesh_size_min=mesh_size,
                                     mesh_size_max=mesh_size, domain_size=sampling.domain_size,
-                                    analytical_solution=False, write_to_pvd=False)
+                                    analytical_solution=False, write_to_pvd=True)
 
     # create reference segment
     sampling.mesh_reference_segment(mesh_size, phi_sg_min=phi_sg_min, phi_sg_max=phi_sg_max,
-                                    phi_lg_min=phi_lg_min, phi_lg_max=phi_lg_max, write_to_pvd=False)
+                                    phi_lg_min=phi_lg_min, phi_lg_max=phi_lg_max, write_to_pvd=True)
     sampling.interpolate_to_reference_segment(p_deg=p_deg, interpolate="twice", use_Vm=True)
 
     write_parameter_file(sampling, target_dir)
