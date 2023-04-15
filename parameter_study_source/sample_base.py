@@ -41,10 +41,9 @@ class SpurGearsSampling(SpurGearsProblem):
         Args:
             gear (MagneticGear): A magnetic gear.
             d_angle (float): Angle increment.
-            update_segment (bool, optional): If true update the segment as well. Defaults to False.
         """
         gear.update_parameters(d_angle)
-        if gear is self.lg:
+        if gear is self.sg:
             # update segment
             self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
 
@@ -77,8 +76,8 @@ class SpurGearsSampling(SpurGearsProblem):
                 # check angles
                 assert np.isclose(self.gear_1.angle, angles_1[i])
                 assert np.isclose(self.gear_2.angle, angles_2[j])
-                F_sg, tau_sg = self.compute_force_torque(p_deg, use_Vm=True)
-                tau_lg = (np.cross(self.lg.x_M - self.sg.x_M, F_sg) - tau_sg)[0]
+                F_lg, tau_lg = self.compute_force_torque(p_deg, use_Vm=True)
+                tau_sg = (np.cross(self.sg.x_M - self.lg.x_M, F_lg) - tau_lg)[0]
 
                 if self.gear_1 is self.sg:
                     tau_21 = tau_sg
@@ -109,7 +108,6 @@ class SpurGearsSampling(SpurGearsProblem):
                 )
 
             # rotate second gear
-            dlf.File("mesh.pvd") << self.sg.mesh
             self.update_gear(self.gear_1, d_angle=d_angle_1)
 
 

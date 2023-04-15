@@ -395,26 +395,26 @@ class SpurGearsProblem:
             write_to_pvd (bool, optional): If True write pvd files. Defaults to False.
         """
         # set geometrical paramters
-        t = self.sg.width  # segment thickness (width)
+        t = self.lg.width  # segment thickness (width)
 
         # angle to contain smaller gear
-        beta = np.abs(2 * np.arccos(np.sqrt(self.D ** 2 - self.sg.outer_radius ** 2) / self.D))
+        beta = np.abs(2 * np.arccos(np.sqrt(self.D ** 2 - self.lg.outer_radius ** 2) / self.D))
 
         # inner segment radius
-        Ri = self.D - self.sg.outer_radius
+        Ri = self.D - self.lg.outer_radius
 
         # set outer segment radius
         # alpha_r is the angle that is "removed" from the smaller gear if magnets
         # are removed
-        if self.sg.p > len(self.sg.magnets):
-            alpha_r = 2 * np.pi / self.sg.p * (self.sg.p - len(self.sg.magnets)) - 2 * np.max(np.abs((phi_sg_min, phi_sg_max)))
+        if self.lg.p > len(self.lg.magnets):
+            alpha_r = 2 * np.pi / self.lg.p * (self.lg.p - len(self.lg.magnets)) - 2 * np.max(np.abs((phi_lg_min, phi_lg_max)))
         else:
             alpha_r = 0.
         # outer segment radius
-        Ro = np.sqrt((self.D + self.sg.outer_radius * np.cos(alpha_r / 2)) ** 2 + (self.sg.outer_radius * np.sin(alpha_r / 2)) ** 2)
+        Ro = np.sqrt((self.D + self.lg.outer_radius * np.cos(alpha_r / 2)) ** 2 + (self.lg.outer_radius * np.sin(alpha_r / 2)) ** 2)
 
         # x_axis of segment (for angle)
-        if self.sg.x_M[1] > self.lg.x_M[1]:
+        if self.lg.x_M[1] > self.sg.x_M[1]:
             x_axis = np.array([0., 1., 0.])
         else:
             x_axis = np.array([0., -1., 0.])
@@ -423,14 +423,14 @@ class SpurGearsProblem:
         if not os.path.exists(ref_path):
             os.makedirs(ref_path)
 
-        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - phi_lg_max,
-                                                        angle_stop=beta / 2 + phi_lg_min, x_M_ref=self.lg.x_M, x_axis=x_axis,
+        self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - phi_sg_max,
+                                                        angle_stop=beta / 2 + phi_sg_min, x_M_ref=self.sg.x_M, x_axis=x_axis,
                                                         fname=os.path.join(ref_path, f"reference_segment_{id(self)}"),
                                                         pad=False, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 
     def interpolate_to_reference_segment(self, p_deg=2, interpolate="twice", use_Vm=True):
         """
-        Interpolate field of larger gear on reference segment.
+        Interpolate field of smaller gear on reference segment.
 
         Args:
             p_deg (int, optional): Polynomial degree. Defaults to 2.
@@ -442,18 +442,18 @@ class SpurGearsProblem:
         if interpolate == "twice":
             # interpolate fields of other gear on segment
             if use_Vm:
-                self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
+                self.Vm_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
                                                               use_ref_field=True)
             else:
-                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
+                self.B_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
                                                              use_ref_field=True)
         else:
             if use_Vm:
                 # interpolate fields of other gear on segment
-                self.Vm_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
+                self.Vm_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
                                                           use_ref_field=False)
             else:
-                self.B_segment = self.interpolate_field_gear(self.lg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
+                self.B_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
                                                          use_ref_field=False)
 
     def interpolate_field_gear(self, gear: MagneticGear, mesh, field_name, cell_type, p_deg, use_ref_field=True):
@@ -673,26 +673,26 @@ class SpurGearsProblem:
         # if interpolation is used, use the field on the segment
         if use_Vm:
             # create function on smaller gear
-            V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
-            Vm_lg = dlf.Function(V)
+            V = dlf.FunctionSpace(self.lg.mesh, "CG", p_deg)
+            Vm_sg = dlf.Function(V)
 
-            dlf.LagrangeInterpolator.interpolate(Vm_lg, Vm_seg)
-            B_lg = compute_current_potential(Vm_lg, project=False)
+            dlf.LagrangeInterpolator.interpolate(Vm_sg, Vm_seg)
+            B_sg = compute_current_potential(Vm_sg, project=False)
         else:
             # create function on smaller gear
-            V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
-            B_lg = dlf.Function(V)
+            V = dlf.VectorFunctionSpace(self.lg.mesh, "CG", p_deg)
+            B_sg = dlf.Function(V)
 
-            dlf.LagrangeInterpolator.interpolate(B_lg, B_seg)
+            dlf.LagrangeInterpolator.interpolate(B_sg, B_seg)
 
         # compute force
-        F = self.compute_force_on_gear(self.sg, B_lg, p_deg=p_deg)
-        F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
+        F = self.compute_force_on_gear(self.lg, B_sg, p_deg=p_deg)
+        F_lg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
 
         # compute torque
-        tau_sg = self.compute_torque_on_gear(self.sg, B_lg, p_deg=p_deg)
+        tau_lg = self.compute_torque_on_gear(self.lg, B_sg, p_deg=p_deg)
 
-        return F_sg, tau_sg
+        return F_lg, tau_lg
  
     def create_gear_mesh(self, gear: MagneticGear, **kwargs):
         """Mesh a gear.

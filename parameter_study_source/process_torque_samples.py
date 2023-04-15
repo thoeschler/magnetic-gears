@@ -41,7 +41,7 @@ def write_file(pole_numbers, torque_values, fname):
             f.write(f"{p} {tau} \n")
 
 def process_parameter_study_gr_R_p():
-    gear_ratio_names = ["gear_ratio_1p0", "gear_ratio_1p4", "gear_ratio_2p0", "gear_ratio_2p4"]
+    gear_ratio_names = ["gear_ratio_1p0", "gear_ratio_1p4", "gear_ratio_2p0"]#, "gear_ratio_2p4"]
     w1_names = ["w1_1p5", "w1_3p0", "w1_5p0"]
     # In the computation the lengths are scaled differently. In order to get equal values for the distance
     # d and the width as well as different radii R we need to rescale the torque values by a length factor
