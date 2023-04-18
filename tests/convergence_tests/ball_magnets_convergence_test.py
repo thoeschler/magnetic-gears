@@ -57,8 +57,8 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
             # first evaluate the field (Vm or B) on reference mesh
             ref_magnet = BallMagnet(1., 1., np.zeros(3), np.eye(3))
             D_max = distance_values.max() + mag_1.R + mag_2.R
-            create_reference_mesh(ref_magnet, domain_radius=(D_max + mag_2.R + 1e-1) / mag_1.R, \
-                                  mesh_size_min=ms / mag_1.R, mesh_size_max=ms / mag_1.R, \
+            create_reference_mesh(ref_magnet, domain_radius=(D_max + mag_2.R + 1e-1) / mag_1.R,
+                                  mesh_size_min=ms / mag_1.R, mesh_size_max=ms / mag_1.R,
                                     shape="sphere", fname="reference_mesh")
             reference_mesh = read_mesh("reference_mesh.xdmf")
             if use_Vm:
@@ -165,24 +165,25 @@ def convergence_test(distance_values, mesh_size_values, p_deg=1, interpolation=F
 
 if __name__ == "__main__":
     # create directory
-    if not os.path.exists("test_dir"):
-        os.mkdir("test_dir")
-    os.chdir("test_dir")
+    conv_dir = "ball_magnets_convergence_test"
+    if not os.path.exists(conv_dir):
+        os.mkdir(conv_dir)
+    os.chdir(conv_dir)
 
     # perform convergence test
     distance_values = np.array([0.1])
-    mesh_size_values = np.geomspace(5e-2, 1.0, num=6)
+    mesh_size_values = np.geomspace(5e-1, 1.0, num=6)
 
-    for p_deg in (2,):
+    for p_deg in (1, 2):
         # 1. no interpolation, use B directly
-        #convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
-        #                interpolation=False, use_Vm=False, directory=f"B_no_interpol_pdeg_{p_deg}")
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg,
+                        interpolation=False, use_Vm=False, directory=f"B_no_interpol_pdeg_{p_deg}")
         # 2. no interpolation, use Vm
-        #convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
-        #                 interpolation=False, use_Vm=True, directory=f"Vm_no_interpol_pdeg_{p_deg}")
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg,
+                        interpolation=False, use_Vm=True, directory=f"Vm_no_interpol_pdeg_{p_deg}")
         # 3. with interpolation, use B directly
-        #convergence_test(distance_values, mesh_size_values, p_deg=p_deg, \
-        #                interpolation=True, use_Vm=False, directory=f"B_interpol_pdeg_{p_deg}")
+        convergence_test(distance_values, mesh_size_values, p_deg=p_deg,
+                        interpolation=True, use_Vm=False, directory=f"B_interpol_pdeg_{p_deg}")
         # 4. with interpolation, use Vm
-        convergence_test(distance_values, mesh_size_values[1:], p_deg=p_deg, \
+        convergence_test(distance_values, mesh_size_values[1:], p_deg=p_deg,
                         interpolation=True, use_Vm=True, directory=f"Vm_interpol_pdeg_{p_deg}")

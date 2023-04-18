@@ -25,41 +25,41 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
                 gear.set_mesh_function(gear_mesh)
 
     def mesh_gear(self, gear, mesh_size, fname, write_to_pvd=True):
-        self.create_gear_mesh(gear, mesh_size=mesh_size, fname=fname, \
+        self.create_gear_mesh(gear, mesh_size=mesh_size, fname=fname,
                                 write_to_pvd=write_to_pvd)
 
     def compute_force_torque_num(self, p_deg=1, interpolate="never", use_Vm=False):
         if interpolate in ("once", "twice"):
-            F_sg, tau_sg = self.compute_force_torque(
+            F_lg, tau_lg = self.compute_force_torque(
                 p_deg=p_deg, use_Vm=use_Vm
                 )
         elif interpolate == "never":
             if use_Vm:
-                V = dlf.FunctionSpace(self.sg.mesh, "CG", p_deg)
-                Vm_lg_vec = 0.
-                for mag in self.lg.magnets:
-                    Vm_mag = interpolate_field(mag.Vm, self.sg.mesh, "CG", p_deg)
-                    Vm_lg_vec += Vm_mag.vector()
-                Vm_lg = dlf.Function(V, Vm_lg_vec)
-                B_lg = compute_current_potential(Vm_lg, project=True)
+                V = dlf.FunctionSpace(self.lg.mesh, "CG", p_deg)
+                Vm_sg_vec = 0.
+                for mag in self.sg.magnets:
+                    Vm_mag = interpolate_field(mag.Vm, self.lg.mesh, "CG", p_deg)
+                    Vm_sg_vec += Vm_mag.vector()
+                Vm_sg = dlf.Function(V, Vm_sg_vec)
+                B_sg = compute_current_potential(Vm_sg, project=True)
             else:
-                V = dlf.VectorFunctionSpace(self.sg.mesh, "CG", p_deg)
-                B_lg_vec = 0.
-                for mag in self.lg.magnets:
-                    B_mag = interpolate_field(mag.B, self.sg.mesh, "CG", p_deg)
-                    B_lg_vec += B_mag.vector()
-                B_lg = dlf.Function(V, B_lg_vec)
+                V = dlf.VectorFunctionSpace(self.lg.mesh, "CG", p_deg)
+                B_sg_vec = 0.
+                for mag in self.sg.magnets:
+                    B_mag = interpolate_field(mag.B, self.lg.mesh, "CG", p_deg)
+                    B_sg_vec += B_mag.vector()
+                B_sg = dlf.Function(V, B_sg_vec)
 
             # compute force
-            F = self.compute_force_on_gear(self.sg, B_lg)
+            F = self.compute_force_on_gear(self.lg, B_sg, p_deg=p_deg)
 
             # compute torque
-            tau_sg = self.compute_torque_on_gear(self.sg, B_lg)
-            F_sg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
+            tau_lg = self.compute_torque_on_gear(self.lg, B_sg)
+            F_lg = np.array([0., F[0], F[1]])  # pad force (insert x-component)
         else:
             raise ValueError()
 
-        return F_sg, tau_sg
+        return F_lg, tau_lg
 
     def update_gear(self, gear: MagneticGear, d_angle, mesh_all_magnets=False, interpolate="never"):
         """Update gear given an angle increment.
@@ -96,7 +96,7 @@ class SpurGearsConvergenceTest(SpurGearsProblem):
             else:
                 raise RuntimeError()
 
-        if gear is self.lg and interpolate != "never":
+        if gear is self.sg and interpolate != "never":
             self.segment_mesh.rotate(d_angle * 180. / np.pi, 0, dlf.Point(gear.x_M))
             if hasattr(self, "B_segment"):
                 rotate_vector_field(self.B_segment, get_rot(d_angle))
@@ -157,35 +157,38 @@ def convergence_test(cg: SpurGearsConvergenceTest, mesh_size, p_deg=1, mesh_all_
             R_inf = None
         else:
             R_inf = R_inf_mult * cg.sg.magnets[0].size
-        cg.load_reference_field(cg.lg, "Vm" if use_Vm else "B", "CG", p_deg, \
-                                mesh_size, mesh_size, cg.domain_size, analytical_solution=analytical_solution,
-                                R_inf=R_inf)
-        cg.mesh_reference_segment(mesh_size)
+        if interpolate == "twice":
+            cg.load_reference_field(cg.sg, "Vm" if use_Vm else "B", "CG", p_deg,
+                                    mesh_size, mesh_size, cg.domain_size,
+                                    analytical_solution=analytical_solution, R_inf=R_inf)
+        cg.mesh_reference_segment(mesh_size, phi_sg_min=- np.pi / cg.sg.p, phi_sg_max=np.pi / cg.sg.p,
+                                  phi_lg_min=-np.pi / cg.lg.p, phi_lg_max=np.pi / cg.lg.p)
         cg.interpolate_to_reference_segment(p_deg, interpolate=interpolate, use_Vm=use_Vm)
 
     # introduce some randomness: rotate gears and segment by arbitrary angles
-    cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.p).item())
+    cg.update_gear(cg.sg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.sg.p).item(),
+                   mesh_all_magnets=mesh_all_magnets, interpolate=interpolate)
     # the segment contains the field of the larger gear. Rotate the segment as well
-    # when rotating the larger gear. Updates B_segment automatically (if used). 
-    cg.update_gear(cg.lg, d_angle=(np.random.rand(1) * np.pi / cg.lg.p).item(), \
+    # when rotating the larger gear. Updates B_segment automatically (if used).
+    cg.update_gear(cg.lg, d_angle=((2 * np.random.rand(1) - 1) * np.pi / cg.lg.p).item(),
                     mesh_all_magnets=mesh_all_magnets, interpolate=interpolate)
 
     ###############################################
     ##### 1. compute force/torque numerically #####
     ###############################################
-    F_pad, tau_sg = cg.compute_force_torque_num(p_deg, interpolate=interpolate, use_Vm=use_Vm)
-    tau_lg = (np.cross(cg.lg.x_M - cg.sg.x_M, F_pad) - tau_sg)[0]
+    F_lg, tau_lg = cg.compute_force_torque_num(p_deg, interpolate=interpolate, use_Vm=use_Vm)
+    tau_sg = np.cross(cg.sg.x_M - cg.lg.x_M, F_lg)[0] - tau_lg
 
     if cg.gear_1 is cg.sg:
         tau_21_num = tau_sg
         tau_12_num = tau_lg
-        f_21_num_vec = F_pad
-        f_12_num_vec = - F_pad
+        f_21_num_vec = - F_lg
+        f_12_num_vec = F_lg
     elif cg.gear_2 is cg.sg:
         tau_21_num = tau_lg
         tau_12_num = tau_sg
-        f_12_num_vec = F_pad
-        f_21_num_vec = - F_pad
+        f_12_num_vec = - F_lg
+        f_21_num_vec = F_lg
     else:
         raise RuntimeError()
 

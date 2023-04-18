@@ -23,21 +23,21 @@ def version_test():
     os.chdir(conv_dir)
     mesh_sizes = np.geomspace(1e-1, 1.0, num=6)
     for p_deg in (1, 2):
-        for interpolate in ("never", "once", "twice"):
+        for interpolate in ("once", "twice"):
             for use_Vm in (True, False):
                 for mesh_size in mesh_sizes[::-1]:
                     dirname = f"interpolate_{interpolate}_pdeg_{p_deg}_useVm_{use_Vm}"
                     if not os.path.exists(dirname):
                         os.mkdir(dirname)
                     ct = create_convergence_test(dirname)
-                    errors, names = convergence_test(ct, mesh_size=mesh_size, p_deg=p_deg, \
-                                                    interpolate=interpolate, use_Vm=use_Vm, \
-                                                    D_ref=ct.D, mesh_all_magnets=False, \
-                                                    analytical_solution=True)
+                    errors, names = convergence_test(ct, mesh_size=mesh_size, p_deg=p_deg,
+                                                     interpolate=interpolate, use_Vm=use_Vm,
+                                                     D_ref=ct.D, mesh_all_magnets=False,
+                                                     analytical_solution=True)
                     print(f"In gear 1 {ct.gear_1.p - len(ct.gear_1.magnets)} out of {ct.gear_1.p} magnets have been deleted.")
                     print(f"In gear 2 {ct.gear_2.p - len(ct.gear_2.magnets)} out of {ct.gear_2.p} magnets have been deleted.")
                     for error, name in zip(errors, names):
-                        with open(f"{dirname}/{name}.csv", "a+") as f:
+                        with open(os.path.join(dirname, f"{name}.csv"), "a+") as f:
                             f.write(f"{mesh_size} {error} \n")
 
 if __name__ == "__main__":

@@ -6,9 +6,10 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 from source.tools.mesh_tools import generate_mesh_with_markers
 
 
-def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_domain_min=0.2, \
+def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_domain_min=0.2,
                                mesh_size_domain_max=0.5, mesh_size_space=None, p_deg=2, cylinder_mesh_size_field=True,
-                               mesh_size_field_thickness=None, fname=None, write_to_pvd=False):
+                               mesh_size_field_thickness=None, autorefine=True, check_input=True,
+                               fname=None, write_to_pvd=False):
     """
     Compute magnetic potential of magnet.
 
@@ -33,6 +34,8 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
         mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
                                                      Defaults to None. Thickness is then set
                                                      automatically.
+        check_input (bool, optional): Adjust input automatically. Defaults to True.
+        autorefine (bool, optional): Refine magnet automatically. Defaults to True.
         fname (str, optional): File name. Defaults to None. Specify only if write_to_pvd is True.
         write_to_pvd (bool, optional): If True write field to pvd file. Defaults to False.
     """
@@ -42,10 +45,10 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
     mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag = \
         magnet_mesh(magnet, R_domain=R_domain, R_inf=R_inf,
                     mesh_size_magnet=mesh_size_magnet, mesh_size_domain_min=mesh_size_domain_min,
-                        mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_space,
-                            cylinder_mesh_size_field=cylinder_mesh_size_field,
-                                mesh_size_field_thickness=mesh_size_field_thickness,
-                                    fname=fname, write_to_pvd=write_to_pvd)
+                    mesh_size_domain_max=mesh_size_domain_max, mesh_size_space=mesh_size_space,
+                    cylinder_mesh_size_field=cylinder_mesh_size_field,
+                    mesh_size_field_thickness=mesh_size_field_thickness, autorefine=autorefine,
+                    check_input=check_input, fname=fname, write_to_pvd=write_to_pvd)
 
     # magnetization
     if isinstance(magnet, PermanentAxialMagnet):
@@ -87,9 +90,9 @@ def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.
 
     return Vm
 
-def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min, mesh_size_domain_max, \
-                mesh_size_space, cylinder_mesh_size_field, mesh_size_field_thickness=None, fname=None, \
-                    write_to_pvd=False, verbose=False):
+def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min, mesh_size_domain_max,
+                mesh_size_space, cylinder_mesh_size_field, mesh_size_field_thickness=None, fname=None,
+                    autorefine=True, check_input=True, write_to_pvd=False, verbose=False):
     """
     Create magnet mesh for finite element computation.
 
@@ -106,6 +109,8 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         mesh_size_field_thickness (float, optional): Thickness of cylinder mesh size field.
                                                      Defaults to None.
         fname (str, optional): File name. Defaults to None.
+        check_input (bool, optional): Adjust input automatically. Defaults to True.
+        autorefine (bool, optional): Refine magnet automatically. Defaults to True.
         write_to_pvd (bool, optional): If True write field to pvd file. Defaults to False.
         verbose (bool, optional): If True output gmsh info. Defaults to False.
 
@@ -113,28 +118,31 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         tuple: Mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag.
     """
     # check input
-    if cylinder_mesh_size_field:
-        if mesh_size_field_thickness is None:
-            mesh_size_field_thickness = magnet.size + 1e-3
+    if check_input:
+        if cylinder_mesh_size_field:
+            if mesh_size_field_thickness is None:
+                mesh_size_field_thickness = magnet.size + 1e-3
 
+        if R_domain <= magnet.size:
+            R_domain = magnet.size + mesh_size_magnet
+        if R_inf is None:
+            R_inf = 50 * magnet.size
+        if R_inf < R_domain:
+            if R_domain > 50 * magnet.size:
+                R_inf = R_domain + mesh_size_space
+            else:
+                R_inf = 50 * magnet.size
+        
+        if 10 * mesh_size_domain_min > magnet.size and autorefine:
+            mesh_size_magnet = magnet.size / 10
+
+        if write_to_pvd:
+            assert fname is not None
+    # always adjust some input
     if mesh_size_space is None:
         mesh_size_space = 8.
-
-    if R_domain <= magnet.size:
-        R_domain = magnet.size + mesh_size_magnet
-    if R_inf is None:
-        R_inf = 50 * magnet.size
     if R_inf < R_domain:
-        if R_domain > 50 * magnet.size:
-            R_inf = R_domain + mesh_size_space
-        else:
-            R_inf = 50 * magnet.size
-    
-    if 10 * mesh_size_domain_min > magnet.size:
-        mesh_size_magnet = magnet.size / 10
-
-    if write_to_pvd:
-        assert fname is not None
+        R_inf = R_domain + 1e-2
 
     print("Creating mesh for fe computation ...", end="")
     gmsh.initialize()
@@ -195,20 +203,15 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
  
         ms_fields = [mag_field_tag, cylinder_ms_field]
     else:
-        # add distance field
-        mid_point = model.occ.addPoint(*magnet.x_M)
-        model.occ.synchronize()
-        distance_tag = model.mesh.field.add("Distance")
-        model.mesh.field.setNumbers(distance_tag, "PointsList", [mid_point])
-
         # define threshold field for relevant domain
-        threshold_field = model.mesh.field.add("Threshold")
-        model.mesh.field.setNumber(threshold_field, "InField", distance_tag)
-        model.mesh.field.setNumber(threshold_field, "SizeMin", mesh_size_domain_min)
-        model.mesh.field.setNumber(threshold_field, "SizeMax", mesh_size_domain_max)
-        model.mesh.field.setNumber(threshold_field, "DistMin", 0.)
-        model.mesh.field.setNumber(threshold_field, "DistMax", R_domain)
-        model.mesh.field.setNumber(threshold_field, "StopAtDistMax", True)
+        ball_field = model.mesh.field.add("Ball")
+        model.mesh.field.setNumber(ball_field, "XCenter", magnet.x_M[0])
+        model.mesh.field.setNumber(ball_field, "YCenter", magnet.x_M[1])
+        model.mesh.field.setNumber(ball_field, "ZCenter", magnet.x_M[2])
+        model.mesh.field.setNumber(ball_field, "Radius", R_domain)
+        model.mesh.field.setNumber(ball_field, "Thickness", 1 / 2)
+        model.mesh.field.setNumber(ball_field, "VIn", mesh_size_domain_min)
+        model.mesh.field.setNumber(ball_field, "VOut", mesh_size_space)
 
         # threshold field for surrounding space
         distance_space = model.mesh.field.add("Distance")
@@ -222,7 +225,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         model.mesh.field.setNumber(threshold_space, "DistMin", R_domain)
         model.mesh.field.setNumber(threshold_space, "DistMax", R_inf)
 
-        ms_fields = [mag_field_tag, threshold_field, threshold_space]
+        ms_fields = [mag_field_tag, ball_field, threshold_space]
 
     # use the minimum of all the fields as the mesh size field
     min_tag = model.mesh.field.add("Min")
