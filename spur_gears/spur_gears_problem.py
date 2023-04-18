@@ -251,21 +251,21 @@ class SpurGearsProblem:
             return False
 
         if isinstance(gear, MagneticBarGear):
-            if not np.allclose((gear.w, gear.d), \
-                               (par_file["w"] * gear.scale_parameter, \
+            if not np.allclose((gear.w, gear.d),
+                               (par_file["w"] * gear.scale_parameter,
                                 par_file["d"] * gear.scale_parameter)):
                 return False
         elif isinstance(gear, SegmentGear):
-            if not np.allclose((gear.w, gear.t, gear.alpha), \
-                               (par_file["w"] * gear.scale_parameter, \
-                                par_file["t"] * gear.scale_parameter, \
+            if not np.allclose((gear.w, gear.t, gear.alpha),
+                               (par_file["w"] * gear.scale_parameter,
+                                par_file["t"] * gear.scale_parameter,
                                 par_file["alpha"])):
                 return False
 
         return True
 
-    def load_reference_field(self, gear: MagneticGear, field_name, cell_type, p_deg, mesh_size_min, \
-                              mesh_size_max, domain_size, analytical_solution=True, R_inf=None, \
+    def load_reference_field(self, gear: MagneticGear, field_name, cell_type, p_deg, mesh_size_min,
+                              mesh_size_max, domain_size, analytical_solution=True, R_inf=None,
                                 write_to_pvd=False):
         """Load reference field from hdf5 file. If no appropriate file is
            found the file will be written first.
@@ -424,7 +424,7 @@ class SpurGearsProblem:
             os.makedirs(ref_path)
 
         self.segment_mesh, _, _ = cylinder_segment_mesh(Ri=Ri, Ro=Ro, t=t, angle_start=- beta / 2 - phi_sg_max,
-                                                        angle_stop=beta / 2 + phi_sg_min, x_M_ref=self.sg.x_M, x_axis=x_axis,
+                                                        angle_stop=beta / 2 - phi_sg_min, x_M_ref=self.sg.x_M, x_axis=x_axis,
                                                         fname=os.path.join(ref_path, f"reference_segment_{id(self)}"),
                                                         pad=False, mesh_size=mesh_size, write_to_pvd=write_to_pvd)
 
@@ -439,22 +439,15 @@ class SpurGearsProblem:
         """
         assert hasattr(self, "segment_mesh")
 
-        if interpolate == "twice":
-            # interpolate fields of other gear on segment
-            if use_Vm:
-                self.Vm_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                              use_ref_field=True)
-            else:
-                self.B_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
-                                                             use_ref_field=True)
+        use_ref_field = (interpolate == "twice")
+
+        # interpolate fields of other gear on segment
+        if use_Vm:
+            self.Vm_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "Vm", "CG", p_deg=p_deg,
+                                                          use_ref_field=use_ref_field)
         else:
-            if use_Vm:
-                # interpolate fields of other gear on segment
-                self.Vm_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "Vm", "CG", p_deg=p_deg, \
-                                                          use_ref_field=False)
-            else:
-                self.B_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "B", "CG", p_deg=p_deg, \
-                                                         use_ref_field=False)
+            self.B_segment = self.interpolate_field_gear(self.sg, self.segment_mesh, "B", "CG", p_deg=p_deg,
+                                                         use_ref_field=use_ref_field)
 
     def interpolate_field_gear(self, gear: MagneticGear, mesh, field_name, cell_type, p_deg, use_ref_field=True):
         """Interpolate a field of a gear on a given mesh.
@@ -504,7 +497,7 @@ class SpurGearsProblem:
                 if not isinstance(mag, PermanentAxialMagnet):
                     scale *= mag.mag_sign * gear.reference_magnet().mag_sign
 
-                interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh, \
+                interpol_field = self._interpolate_field_magnet(mag, ref_field, field_name, ref_mesh,
                                                                 mesh, cell_type, p_deg, scale=scale)
                 assert interpol_field.function_space().mesh() is mesh
             else:
@@ -512,6 +505,8 @@ class SpurGearsProblem:
                     interpol_field = interpolate_field(mag.B, mesh, cell_type, p_deg)
                 elif field_name == "Vm":
                     interpol_field = interpolate_field(mag.Vm, mesh, cell_type, p_deg)
+                else:
+                    raise NotImplementedError()
 
             field_sum += interpol_field.vector().copy()
             print("Done.")
@@ -647,7 +642,7 @@ class SpurGearsProblem:
 
     def compute_force_torque(self, p_deg=2, use_Vm=True):
         """
-        Compute force and torque on smaller gear.
+        Compute force and torque on larger gear.
 
         Args:
             p_deg (int, optional): Polynomial degree. Defaults to 2.
@@ -718,10 +713,10 @@ class SpurGearsProblem:
         fname = kwargs["fname"]
         kwargs.update({"fname": os.path.join(target_dir, fname)})
 
-        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags \
+        mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags  \
             = gear.mesh_gear(gear, **kwargs)
 
-        gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags, \
+        gear.set_mesh_markers_and_tags(mesh, cell_marker, facet_marker, magnet_subdomain_tags,
                                        magnet_boundary_subdomain_tags)
 
     def remove_magnets(self, gear: MagneticGear, D_ref):
