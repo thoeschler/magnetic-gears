@@ -2,9 +2,11 @@ from source.tools.mesh_tools import generate_mesh_with_markers
 
 import gmsh
 import dolfin as dlf
+dlf.set_log_level(dlf.LogLevel.ERROR)
 import numpy as np
 import logging
 logging.basicConfig(level=logging.INFO)
+
 
 def add_cylinder_segment(model: gmsh.model, Ri, Ro, t, angle_start, angle_stop, x_M, x_axis):
     """

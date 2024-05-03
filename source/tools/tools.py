@@ -5,6 +5,7 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 
 import gmsh
 import dolfin as dlf
+dlf.set_log_level(dlf.LogLevel.ERROR)
 import numpy as np
 import logging
 logging.basicConfig(level=logging.INFO)

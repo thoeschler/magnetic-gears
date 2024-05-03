@@ -8,6 +8,7 @@ from source.fe import compute_magnetic_potential
 from spur_gears.grid_generator import cylinder_segment_mesh
 
 import dolfin as dlf
+dlf.set_log_level(dlf.LogLevel.ERROR)
 dlf.parameters["allow_extrapolation"] = True
 import numpy as np
 import os

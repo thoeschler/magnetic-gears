@@ -3,6 +3,7 @@ from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_
 from source.tools.mesh_tools import generate_mesh_with_markers
 
 import dolfin as dlf
+dlf.set_log_level(-2)
 import gmsh
 import numpy as np
 import logging

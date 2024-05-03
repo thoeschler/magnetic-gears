@@ -5,6 +5,7 @@ import source.magnet_classes as mc
 import gmsh
 import numpy as np
 import dolfin as dlf
+dlf.set_log_level(-2)
 import logging
 logging.basicConfig(level=logging.INFO)
 

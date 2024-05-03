@@ -2,6 +2,7 @@ from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment, Perman
 from source.tools.math_tools import get_rot
 
 import dolfin as dlf
+dlf.set_log_level(dlf.LogLevel.ERROR)
 import numpy as np
 import logging
 logging.basicConfig(level=logging.INFO)

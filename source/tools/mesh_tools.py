@@ -1,6 +1,7 @@
 import meshio
 import subprocess
 import dolfin as dlf
+dlf.set_log_level(dlf.LogLevel.ERROR)
 # https://fenicsproject.org/olddocs/dolfinx/dev/python/demos/gmsh/demo_gmsh.py.html
 import os
 
@@ -59,7 +60,7 @@ def generate_xdmf_mesh(filename, delete_source_files=True):
 
     if delete_source_files:
         # delete msh file
-        subprocess.run(["rm", msh_file], check=True)
+        subprocess.run(["rm", "-rf", msh_file], check=True)
 
 def create_meshio_mesh(mesh, cell_type, prune_z=False):
     """
@@ -126,9 +127,9 @@ def generate_mesh_with_markers(file_name, delete_source_files=False):
 
     if delete_source_files:
         # delete geo and xdmf files
-        subprocess.run(["rm", file_name + '.geo_unrolled'], check=True)
-        subprocess.run(["rm", file_name + '.xdmf'], check=True)
-        subprocess.run(["rm", file_name + '_facet_markers.xdmf'], check=True)
+        subprocess.run(["rm", "-rf", file_name + '.geo_unrolled'], check=True)
+        subprocess.run(["rm", "-rf", file_name + '.xdmf'], check=True)
+        subprocess.run(["rm", "-rf", file_name + '_facet_markers.xdmf'], check=True)
 
     return mesh, cell_marker, facet_marker
 

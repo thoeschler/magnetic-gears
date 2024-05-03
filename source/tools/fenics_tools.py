@@ -1,5 +1,5 @@
 import dolfin as dlf
-
+dlf.set_log_level(dlf.LogLevel.ERROR)
 
 class CustomVectorExpression(dlf.UserExpression):
     def __init__(self, f_callable, dim=3, **kwargs):
