@@ -1,9 +1,12 @@
-import dolfin as dlf
-import gmsh
-import numpy as np
 from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment, PermanentAxialMagnet
 from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_segment_magnet
 from source.tools.mesh_tools import generate_mesh_with_markers
+
+import dolfin as dlf
+import gmsh
+import numpy as np
+import logging
+logging.basicConfig(level=logging.INFO)
 
 
 def compute_magnetic_potential(magnet, R_domain, R_inf=None, mesh_size_magnet=0.2, mesh_size_domain_min=0.2,
@@ -132,7 +135,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
                 R_inf = R_domain + mesh_size_space
             else:
                 R_inf = 50 * magnet.size
-        
+
         if 10 * mesh_size_domain_min > magnet.size and autorefine:
             mesh_size_magnet = magnet.size / 10
 
@@ -144,7 +147,7 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
     if R_inf < R_domain:
         R_inf = R_domain + 1e-2
 
-    print("Creating mesh for fe computation ...", end="")
+    logging.info("Creating mesh for fe computation ...")
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
@@ -247,6 +250,6 @@ def magnet_mesh(magnet, R_domain, R_inf, mesh_size_magnet, mesh_size_domain_min,
         dlf.File(fname.rstrip("/") + "_facet_marker.pvd") << facet_marker
 
     gmsh.finalize()
-    print("Done.")
+    logging.info("Done")
 
     return mesh, cell_marker, facet_marker, mag_tag, mag_boundary_tag, box_tag, box_boundary_tag
