@@ -47,8 +47,8 @@ def force_torque_cylinder_segment_2D(w2, t1, t2, p1, p2, Rm1, Rm2, phi_1, phi_2,
     for n2 in range(p2):
         theta_2_edge = phi_2 + np.pi / p2 * (1 + 2 * n2)
 
-        f += (-1) ** n2 * integrate(integrand_force, theta_2_edge, phi_1, D, p1, Ri1, Ro1, Ri2, Ro2, nb_terms)
-        tau += (-1) ** n2 * integrate(integrand_torque, theta_2_edge, phi_1, D, p1, Ri1, Ro1, Ri2, Ro2, nb_terms)
+        f += (-1) ** (n2 + 1) * integrate(integrand_force, theta_2_edge, phi_1, D, p1, Ri1, Ro1, Ri2, Ro2, nb_terms)
+        tau += (-1) ** (n2 + 1) * integrate(integrand_torque, theta_2_edge, phi_1, D, p1, Ri1, Ro1, Ri2, Ro2, nb_terms)
 
     return 2 * w2 * f, 2 * w2 * tau
 
@@ -71,10 +71,10 @@ def Br_cylinder_segment_2D_eigen(rp, thetap, p, Ri, Ro, nb_terms):
     Mk = M(k, p)
     return np.sum(k * rp ** (- (k + 1)) * U2(Mk, Ri, Ro, k) * np.cos(k * thetap))
 
-def Btheta_cylinder_segment_2D_eigen(r, theta, p, Ri, Ro, nb_terms):
+def Btheta_cylinder_segment_2D_eigen(rp, thetap, p, Ri, Ro, nb_terms):
     k = np.arange(nb_terms) + 1
     Mk = M(k, p)
-    return np.sum(k * r ** (- (k + 1)) * U2(Mk, Ri, Ro, k) * np.sin(k * theta))
+    return np.sum(k * rp ** (- (k + 1)) * U2(Mk, Ri, Ro, k) * np.sin(k * thetap))
 
 def U2(M, Ri, Ro, k):
     return - H2(M, Ri, Ro, k) / 4
