@@ -55,7 +55,8 @@ def compute_current_potential(Vm: dlf.Function, project=False, cell_type="CG"):
     V = dlf.VectorFunctionSpace(Vm.function_space().mesh(), cell_type, Vm_p_deg)
 
     # compute magnetic field and project to function space
-    # This is due to an UMFPACK error that limits the memory usage to 4GB
+    # Use CG solver for projection. This is due to an UMFPACK error that
+    # limits the memory usage to 4GB
     # https://fenicsproject.org/qa/4177/reason-petsc-error-code-is-76/
     H_func = dlf.project(H, V, solver_type="cg")
 
