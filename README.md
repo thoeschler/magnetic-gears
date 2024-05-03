@@ -2,15 +2,16 @@
 
 This repository provides utilities to investigate magnetic torque transmission between magnetic gears.
 
-Major dependencies are:  
+### Major dependencies
 * [FEniCS/Dolphin](https://bitbucket.org/fenics-project/dolfin/src/master/)
 * [gmsh](https://gmsh.info/)
 * [meshio](https://pypi.org/project/meshio)
 
-Usage:
+### Usage
 * it is best to check out the [parameter studies](https://github.com/thoeschler/magnetic-gears/tree/main/parameter_study_source)
 
-Magnetic gear with bar magnets
+### Some Images
+Magnetic gears with bar magnets (left) and cylinder segment gears (right)
 
 <p float="left">
   <img src="images/bar_gear.png" height="400" />
