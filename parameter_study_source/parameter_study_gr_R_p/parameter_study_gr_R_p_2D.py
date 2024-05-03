@@ -1,17 +1,17 @@
-import numpy as np
-import scipy as sp
-import pandas as pd
-import os
-import itertools as it
 from source.magnetic_gear_classes import SegmentGear
 from spur_gears.spur_gears_problem import SpurGearsProblem
 from source.cylinder_segment_2D import force_torque_cylinder_segment_2D
+
+import os
+import itertools as it
+import numpy as np
+import pandas as pd
 
 
 def sample(spur_gears: SpurGearsProblem, data_dir=".", n_iterations=20):
     assert isinstance(spur_gears.gear_1, SegmentGear)
     assert isinstance(spur_gears.gear_2, SegmentGear)
-    angle_1_lim = [0, np.pi / spur_gears.gear_1.p]
+    angle_1_lim = [- np.pi / spur_gears.gear_1.p, np.pi / spur_gears.gear_1.p]
     angle_2_lim = [- np.pi / spur_gears.gear_2.p, np.pi / spur_gears.gear_2.p]
     angles_1 = np.linspace(*angle_1_lim, num=n_iterations, endpoint=True)
     angles_2 = np.linspace(*angle_2_lim, num=n_iterations, endpoint=True)
@@ -21,7 +21,6 @@ def sample(spur_gears: SpurGearsProblem, data_dir=".", n_iterations=20):
     for i, angle_1 in enumerate(angles_1):
         for j, angle_2 in enumerate(angles_2):
             # compute torque
-
             f_12, tau_12 = force_torque_cylinder_segment_2D(w2=spur_gears.gear_2.width, \
                                                 t1=spur_gears.gear_1.t, \
                                                 t2=spur_gears.gear_2.t, \
@@ -31,8 +30,8 @@ def sample(spur_gears: SpurGearsProblem, data_dir=".", n_iterations=20):
                                                 Rm2=spur_gears.gear_2.R, \
                                                 phi_1=angle_1, \
                                                 phi_2=angle_2, \
-                                                D = spur_gears.D, \
-                                                nb_terms=50)
+                                                D=spur_gears.D, \
+                                                nb_terms=80)
 
             # save torque values
             f_12_padded = np.array([0., f_12[0], f_12[1]])
