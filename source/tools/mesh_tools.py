@@ -16,14 +16,17 @@ def generate_xdmf_mesh(filename, delete_source_files=True):
     # input check
     assert isinstance(filename, str)
     assert os.path.exists(filename)
+
     # generate msh file
     msh_file = filename.replace(".geo", ".msh")
     assert msh_file.endswith(".msh")
     if filename.endswith(".geo"):
         subprocess.run(["gmsh", "-v", "0", "-3", filename], stdout=subprocess.DEVNULL, check=True)
+
     # read msh file
     assert os.path.exists(msh_file)
     mesh = meshio.read(msh_file)
+
     # determine dimension
     if "triangle" in mesh.cells_dict and "tetra" not in mesh.cells_dict:
         assert "line" in mesh.cell_data_dict["gmsh:physical"]
@@ -35,6 +38,7 @@ def generate_xdmf_mesh(filename, delete_source_files=True):
         prune_z = False
     else:  # pragma: no cover
         raise RuntimeError()
+
     # specify cell types
     if dim == 2:
         facet_type = "line"
@@ -47,6 +51,7 @@ def generate_xdmf_mesh(filename, delete_source_files=True):
     facet_mesh = create_meshio_mesh(mesh, facet_type, prune_z=prune_z)
     xdmf_facet_marker_file = msh_file.replace(".msh", "_facet_markers.xdmf")
     meshio.write(xdmf_facet_marker_file, facet_mesh, data_format="XML")
+
     # extract cell mesh (codimension zero)
     cell_mesh = create_meshio_mesh(mesh, cell_type, prune_z=prune_z)
     xdmf_file = msh_file.replace(".msh", ".xdmf")
@@ -54,7 +59,7 @@ def generate_xdmf_mesh(filename, delete_source_files=True):
 
     if delete_source_files:
         # delete msh file
-        subprocess.run(["rm", "-rf", msh_file], check=True)
+        subprocess.run(["rm", msh_file], check=True)
 
 def create_meshio_mesh(mesh, cell_type, prune_z=False):
     """
@@ -108,7 +113,7 @@ def generate_mesh_with_markers(file_name, delete_source_files=False):
     # and then write (or 'read') it into an empty mesh entity
     mesh = dlf.Mesh()
     mesh_file.read(mesh)
-    
+
     # Mesh Value Collection Cells
     mvc_vol = dlf.MeshValueCollection("size_t", mesh, 3)
     mesh_file.read(mvc_vol, "cell_markers")
@@ -121,9 +126,9 @@ def generate_mesh_with_markers(file_name, delete_source_files=False):
 
     if delete_source_files:
         # delete geo and xdmf files
-        subprocess.run(["rm", "-rf", file_name + '.geo_unrolled'], check=True)
-        subprocess.run(["rm", "-rf", file_name + '.xdmf'], check=True)
-        subprocess.run(["rm", "-rf", file_name + '_facet_markers.xdmf'], check=True)
+        subprocess.run(["rm", file_name + '.geo_unrolled'], check=True)
+        subprocess.run(["rm", file_name + '.xdmf'], check=True)
+        subprocess.run(["rm", file_name + '_facet_markers.xdmf'], check=True)
 
     return mesh, cell_marker, facet_marker
 
@@ -143,7 +148,7 @@ def read_mesh_and_markers(file_name):
     # and then write (or 'read') it into an empty mesh entity
     mesh = dlf.Mesh()
     mesh_file.read(mesh)
-    
+
     # Mesh Value Collection Cells
     mvc_vol = dlf.MeshValueCollection("size_t", mesh, 3)
     mesh_file.read(mvc_vol, "cell_markers")
