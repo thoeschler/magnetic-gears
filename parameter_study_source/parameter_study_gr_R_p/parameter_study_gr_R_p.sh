@@ -4,7 +4,7 @@ DIRNAME=$(dirname -- "$0")
 source "$DIRNAME/../mult_procs.sh"
 
 # set current directory as python path
-export PYTHONPATH=.
+export PYTHONPATH=$PYTHONPATH:.
 
 magnet=$1
 n_procs=$2

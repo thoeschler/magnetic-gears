@@ -4,7 +4,7 @@ DIRNAME=$(dirname -- "$0")
 source "$DIRNAME/../mult_procs.sh"
 
 # set current directory as python path
-export PYTHONPATH=.
+export PYTHONPATH=$PYTHONPATH:.
 
 n_procs=$1
 open_sem $n_procs
