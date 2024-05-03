@@ -10,5 +10,9 @@ Major dependencies are:
 Usage:
 * it is best to check out the [parameter studies](https://github.com/thoeschler/magnetic-gears/tree/main/parameter_study_source)
 
-<img src="images/bar_gear.png" alt="drawing" height="500"/>
-<img src="images/cylinder_segment_gear.png" alt="drawing" height="500"/>
+Magnetic gear with bar magnets
+
+<p float="left">
+  <img src="images/bar_gear.png" height="400" />
+  <img src="images/cylinder_segment_gear.png" height="400" />
+</p>
