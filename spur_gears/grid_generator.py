@@ -1,8 +1,10 @@
+from source.tools.mesh_tools import generate_mesh_with_markers
+
 import gmsh
 import dolfin as dlf
 import numpy as np
-from source.tools.mesh_tools import generate_mesh_with_markers
-
+import logging
+logging.basicConfig(level=logging.INFO)
 
 def add_cylinder_segment(model: gmsh.model, Ri, Ro, t, angle_start, angle_stop, x_M, x_axis):
     """
@@ -87,7 +89,7 @@ def cylinder_segment_mesh(Ri, Ro, t, angle_start, angle_stop, x_M_ref, x_axis, f
     assert len(x_M_ref) == 3
     # make sure x_axis is normalized
     x_axis /= np.linalg.norm(x_axis)
-    print("Meshing segment... ", end="")
+    logging.info("Meshing segment... ")
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
@@ -122,6 +124,6 @@ def cylinder_segment_mesh(Ri, Ro, t, angle_start, angle_stop, x_M_ref, x_axis, f
         dlf.File(fname.rstrip("/") + "_facet_marker.pvd") << facet_marker
 
     gmsh.finalize()
-    print("Done.")
+    logging.info("Done")
 
     return mesh, cell_marker, facet_marker

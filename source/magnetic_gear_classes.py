@@ -1,8 +1,10 @@
-import dolfin as dlf
-import numpy as np
 from source.magnet_classes import BallMagnet, BarMagnet, CylinderSegment, PermanentMagnet
 from source.tools.math_tools import get_rot
 
+import dolfin as dlf
+import numpy as np
+import logging
+logging.basicConfig(level=logging.INFO)
 
 class MagneticGear:
     def __init__(self, p, R, x_M):
@@ -339,7 +341,7 @@ class MagneticBallGear(MagneticGear):
         Args:
             magnetization_strength (float): Magnetization strength.
         """
-        print("Creating magnets... ", end="")
+        logging.info("Creating magnets... ")
         self._magnets = []
 
         # create magnets, align them in counter-clockwise order
@@ -352,7 +354,7 @@ class MagneticBallGear(MagneticGear):
                 Q = get_rot(np.pi / 2 + 2 * np.pi / self.p * k)
             x_M = self.x_M + get_rot(2 * np.pi / self.p * k).dot(np.array([0., self.R, 0.]))
             self._magnets.append(BallMagnet(self.r, magnetization_strength, x_M, Q))
-        print("Done.")
+        logging.info("Done")
 
 
 class MagneticBarGear(MagneticGear):
@@ -424,7 +426,7 @@ class MagneticBarGear(MagneticGear):
         Args:
             magnetization_strength (float): Magnetization strength.
         """
-        print("Creating magnets... ", end="")
+        logging.info("Creating magnets... ")
         self._magnets = []
 
         # create magnets, align them in counter-clockwise order
@@ -440,7 +442,7 @@ class MagneticBarGear(MagneticGear):
                                            magnetization_strength=magnetization_strength, \
                                            position_vector=x_M, rotation_matrix=Q
                                            ))
-        print("Done.")
+        logging.info("Done")
 
 
 class SegmentGear(MagneticGear):
@@ -510,7 +512,7 @@ class SegmentGear(MagneticGear):
         Args:
             magnetization_strength (float): Magnetization strength.
         """
-        print("Creating magnets... ", end="")
+        logging.info("Creating magnets... ")
         self._magnets = []
 
         # create magnets, align them in counter-clockwise order
@@ -527,4 +529,4 @@ class SegmentGear(MagneticGear):
                                                  alpha=self.alpha, magnetization_strength=magnetization_strength, \
                                                  position_vector=x_M, rotation_matrix=Q, \
                                                  magnetization_sign=magnetization_sign))
-        print("Done.")
+        logging.info("Done")

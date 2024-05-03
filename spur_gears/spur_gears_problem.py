@@ -1,7 +1,3 @@
-import dolfin as dlf
-import numpy as np
-import os
-import json
 from source.magnetic_gear_classes import MagneticGear, MagneticBarGear, SegmentGear, MagneticBallGear
 from source.magnet_classes import PermanentMagnet, PermanentAxialMagnet
 from source.tools.fenics_tools import rotate_vector_field, compute_current_potential
@@ -10,8 +6,14 @@ from source.tools.mesh_tools import read_mesh
 from source.tools.math_tools import get_rot
 from source.fe import compute_magnetic_potential
 from spur_gears.grid_generator import cylinder_segment_mesh
+
+import dolfin as dlf
 dlf.parameters["allow_extrapolation"] = True
-assert dlf.parameters["allow_extrapolation"] is True
+import numpy as np
+import os
+import json
+import logging
+logging.basicConfig(level=logging.INFO)
 
 
 class SpurGearsProblem:
@@ -294,7 +296,7 @@ class SpurGearsProblem:
         # check if both mesh file and hdf5 file exist; if not, create both
         if not found_dir:
             # create directory
-            subdirs = [r[0] for r in os.walk(self._main_dir + "data/reference")]
+            subdirs = [r[0] for r in os.walk(os.path.join(self._main_dir, "data", "reference"))]
             while True:
                 ref_dir = os.path.join(self._main_dir, "data", "reference", 
                                    f"{gear.magnet_type}_{field_name}_{int(domain_size)}_{np.random.randint(10_000, 50_000)}"
@@ -488,10 +490,10 @@ class SpurGearsProblem:
         # initialize the sum over all fields
         field_sum = 0.
 
-        print("Interpolating field of gear... ", end="")
+        logging.info("Interpolating field of gear... ")
         # interpolate field for every magnet and add it to the sum
         for mag in gear.magnets:
-            print("Interpolating field of magnet...", end="")
+            logging.info("Interpolating field of magnet...")
             if use_ref_field:
                 scale = gear.scale_parameter
                 if not isinstance(mag, PermanentAxialMagnet):
@@ -509,9 +511,9 @@ class SpurGearsProblem:
                     raise NotImplementedError()
 
             field_sum += interpol_field.vector().copy()
-            print("Done.")
+            logging.info("Done.")
 
-        print("Done.")
+        logging.info("Done.")
         return dlf.Function(V, field_sum)
 
     def _interpolate_field_magnet(self, magnet, ref_field: dlf.Function, field_name, reference_mesh, mesh, cell_type, p_deg, scale=1.0):
@@ -589,7 +591,7 @@ class SpurGearsProblem:
             np.ndarray: The force.
         """
         assert hasattr(gear, "magnets")
-        print("Computing force on gear... ", end="")
+        logging.info("Computing force on gear... ")
 
         # only compute y and z component!
         F = np.zeros(2)
@@ -606,7 +608,7 @@ class SpurGearsProblem:
                 f_expr = c * gear.dA(tag)
                 F[i] += dlf.assemble(f_expr)  # add to force
 
-        print("Done.")
+        logging.info("Done.")
         return F
 
     def compute_torque_on_gear(self, gear: MagneticGear, B, p_deg=2):
@@ -621,7 +623,7 @@ class SpurGearsProblem:
             float: The torque.
         """
         assert hasattr(gear, "magnets")
-        print("Computing torque on gear... ", end="")
+        logging.info("Computing torque on gear... ")
         # initialize torque, position vectors
         tau = 0.
         x = dlf.SpatialCoordinate(gear.mesh)
@@ -637,7 +639,7 @@ class SpurGearsProblem:
             tau_mag = dlf.assemble(m[0] * gear.dA(tag))
             tau += tau_mag  # add to torque
 
-        print("Done.")
+        logging.info("Done.")
         return tau
 
     def compute_force_torque(self, p_deg=2, use_Vm=True):

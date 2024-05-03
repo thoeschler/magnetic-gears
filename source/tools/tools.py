@@ -1,10 +1,13 @@
-import gmsh
-import dolfin as dlf
-import numpy as np
 import source.magnet_classes as mc
 from source.tools.fenics_tools import CustomScalarExpression, CustomVectorExpression
 from source.tools.mesh_tools import generate_xdmf_mesh
 from source.grid_generator import add_ball_magnet, add_bar_magnet, add_cylinder_segment_magnet
+
+import gmsh
+import dolfin as dlf
+import numpy as np
+import logging
+logging.basicConfig(level=logging.INFO)
 
 
 def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_size_max, \
@@ -25,7 +28,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
         fname (str): File name. Defaults to "reference_mesh".
         verbose (bool, optional): Whether to display gmsh info. Defaults to False.
     """
-    print("Creating reference mesh... ", end="")
+    logging.info("Creating reference mesh... ")
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
@@ -123,7 +126,7 @@ def create_reference_mesh(reference_magnet, domain_radius, mesh_size_min, mesh_s
     generate_xdmf_mesh(f"{fname}.msh", delete_source_files=True)
 
     gmsh.finalize()
-    print("Done.")
+    logging.info("Done")
 
 def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False, scale=1.0):
     """Interpolate a field on a mesh.
@@ -148,7 +151,7 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
 
     # test whether the field is scalar or vector-valued (evaluate at random point (0, 0, 0))
     vector_valued = np.atleast_1d(field(np.zeros(3))).size > 1
-    print("Interpolating reference field ...", end="")
+    logging.info("Interpolating reference field...")
 
     if vector_valued:
         V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
@@ -165,7 +168,7 @@ def interpolate_field(field, mesh, cell_type, p_deg, fname=None, write_pvd=False
 
     field_interpolated.vector()[:] *= scale
 
-    print("Done.")
+    logging.info("Done")
     return field_interpolated
 
 def write_hdf5_file(field, mesh, fname, field_name):
@@ -177,10 +180,10 @@ def write_hdf5_file(field, mesh, fname, field_name):
         fname (str): Output file name.
         field_name (str): Name of the interpolated field.
     """
-    print(f"Writing hdf5 file... ", end="")
+    logging.info("Writing hdf5 file... ")
     f = dlf.HDF5File(mesh.mpi_comm(), fname, "w")
     f.write(field, field_name)
-    print("Done.")
+    logging.info("Done")
 
 def read_hd5f_file(fname, field_name, mesh, cell_type, p_deg, vector_valued=False):
     """Read field from hdf5 file.
@@ -195,7 +198,7 @@ def read_hd5f_file(fname, field_name, mesh, cell_type, p_deg, vector_valued=Fals
         dlf.Function: The field.
     """
     assert fname.endswith(".h5")
-    print(f"Reading hdf5 file... ", end="")
+    logging.info("Reading hdf5 file... ")
     f = dlf.HDF5File(mesh.mpi_comm(), fname, "r")
     if vector_valued:
         V = dlf.VectorFunctionSpace(mesh, cell_type, p_deg)
@@ -204,5 +207,5 @@ def read_hd5f_file(fname, field_name, mesh, cell_type, p_deg, vector_valued=Fals
     u = dlf.Function(V)
 
     f.read(u, field_name)
-    print("Done.")
+    logging.info("Done")
     return u

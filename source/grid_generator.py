@@ -1,9 +1,12 @@
+from source.tools.mesh_tools import generate_mesh_with_markers
+import source.magnetic_gear_classes as mgc
+import source.magnet_classes as mc
+
 import gmsh
 import numpy as np
 import dolfin as dlf
-from source.tools.mesh_tools import generate_mesh_with_markers
-import source.magnetic_gear_classes as mgc
-import source.magnet_classes as mc 
+import logging
+logging.basicConfig(level=logging.INFO)
 
 
 def add_physical_groups(model: gmsh.model, magnet_entities, magnet_boundary_entities):
@@ -170,7 +173,7 @@ def gear_mesh(gear, mesh_size, fname, write_to_pvd=False, verbose=False):
     Returns:
         tuple: Mesh, cell marker, facet marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags
     """
-    print("Meshing gear... ", end="")
+    logging.info("Meshing gear... ")
     gmsh.initialize()
     if not verbose:
         gmsh.option.setNumber("General.Terminal", 0)
@@ -217,5 +220,5 @@ def gear_mesh(gear, mesh_size, fname, write_to_pvd=False, verbose=False):
         dlf.File(fname.rstrip("/") + "_facet_marker.pvd") << facet_marker
 
     gmsh.finalize()
-    print("Done.")
+    logging.info("Done")
     return mesh, cell_marker, facet_marker, magnet_subdomain_tags, magnet_boundary_subdomain_tags
