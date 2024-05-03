@@ -1,17 +1,19 @@
-import dolfin as dlf
-import numpy as np
 from source.fe import compute_magnetic_potential
-from source.magnet_classes import BallMagnet, PermanentMagnet
+from source.magnet_classes import BallMagnet
 from source.tools.fenics_tools import compute_current_potential
+
+import logging
+logging.basicConfig(level=logging.INFO)
+import numpy as np
 
 
 def mesh_size_convergence_test(magnet: BallMagnet, mesh_size_values, p_deg):
     for mesh_size in mesh_size_values[::-1]:
-        R_domain = 10. + mesh_size
+        R_domain = 3. + mesh_size
         R_inf = 80 * magnet.size
         assert R_inf >= magnet.size
         # compute solution
-        print("Computing magnetic potential ...", end="")
+        logging.info("Computing magnetic potential ...")
         Vm_num = compute_magnetic_potential(magnet, R_domain=R_domain, R_inf=R_inf,
                                         mesh_size_magnet=mesh_size, mesh_size_domain_min=mesh_size,
                                         mesh_size_domain_max=mesh_size, mesh_size_space=None, p_deg=p_deg,
@@ -49,7 +51,7 @@ def R_inf_test(magnet: BallMagnet, R_inf_values, mesh_size, p_deg):
     for R_inf in R_inf_values:
         assert R_inf >= magnet.size
         # compute solution
-        print("Computing magnetic potential ...", end="")
+        logging.info("Computing magnetic potential ...")
         Vm_num = compute_magnetic_potential(magnet, R_domain=R_domain, R_inf=R_inf,
                                             mesh_size_magnet=mesh_size, mesh_size_domain_min=mesh_size,
                                             mesh_size_domain_max=mesh_size, mesh_size_space=None,
